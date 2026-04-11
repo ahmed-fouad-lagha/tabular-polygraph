@@ -373,12 +373,39 @@ def cmd_evaluate(args):
     dataset_type = getattr(args, "type", "cross_sectional") or "cross_sectional"
     target_col   = getattr(args, "target", None)
 
+    rule_min_confidence = float(getattr(args, "rule_min_confidence", 0.95))
+    rule_min_support = float(getattr(args, "rule_min_support", 0.005))
+    rule_max_rules = int(getattr(args, "rule_max_rules", 25))
+    rule_min_lift = float(getattr(args, "rule_min_lift", 1.0))
+    rule_max_antecedents = int(getattr(args, "rule_max_antecedents", 1))
+
+    if not (0.0 <= rule_min_confidence <= 1.0):
+        err("--rule-min-confidence must be between 0 and 1")
+        sys.exit(1)
+    if not (0.0 <= rule_min_support <= 1.0):
+        err("--rule-min-support must be between 0 and 1")
+        sys.exit(1)
+    if rule_max_rules < 1:
+        err("--rule-max-rules must be >= 1")
+        sys.exit(1)
+    if rule_min_lift < 0.0:
+        err("--rule-min-lift must be >= 0")
+        sys.exit(1)
+    if rule_max_antecedents < 1:
+        err("--rule-max-antecedents must be >= 1")
+        sys.exit(1)
+
     info("Running full fidelity report...")
     report = fidelity_report(
         real, syn,
         dataset_type=dataset_type,
         target_col=target_col,
         include_downstream=bool(target_col),
+        rule_min_confidence=rule_min_confidence,
+        rule_min_support=rule_min_support,
+        rule_max_rules=rule_max_rules,
+        rule_min_lift=rule_min_lift,
+        rule_max_antecedents=rule_max_antecedents,
     )
 
     print(format_report(report))
@@ -659,6 +686,16 @@ def main():
                    help="Save JSON report to file")
     p.add_argument("--drop-cols", type=str, default=None, metavar="COLS",
                    help="Comma-separated columns to drop from both real and synthetic before scoring")
+    p.add_argument("--rule-min-confidence", type=float, default=0.95, metavar="F",
+                   help="Minimum confidence for mined logical rules (default: 0.95)")
+    p.add_argument("--rule-min-support", type=float, default=0.005, metavar="F",
+                   help="Minimum support for mined logical rules (default: 0.005)")
+    p.add_argument("--rule-max-rules", type=int, default=25, metavar="N",
+                   help="Maximum number of mined logical rules to keep (default: 25)")
+    p.add_argument("--rule-min-lift", type=float, default=1.0, metavar="F",
+                   help="Minimum lift for mined logical rules (default: 1.0)")
+    p.add_argument("--rule-max-antecedents", type=int, default=1, metavar="N",
+                   help="Maximum antecedent size for mined logical rules (default: 1)")
     p.set_defaults(func=cmd_evaluate)
 
     # audit

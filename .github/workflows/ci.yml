@@ -34,7 +34,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/test.py -v --tb=short
 
       - name: Verify CLI entrypoint
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
@@ -57,5 +57,5 @@ jobs:
 
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        run: pytest tests/ --cov=src --cov-report=xml -q
+        run: pytest tests/test.py --cov=src --cov-report=xml -q
         continue-on-error: true

@@ -17,9 +17,10 @@ import sys
 import os
 from pathlib import Path
 import warnings
+from itertools import combinations
 import numpy as np
 import pandas as pd
-from typing import Tuple
+from typing import Any, Tuple
 
 warnings.filterwarnings("ignore")
 
@@ -312,4 +313,232 @@ def neuro_lcv_score(
         "mean_penalty": round(float(row_penalties.mean()), 4),
         "num_violations": int(num_violations),
         "columns_used": cols,
+    }
+
+
+def mine_implication_rules(
+    real: pd.DataFrame,
+    columns: list[str],
+    min_confidence: float = 0.98,
+    min_support: float = 0.01,
+    max_rules: int = 200,
+    min_lift: float = 1.0,
+    max_antecedents: int = 1,
+) -> list[dict[str, Any]]:
+    """Mine implication rules from real categorical data with optional multi-antecedents."""
+    if not columns:
+        return []
+    if max_rules < 1:
+        return []
+    if max_antecedents < 1:
+        return []
+    if not (0.0 <= min_support <= 1.0):
+        return []
+    if not (0.0 <= min_confidence <= 1.0):
+        return []
+    if min_lift < 0.0:
+        return []
+
+    n_rows = len(real)
+    if n_rows == 0:
+        return []
+
+    min_support_count = max(1, int(np.ceil(min_support * n_rows)))
+    rules: list[dict[str, Any]] = []
+    cat = real[columns].copy().astype(str)
+    consequent_counts: dict[str, pd.Series] = {
+        col: cat[col].value_counts() for col in columns
+    }
+
+    max_k = max(1, min(max_antecedents, len(columns) - 1))
+    for k in range(1, max_k + 1):
+        for antecedent_cols in combinations(columns, k):
+            antecedent_cols = list(antecedent_cols)
+            antecedent_count_series = cat[antecedent_cols].value_counts()
+            valid_antecedents = antecedent_count_series[antecedent_count_series >= min_support_count]
+            if valid_antecedents.empty:
+                continue
+
+            consequent_candidates = [c for c in columns if c not in antecedent_cols]
+            if not consequent_candidates:
+                continue
+
+            for consequent_col in consequent_candidates:
+                joint_count_series = cat[antecedent_cols + [consequent_col]].value_counts()
+                if joint_count_series.empty:
+                    continue
+
+                for joint_key, pair_count in joint_count_series.items():
+                    if not isinstance(joint_key, tuple):
+                        joint_key = (joint_key,)
+
+                    antecedent_key = tuple(joint_key[:k]) if k > 1 else joint_key[0]
+                    if antecedent_key not in valid_antecedents.index:
+                        continue
+
+                    antecedent_count = int(valid_antecedents[antecedent_key])
+                    consequent_value = str(joint_key[-1])
+                    confidence = pair_count / max(antecedent_count, 1)
+                    if confidence < min_confidence:
+                        continue
+
+                    consequent_support = int(consequent_counts[consequent_col].get(consequent_value, 0)) / max(n_rows, 1)
+                    if consequent_support <= 0:
+                        continue
+
+                    lift = confidence / consequent_support
+                    if lift < min_lift:
+                        continue
+
+                    if k == 1:
+                        ant_values = [str(antecedent_key)]
+                    else:
+                        ant_values = [str(v) for v in antecedent_key]
+
+                    antecedents = [
+                        {"feature": f, "value": v}
+                        for f, v in zip(antecedent_cols, ant_values)
+                    ]
+                    antecedent_repr = " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)
+
+                    rule = {
+                        "antecedents": antecedents,
+                        "antecedent_repr": antecedent_repr,
+                        "consequent_feature": consequent_col,
+                        "consequent_value": consequent_value,
+                        "support": round(float(pair_count / n_rows), 4),
+                        "confidence": round(float(confidence), 4),
+                        "lift": round(float(lift), 4),
+                        "support_count": int(pair_count),
+                        "antecedent_count": antecedent_count,
+                    }
+                    if len(antecedents) == 1:
+                        rule["antecedent_feature"] = antecedents[0]["feature"]
+                        rule["antecedent_value"] = antecedents[0]["value"]
+                    rules.append(rule)
+
+    rules.sort(key=lambda r: (r["lift"], r["confidence"], r["support_count"]), reverse=True)
+    return rules[:max_rules]
+
+
+def rule_violation_score(
+    real: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    columns: list[str],
+    min_confidence: float = 0.98,
+    min_support: float = 0.01,
+    max_rules: int = 200,
+    min_lift: float = 1.0,
+    max_antecedents: int = 1,
+    max_violation_examples: int = 20,
+) -> dict[str, Any]:
+    """Evaluate synthetic rows against implication rules mined from real data."""
+    if not columns:
+        return {
+            "rule_violation_rate": 0.0,
+            "num_rule_violations": 0,
+            "num_rules_mined": 0,
+            "rows_with_rule_violations": 0,
+            "rows_evaluated": len(synthetic),
+            "top_violated_rules": [],
+            "violation_examples": [],
+        }
+    if max_rules < 1 or max_antecedents < 1:
+        return {
+            "rule_violation_rate": 0.0,
+            "num_rule_violations": 0,
+            "num_rules_mined": 0,
+            "rows_with_rule_violations": 0,
+            "rows_evaluated": len(synthetic),
+            "top_violated_rules": [],
+            "violation_examples": [],
+        }
+
+    real_norm, synthetic_norm = _canonicalize_code_columns(real, synthetic, columns)
+    rules = mine_implication_rules(
+        real_norm,
+        columns=columns,
+        min_confidence=min_confidence,
+        min_support=min_support,
+        max_rules=max_rules,
+        min_lift=min_lift,
+        max_antecedents=max_antecedents,
+    )
+    if not rules:
+        return {
+            "rule_violation_rate": 0.0,
+            "num_rule_violations": 0,
+            "num_rules_mined": 0,
+            "rows_with_rule_violations": 0,
+            "rows_evaluated": len(synthetic_norm),
+            "top_violated_rules": [],
+            "violation_examples": [],
+        }
+
+    row_violation_mask = np.zeros(len(synthetic_norm), dtype=bool)
+    total_violations = 0
+    rule_diagnostics: list[dict[str, Any]] = []
+    violation_examples: list[dict[str, Any]] = []
+
+    for rule in rules:
+        antecedents = rule.get("antecedents") or [
+            {
+                "feature": rule.get("antecedent_feature"),
+                "value": rule.get("antecedent_value"),
+            }
+        ]
+        cons_col = rule["consequent_feature"]
+        cons_val = rule["consequent_value"]
+
+        ant_mask = pd.Series(True, index=synthetic_norm.index)
+        for ant in antecedents:
+            ant_mask &= synthetic_norm[ant["feature"]].astype(str).eq(str(ant["value"]))
+        if not ant_mask.any():
+            continue
+
+        violates = ant_mask & (~synthetic_norm[cons_col].astype(str).eq(cons_val))
+        row_violation_mask |= violates.to_numpy()
+        violation_count = int(violates.sum())
+        total_violations += violation_count
+
+        if violation_count > 0:
+            rule_diagnostics.append(
+                {
+                    "antecedent_feature": rule.get("antecedent_feature"),
+                    "antecedent_value": rule.get("antecedent_value"),
+                    "antecedent_repr": rule.get("antecedent_repr", " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)),
+                    "consequent_feature": cons_col,
+                    "consequent_value": cons_val,
+                    "support": rule["support"],
+                    "confidence": rule["confidence"],
+                    "lift": rule.get("lift"),
+                    "violation_count": violation_count,
+                }
+            )
+
+            for row_index in synthetic_norm.index[violates][:3]:
+                if len(violation_examples) >= max_violation_examples:
+                    break
+                actual_value = str(synthetic_norm.loc[row_index, cons_col])
+                violation_examples.append(
+                    {
+                        "row_index": int(row_index) if isinstance(row_index, (int, np.integer)) else str(row_index),
+                        "antecedent": rule.get("antecedent_repr", " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)),
+                        "expected": f"{cons_col}={cons_val}",
+                        "actual": f"{cons_col}={actual_value}",
+                    }
+                )
+
+    rows_with_violations = int(row_violation_mask.sum())
+    denom = max(len(synthetic_norm), 1)
+    rule_diagnostics.sort(key=lambda d: d["violation_count"], reverse=True)
+    return {
+        "rule_violation_rate": round(rows_with_violations / denom, 4),
+        "num_rule_violations": int(total_violations),
+        "num_rules_mined": int(len(rules)),
+        "rows_with_rule_violations": rows_with_violations,
+        "rows_evaluated": int(len(synthetic_norm)),
+        "example_rules": rules[:10],
+        "top_violated_rules": rule_diagnostics[:10],
+        "violation_examples": violation_examples,
     }

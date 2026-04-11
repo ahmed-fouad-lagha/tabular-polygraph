@@ -82,26 +82,49 @@ def _logical_section(
     synthetic: pd.DataFrame,
     cols: list[str],
     include_logical: bool,
+    rule_min_confidence: float,
+    rule_min_support: float,
+    rule_max_rules: int,
+    rule_min_lift: float,
+    rule_max_antecedents: int,
 ) -> tuple[dict | None, float | None]:
     logical_validity = None
     if not include_logical:
         return None, logical_validity
 
     try:
-        from .logical import neuro_lcv_score
+        from .logical import neuro_lcv_score, rule_violation_score
 
         cat_cols = [c for c in cols if not pd.api.types.is_numeric_dtype(real[c])]
         if not cat_cols:
             return None, logical_validity
 
         lcv_result = neuro_lcv_score(real, synthetic, columns=cat_cols, epochs=20, verbose=False)
-        logical_validity = lcv_result["neuro_lcv_score"]
+        rule_result = rule_violation_score(
+            real,
+            synthetic,
+            columns=cat_cols,
+            min_confidence=rule_min_confidence,
+            min_support=rule_min_support,
+            max_rules=rule_max_rules,
+            min_lift=rule_min_lift,
+            max_antecedents=rule_max_antecedents,
+        )
+        logical_validity = round(float(lcv_result["neuro_lcv_score"] * 100.0), 2)
         return {
-            "neuro_lcv_score": lcv_result["neuro_lcv_score"],
-            "violation_rate": lcv_result["violation_rate"],
-            "mean_penalty": lcv_result["mean_penalty"],
-            "num_violations": lcv_result["num_violations"],
+            "neuro_lcv_score_pct": round(float(lcv_result["neuro_lcv_score"] * 100.0), 2),
+            "neuro_violation_rate_pct": round(float(lcv_result["violation_rate"] * 100.0), 2),
+            "mean_penalty_pct": round(float(lcv_result["mean_penalty"] * 100.0), 2),
+            "num_neuro_violations": lcv_result["num_violations"],
             "columns_used": lcv_result["columns_used"],
+            "rule_violation_rate_pct": round(float(rule_result["rule_violation_rate"] * 100.0), 2),
+            "num_rule_violations": rule_result["num_rule_violations"],
+            "num_rules_mined": rule_result["num_rules_mined"],
+            "rows_with_rule_violations": rule_result["rows_with_rule_violations"],
+            "rows_evaluated": rule_result["rows_evaluated"],
+            "example_rules": rule_result.get("example_rules", []),
+            "top_violated_rules": rule_result.get("top_violated_rules", []),
+            "violation_examples": rule_result.get("violation_examples", []),
         }, logical_validity
     except Exception as e:
         if "torch" in str(e).lower():
@@ -147,6 +170,11 @@ def fidelity_report(
     include_downstream: bool = True,
     include_logical: bool = True,             # Neuro-LCV logical validation
     columns: list[str] | None = None,
+    rule_min_confidence: float = 0.95,
+    rule_min_support: float = 0.005,
+    rule_max_rules: int = 25,
+    rule_min_lift: float = 1.0,
+    rule_max_antecedents: int = 1,
 ) -> dict:
     """
     Run all applicable fidelity metrics and return a structured report.
@@ -216,7 +244,17 @@ def fidelity_report(
     }
 
     # ── Logical Constraint Validation (Neuro-LCV) ────────────────────────────
-    logical_report, logical_validity = _logical_section(real, syn, cols, include_logical)
+    logical_report, logical_validity = _logical_section(
+        real,
+        syn,
+        cols,
+        include_logical,
+        rule_min_confidence,
+        rule_min_support,
+        rule_max_rules,
+        rule_min_lift,
+        rule_max_antecedents,
+    )
     if logical_report is not None:
         report["logical"] = logical_report
 
@@ -254,7 +292,11 @@ def format_report(report: dict, width: int = 60) -> str:
     lines.append(f"  KS distribution : {s.get('ks_score','—')}%")
     lines.append(f"  Joint score     : {s.get('joint_score','—')}%")
     lines.append(f"  Privacy score   : {s.get('privacy_score','—')}%")
-    lines.append(f"  Logical validity: {s.get('logical_validity','—') if s.get('logical_validity') is not None else '—'}")
+    logical_validity = s.get("logical_validity")
+    if logical_validity is None:
+        lines.append("  Logical validity: —")
+    else:
+        lines.append(f"  Logical validity: {logical_validity}%")
     lines.append(f"  Exact copies    : {s.get('exact_copies','—')}")
     lines.append("")
 
@@ -290,6 +332,43 @@ def format_report(report: dict, width: int = 60) -> str:
         lines.append(f"    Target  : {d.get('target_col')}")
         lines.append(f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}")
         lines.append(f"    Ratio   : {d.get('ratio')}  — {d.get('interpretation','')[:50]}")
+
+    if "logical" in report:
+        lg = report["logical"]
+        lines.append("")
+        lines.append("  Logical (Rules + Neuro-LCV):")
+        lines.append(f"    Neuro-LCV score      : {lg.get('neuro_lcv_score_pct', '—')}%")
+        lines.append(f"    Neuro violation rate : {lg.get('neuro_violation_rate_pct', '—')}%")
+        lines.append(f"    Rule violation rate  : {lg.get('rule_violation_rate_pct', '—')}%")
+        lines.append(f"    Mean penalty         : {lg.get('mean_penalty_pct', '—')}%")
+        lines.append(f"    Rule violations      : {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})")
+
+        top_rules = lg.get("top_violated_rules", [])
+        if top_rules:
+            lines.append("    Top violated rules:")
+            for rule in top_rules[:5]:
+                ant = rule.get('antecedent_repr')
+                if not ant:
+                    ant_feat = rule.get('antecedent_feature')
+                    ant_val = rule.get('antecedent_value')
+                    ant = f"{ant_feat}={ant_val}" if ant_feat is not None else "(unknown antecedent)"
+                lines.append(
+                    "      "
+                    + f"IF {ant} "
+                    + f"THEN {rule.get('consequent_feature')}={rule.get('consequent_value')} "
+                    + f"| conf={rule.get('confidence')} lift={rule.get('lift', '—')} support={rule.get('support')} "
+                    + f"violations={rule.get('violation_count')}"
+                )
+
+        examples = lg.get("violation_examples", [])
+        if examples:
+            lines.append("    Example violating rows:")
+            for ex in examples[:5]:
+                lines.append(
+                    "      "
+                    + f"row={ex.get('row_index')} | {ex.get('antecedent')} | "
+                    + f"expected {ex.get('expected')} | actual {ex.get('actual')}"
+                )
 
     lines.append("")
     lines.append(f"  Computed in {s.get('elapsed_seconds','?')}s")

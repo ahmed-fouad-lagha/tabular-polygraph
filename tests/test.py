@@ -384,6 +384,26 @@ class TestLogicalFidelity:
         assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
         assert clean_result["violation_rate"] <= bad_result["violation_rate"]
 
+    def test_rule_violation_score_penalizes_corruption(self):
+        from src.fidelity.logical import rule_violation_score
+
+        real = pd.DataFrame({
+            "state": ["CA", "CA", "TX", "TX", "NY", "NY"] * 40,
+            "county": ["001", "001", "005", "005", "003", "003"] * 40,
+            "segment": ["urban", "urban", "rural", "rural", "urban", "urban"] * 40,
+        })
+
+        clean = real.sample(frac=1.0, random_state=10).reset_index(drop=True)
+        bad = clean.copy()
+        bad.loc[:79, "county"] = "999"
+
+        clean_rules = rule_violation_score(real, clean, columns=["state", "county", "segment"])
+        bad_rules = rule_violation_score(real, bad, columns=["state", "county", "segment"])
+
+        assert clean_rules["num_rules_mined"] > 0
+        assert clean_rules["rule_violation_rate"] < bad_rules["rule_violation_rate"]
+        assert clean_rules["num_rule_violations"] < bad_rules["num_rule_violations"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. Fidelity — Joint
