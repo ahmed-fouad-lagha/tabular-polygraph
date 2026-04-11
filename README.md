@@ -38,7 +38,7 @@ pip install -r requirements.txt
 
 # Optional: verify installation
 python main.py list
-pytest tests/test.py -v --tb=short
+pytest tests
 ```
 
 ## CLI Usage

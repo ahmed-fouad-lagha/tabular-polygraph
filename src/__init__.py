@@ -1,6 +1,4 @@
 """
-src — synthetic data for finance & econometrics.
-
 Quick start:
     from src.generators import GaussianCopulaGenerator
     from src.catalog    import load_dataset

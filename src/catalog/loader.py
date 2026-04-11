@@ -1,6 +1,4 @@
 """
-src.catalog — finance & econometrics edition
-----------------------------------------------------
 Eight verticals, eighteen datasets, all sourced from public registries.
 """
 

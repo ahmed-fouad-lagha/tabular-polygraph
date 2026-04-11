@@ -147,7 +147,7 @@ def _load_generator(dataset_id, generator_type="auto", drop_cols: list[str] | No
 def cmd_list(args):
     from src.catalog import list_datasets
 
-    header("Available datasets", "finance & econometrics · 10 datasets · 4 verticals")
+    header("Available datasets", "10 datasets · 4 verticals")
     df = list_datasets(vertical=args.vertical if hasattr(args, "vertical") else None)
 
     for vertical in df["vertical"].unique():
