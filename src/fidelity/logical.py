@@ -8,7 +8,8 @@ Mathematical Foundation
 -----------------------
 The frozen autoencoder approximates P(x_i = c | x_{-i}) for each feature.
 CSSP(x_g,i) = 1 - P(category_chosen | others) measures logical impossibility.
-Neuro-LCV Score ∈ [0, 1] is the mean row probability across all synthetic data.
+Neuro-LCV Score ∈ [0, 1] is the geometric mean of the per-feature chosen-category
+probabilities, averaged across synthetic rows.
 """
 from __future__ import annotations
 import time
@@ -31,6 +32,47 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 
+def _feature_groups_from_encoded_columns(encoded_columns: list[str], separator: str = "__") -> list[list[int]]:
+    """Group one-hot encoded columns by their original feature prefix."""
+    feature_to_indices: dict[str, list[int]] = {}
+    for index, column_name in enumerate(encoded_columns):
+        feature_name = column_name.split(separator, 1)[0]
+        feature_to_indices.setdefault(feature_name, []).append(index)
+    return [feature_to_indices[feature] for feature in sorted(feature_to_indices)]
+
+
+def _canonicalize_code_columns(
+    real: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    columns: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Normalize digit-like categorical codes so numeric CSV reads keep leading zeros."""
+    real_norm = real.copy()
+    synthetic_norm = synthetic.copy()
+
+    for column in columns:
+        real_values = real_norm[column].dropna().astype(str)
+        if real_values.empty:
+            continue
+
+        if real_values.str.fullmatch(r"\d+").all():
+            width = int(real_values.str.len().max())
+
+            def _pad(value, pad_width=width):
+                if pd.isna(value):
+                    return value
+                text = str(value)
+                return text.zfill(pad_width) if text.isdigit() else text
+
+            real_norm[column] = real_norm[column].map(_pad)
+            synthetic_norm[column] = synthetic_norm[column].map(_pad)
+        else:
+            real_norm[column] = real_norm[column].astype(str)
+            synthetic_norm[column] = synthetic_norm[column].astype(str)
+
+    return real_norm, synthetic_norm
+
+
 class NeuroLCVAutoencoder(nn.Module):
     """
     Under-complete denoising autoencoder trained on categorical tabular data.
@@ -43,26 +85,28 @@ class NeuroLCVAutoencoder(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         
+        # For categorical tabular data, dropout-denoising is more stable than Gaussian perturbation.
+        self.input_dropout = nn.Dropout(p=0.1)
+
+        dim_1 = min(256, max(64, input_dim * 2))
+        dim_2 = min(128, max(32, input_dim))
+
         # Deep Bottleneck for semantic extraction
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(input_dim, dim_1),
+            nn.BatchNorm1d(dim_1),
             nn.ReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(dim_1, dim_2),
             nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, hidden_dim),
+            nn.Linear(dim_2, hidden_dim),
             nn.ReLU()
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
+            nn.Linear(hidden_dim, dim_2),
             nn.ReLU(),
-            nn.Linear(64, 128),
+            nn.Linear(dim_2, dim_1),
             nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, input_dim),
+            nn.Linear(dim_1, input_dim),
             nn.Sigmoid()
         )
         
@@ -71,6 +115,8 @@ class NeuroLCVAutoencoder(nn.Module):
         self.is_trained = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.training:
+            x = self.input_dropout(x)
         latent = self.encoder(x)
         reconstruction = self.decoder(latent)
         return reconstruction
@@ -95,17 +141,19 @@ class NeuroLCVAutoencoder(nn.Module):
         
         self.train()
         dataset = torch.utils.data.TensorDataset(real_tensor, real_tensor)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=True,
+            num_workers=0,
+        )
         
         for epoch in range(epochs):
             epoch_loss = 0.0
             for batch_x, _ in dataloader:
-                # Denoising: add noise to inputs to improve robustness
-                noise = torch.randn_like(batch_x) * 0.05
-                noisy_x = torch.clamp(batch_x + noise, 0., 1.)
-                
                 self.optimizer.zero_grad()
-                outputs = self.forward(noisy_x)
+                outputs = self.forward(batch_x)
                 loss = self.criterion(outputs, batch_x)
                 loss.backward()
                 self.optimizer.step()
@@ -141,26 +189,27 @@ class NeuroLCVAutoencoder(nn.Module):
         
         self.eval()
         with torch.no_grad():
-            # Get expected probabilities from frozen oracle
-            # expected_probs: [batch, features]
             expected_probs = self.forward(synth_tensor)
-            
-            # ── Probability Sharpening (Temperature Scaling) ──
-            # Makes logical violations more pronounced for filtration
-            sharpened_probs = torch.pow(expected_probs, 1.5) 
-            
-            # CSSP: isolate probabilities for categories chosen by the generator
-            chosen_probs = sharpened_probs * synth_tensor
+            feature_groups = getattr(self, "feature_groups", None)
 
-            # Mask out zeros to find the minimum only among the hot bits
+            if feature_groups:
+                feature_scores = []
+                for indices in feature_groups:
+                    selected_probs = (expected_probs[:, indices] * synth_tensor[:, indices]).sum(dim=1)
+                    feature_scores.append(selected_probs)
+
+                feature_matrix = torch.stack(feature_scores, dim=1).clamp_min(1e-6)
+                per_row_score = torch.exp(torch.log(feature_matrix).mean(dim=1))
+                row_penalties = (1.0 - per_row_score).cpu().numpy()
+                lcv_score = float(per_row_score.mean().item())
+                return lcv_score, row_penalties
+
+            # Backward-compatible fallback: use the stricter minimum-over-hot-bits score.
+            chosen_probs = expected_probs * synth_tensor
             masked_probs = chosen_probs.clone()
-            masked_probs[synth_tensor == 0] = 1.0 
+            masked_probs[synth_tensor == 0] = 1.0
             min_row_prob = masked_probs.min(dim=1).values
-            
-            # Row penalties: 1 - min_prob (high logical violation)
             row_penalties = 1.0 - min_row_prob
-            
-            # Overall Neuro-LCV Score
             lcv_score = 1.0 - row_penalties.mean().item()
             return lcv_score, row_penalties.cpu().numpy()
 
@@ -215,11 +264,13 @@ def neuro_lcv_score(
     
     cols = [c for c in columns if c in real.columns and c in synthetic.columns]
     if not cols:
-        raise ValueError(f"Requested columns not found in both DataFrames.")
+        raise ValueError("Requested columns not found in both DataFrames.")
+
+    real, synthetic = _canonicalize_code_columns(real, synthetic, cols)
     
     # One-hot encode
-    real_encoded = pd.get_dummies(real[cols], drop_first=False).astype(np.float32)
-    syn_encoded = pd.get_dummies(synthetic[cols], drop_first=False).astype(np.float32)
+    real_encoded = pd.get_dummies(real[cols], drop_first=False, prefix_sep="__").astype(np.float32)
+    syn_encoded = pd.get_dummies(synthetic[cols], drop_first=False, prefix_sep="__").astype(np.float32)
     
     # Align feature spaces
     all_features = sorted(set(real_encoded.columns) | set(syn_encoded.columns))
@@ -231,17 +282,23 @@ def neuro_lcv_score(
     
     real_encoded = real_encoded[all_features].values
     syn_encoded = syn_encoded[all_features].values
+
+    feature_groups = _feature_groups_from_encoded_columns(all_features)
     
-    real_tensor = torch.tensor(real_encoded)
-    syn_tensor = torch.tensor(syn_encoded)
+    # Keep inputs in float32 to match model parameter dtype in PyTorch.
+    real_tensor = torch.tensor(real_encoded, dtype=torch.float32)
+    syn_tensor = torch.tensor(syn_encoded, dtype=torch.float32)
     
     # Train and evaluate
     input_dim = real_tensor.shape[1]
     hidden_dim = max(1, int(input_dim * 0.5))  # Under-complete bottleneck
     
     model = NeuroLCVAutoencoder(input_dim=input_dim, hidden_dim=hidden_dim)
+    model.feature_groups = feature_groups
     model.fit(real_tensor, epochs=epochs, verbose=verbose)
-    lcv_score, row_penalties = model.evaluate(syn_tensor)
+
+    with torch.no_grad():
+        lcv_score, row_penalties = model.evaluate(syn_tensor)
     
     # Compute violation metrics
     violation_threshold = 0.5

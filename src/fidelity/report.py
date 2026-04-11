@@ -5,7 +5,6 @@ Returns a structured dict suitable for JSON serialisation or CLI display.
 from __future__ import annotations
 import time
 import pandas as pd
-import numpy as np
 
 from .marginal import (
     moment_matching_scores,
@@ -164,7 +163,7 @@ def fidelity_report(
 
     Returns
     -------
-    Nested dict with sections: marginal, joint, temporal (optional),
+    Nested dict with sections: moment_matching, distribution_fit, joint, temporal (optional),
     stylized_facts, downstream (optional), logical (optional), summary.
     """
     t0 = time.time()
@@ -267,13 +266,6 @@ def format_report(report: dict, width: int = 60) -> str:
     else:
         lines.append(f"    {sf_summary.get('note', 'Not evaluated.')}")
     lines.append("")
-
-    m_cols = report.get("marginal", {}).get("column_scores", {})
-    if m_cols:
-        lines.append("  Per-column marginal scores:")
-        for col, sc in m_cols.items():
-            bar = "█" * int(sc / 5) + "░" * (20 - int(sc / 5))
-            lines.append(f"    {col:<26} {bar}  {sc}%")
 
     mm_cols = report.get("moment_matching", {}).get("column_scores", {})
     if mm_cols:

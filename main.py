@@ -88,7 +88,21 @@ def _parse_filters(filter_args):
     return filters
 
 
-def _load_generator(dataset_id, generator_type="auto"):
+def _parse_drop_cols(drop_cols_arg: str | None) -> list[str]:
+    if not drop_cols_arg:
+        return []
+    cols = [c.strip() for c in drop_cols_arg.split(",") if c.strip()]
+    # Preserve order while removing duplicates.
+    seen = set()
+    ordered = []
+    for c in cols:
+        if c not in seen:
+            seen.add(c)
+            ordered.append(c)
+    return ordered
+
+
+def _load_generator(dataset_id, generator_type="auto", drop_cols: list[str] | None = None):
     """Load and fit a generator for the given dataset."""
     from src.catalog import load_seed, get_dataset_info
     from src.generators import GaussianCopulaGenerator
@@ -97,6 +111,11 @@ def _load_generator(dataset_id, generator_type="auto"):
 
     meta = get_dataset_info(dataset_id)
     seed_df = load_seed(dataset_id)
+
+    if drop_cols:
+        drop_present = [c for c in drop_cols if c in seed_df.columns]
+        if drop_present:
+            seed_df = seed_df.drop(columns=drop_present)
 
     # Auto-detect generator type from dataset metadata
     if generator_type == "auto":
@@ -195,8 +214,11 @@ def cmd_generate(args):
         header(f"Generating: {dataset_id}", f"generator={args.generator}  rows={args.rows:,}")
 
     filters = _parse_filters(getattr(args, "filter", None))
+    drop_cols = _parse_drop_cols(getattr(args, "drop_cols", None))
     if filters:
         info(f"Filters: {filters}")
+    if drop_cols:
+        info(f"Dropping columns before fit/eval: {drop_cols}")
 
     # Load + fit generator
     t0 = time.time()
@@ -210,6 +232,10 @@ def cmd_generate(args):
             from src.io import read, validate as validate_df
             from src.generators import GaussianCopulaGenerator
             seed_df = read(input_file)
+            if drop_cols:
+                drop_present = [c for c in drop_cols if c in seed_df.columns]
+                if drop_present:
+                    seed_df = seed_df.drop(columns=drop_present)
             result = validate_df(seed_df, min_rows=10)
             if not result.passed:
                 for e_msg in result.errors: err(e_msg)
@@ -221,7 +247,7 @@ def cmd_generate(args):
             gen_type = "copula"
             info(f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}")
         else:
-            gen, seed_df, gen_type = _load_generator(dataset_id, args.generator)
+            gen, seed_df, gen_type = _load_generator(dataset_id, args.generator, drop_cols=drop_cols)
     except ValueError as e:
         err(str(e)); sys.exit(1)
     ok(f"{gen}  [{gen_type}]  ({time.time()-t0:.1f}s)")
@@ -331,6 +357,17 @@ def cmd_evaluate(args):
     real = read(args.real)
     info(f"Loading synthetic: {args.synthetic}")
     syn  = read(args.synthetic)
+
+    drop_cols = _parse_drop_cols(getattr(args, "drop_cols", None))
+    if drop_cols:
+        real_drop = [c for c in drop_cols if c in real.columns]
+        syn_drop = [c for c in drop_cols if c in syn.columns]
+        if real_drop:
+            real = real.drop(columns=real_drop)
+        if syn_drop:
+            syn = syn.drop(columns=syn_drop)
+        info(f"Dropped columns before evaluation: {drop_cols}")
+
     info(f"Rows — real: {len(real):,}  synthetic: {len(syn):,}")
 
     dataset_type = getattr(args, "type", "cross_sectional") or "cross_sectional"
@@ -605,6 +642,8 @@ def main():
     p.add_argument("--seed",      type=int,   default=None,         metavar="INT")
     p.add_argument("--no-eval",   action="store_true",
                    help="Skip fidelity evaluation")
+    p.add_argument("--drop-cols", type=str, default=None, metavar="COLS",
+                   help="Comma-separated columns to drop before fit/eval, e.g. tract_id,customer_id")
     p.set_defaults(func=cmd_generate)
 
     # evaluate
@@ -618,6 +657,8 @@ def main():
     p.add_argument("--json",   action="store_true", help="Also print JSON output")
     p.add_argument("--output", type=str, default=None, metavar="FILE",
                    help="Save JSON report to file")
+    p.add_argument("--drop-cols", type=str, default=None, metavar="COLS",
+                   help="Comma-separated columns to drop from both real and synthetic before scoring")
     p.set_defaults(func=cmd_evaluate)
 
     # audit

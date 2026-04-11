@@ -308,21 +308,81 @@ class TestPanelGenerator:
 
 class TestMarginalFidelity:
     def test_scores_in_range(self, hmda, syn_hmda):
-        from src.fidelity.marginal import marginal_scores
-        scores = marginal_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
+        from src.fidelity.marginal import moment_matching_scores
+        scores = moment_matching_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
         for col, score in scores.items():
             assert 0 <= score <= 100, f"{col} score {score} out of range"
 
     def test_high_fidelity_on_large_sample(self, hmda, syn_hmda):
-        from src.fidelity.marginal import mean_marginal_score, marginal_scores
-        scores = marginal_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
-        assert mean_marginal_score(scores) >= 80.0
+        from src.fidelity.marginal import mean_moment_matching_score, moment_matching_scores
+        scores = moment_matching_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
+        assert mean_moment_matching_score(scores) >= 80.0
 
     def test_identical_data_scores_100(self, hmda):
-        from src.fidelity.marginal import marginal_scores
-        scores = marginal_scores(hmda, hmda)
+        from src.fidelity.marginal import moment_matching_scores
+        scores = moment_matching_scores(hmda, hmda)
         for score in scores.values():
             assert score >= 99.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. Fidelity — Logical
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestLogicalFidelity:
+    def test_neuro_lcv_penalizes_unseen_categories(self):
+        import numpy as np
+        import torch
+        from src.fidelity.logical import neuro_lcv_score
+
+        np.random.seed(0)
+        torch.manual_seed(0)
+
+        real = pd.DataFrame({
+            "state": ["CA", "CA", "NY", "NY", "TX", "TX"] * 20,
+            "county": ["001", "003", "005", "007", "009", "011"] * 20,
+            "class": ["A", "B", "A", "B", "A", "B"] * 20,
+        })
+
+        clean = real.sample(frac=1.0, random_state=0).reset_index(drop=True)
+        bad = clean.copy()
+        bad.loc[:19, "state"] = "__ILLOGICAL__"
+        bad.loc[:19, "county"] = "__ILLOGICAL__"
+
+        clean_result = neuro_lcv_score(real, clean, columns=["state", "county", "class"], epochs=6, verbose=False)
+        bad_result = neuro_lcv_score(real, bad, columns=["state", "county", "class"], epochs=6, verbose=False)
+
+        assert clean_result["neuro_lcv_score"] > bad_result["neuro_lcv_score"]
+        assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
+
+    def test_neuro_lcv_canonicalizes_code_columns(self):
+        import numpy as np
+        import torch
+        from src.fidelity.logical import neuro_lcv_score
+
+        np.random.seed(1)
+        torch.manual_seed(1)
+
+        real = pd.DataFrame({
+            "state_fips": ["06", "08", "06", "04", "06", "08", "12", "06", "08", "04"] * 40,
+            "county": ["037", "109", "083", "019", "001", "097", "071", "073", "005", "111"] * 40,
+        })
+
+        clean = pd.DataFrame({
+            "state_fips": [6, 8, 6, 4, 6, 8, 12, 6, 8, 4] * 40,
+            "county": [37, 109, 83, 19, 1, 97, 71, 73, 5, 111] * 40,
+        })
+
+        bad = clean.copy()
+        bad.loc[:199, "state_fips"] = "__ILLOGICAL__"
+        bad.loc[:199, "county"] = "__ILLOGICAL__"
+
+        clean_result = neuro_lcv_score(real, clean, columns=["state_fips", "county"], epochs=6, verbose=False)
+        bad_result = neuro_lcv_score(real, bad, columns=["state_fips", "county"], epochs=6, verbose=False)
+
+        assert clean_result["neuro_lcv_score"] > bad_result["neuro_lcv_score"]
+        assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
+        assert clean_result["violation_rate"] <= bad_result["violation_rate"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -417,7 +477,7 @@ class TestFidelityReport:
     def test_cross_sectional_report_keys(self, hmda, syn_hmda):
         from src.fidelity import fidelity_report
         report = fidelity_report(hmda, syn_hmda.drop(columns=["syn_id"]))
-        for key in ["marginal", "joint", "stylized_facts", "privacy_basic", "summary"]:
+        for key in ["moment_matching", "distribution_fit", "joint", "stylized_facts", "privacy_basic", "summary"]:
             assert key in report
 
     def test_summary_scores_in_range(self, hmda, syn_hmda):
@@ -425,7 +485,8 @@ class TestFidelityReport:
         report = fidelity_report(hmda, syn_hmda.drop(columns=["syn_id"]))
         s = report["summary"]
         assert 0 <= s["overall_fidelity"] <= 100
-        assert 0 <= s["marginal_score"]   <= 100
+        assert 0 <= s["moment_matching_score"] <= 100
+        assert 0 <= s["ks_score"] <= 100
         assert 0 <= s["joint_score"]      <= 100
         assert s["exact_copies"] == 0
 
