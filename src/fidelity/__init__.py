@@ -6,7 +6,7 @@ from .marginal import (
 	mean_ks_score,
 )
 from .joint import correlation_distance_score
-from .logical import neuro_lcv_score
+from .logical import lcv_score
 
 __all__ = [
 	"fidelity_report",
@@ -16,5 +16,5 @@ __all__ = [
 	"ks_distribution_scores",
 	"mean_ks_score",
 	"correlation_distance_score",
-	"neuro_lcv_score",
+	"lcv_score",
 ]

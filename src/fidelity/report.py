@@ -93,13 +93,13 @@ def _logical_section(
         return None, logical_validity
 
     try:
-        from .logical import neuro_lcv_score, rule_violation_score
+        from .logical import lcv_score, rule_violation_score
 
         cat_cols = [c for c in cols if not pd.api.types.is_numeric_dtype(real[c])]
         if not cat_cols:
             return None, logical_validity
 
-        lcv_result = neuro_lcv_score(real, synthetic, columns=cat_cols, epochs=20, verbose=False)
+        lcv_result = lcv_score(real, synthetic, columns=cat_cols, epochs=20, verbose=False)
         rule_result = rule_violation_score(
             real,
             synthetic,
@@ -110,12 +110,12 @@ def _logical_section(
             min_lift=rule_min_lift,
             max_antecedents=rule_max_antecedents,
         )
-        logical_validity = round(float(lcv_result["neuro_lcv_score"] * 100.0), 2)
+        logical_validity = round(float(lcv_result["lcv_score"] * 100.0), 2)
         return {
-            "neuro_lcv_score_pct": round(float(lcv_result["neuro_lcv_score"] * 100.0), 2),
-            "neuro_violation_rate_pct": round(float(lcv_result["violation_rate"] * 100.0), 2),
+            "lcv_score_pct": round(float(lcv_result["lcv_score"] * 100.0), 2),
+            "lcv_violation_rate_pct": round(float(lcv_result["violation_rate"] * 100.0), 2),
             "mean_penalty_pct": round(float(lcv_result["mean_penalty"] * 100.0), 2),
-            "num_neuro_violations": lcv_result["num_violations"],
+            "num_lcv_violations": lcv_result["num_violations"],
             "columns_used": lcv_result["columns_used"],
             "rule_violation_rate_pct": round(float(rule_result["rule_violation_rate"] * 100.0), 2),
             "num_rule_violations": rule_result["num_rule_violations"],
@@ -168,7 +168,7 @@ def fidelity_report(
     target_col: str | None = None,            # for TSTR downstream score
     include_temporal: bool | None = None,     # auto-detect from dataset_type
     include_downstream: bool = True,
-    include_logical: bool = True,             # Neuro-LCV logical validation
+    include_logical: bool = True,             # LCV logical validation
     columns: list[str] | None = None,
     rule_min_confidence: float = 0.95,
     rule_min_support: float = 0.005,
@@ -186,7 +186,7 @@ def fidelity_report(
     target_col       : if given, runs TSTR downstream evaluation
     include_temporal : override temporal test inclusion
     include_downstream : run TSTR if target_col is provided
-    include_logical  : run Neuro-LCV for logical constraint validation
+    include_logical  : run LCV for logical constraint validation
     columns          : restrict to these columns (default: all shared)
 
     Returns
@@ -243,7 +243,7 @@ def fidelity_report(
         "privacy_score": round((1 - exact_copies / max(len(syn), 1)) * 100, 2),
     }
 
-    # ── Logical Constraint Validation (Neuro-LCV) ────────────────────────────
+    # ── Logical Constraint Validation (LCV) ────────────────────────────
     logical_report, logical_validity = _logical_section(
         real,
         syn,
@@ -336,9 +336,9 @@ def format_report(report: dict, width: int = 60) -> str:
     if "logical" in report:
         lg = report["logical"]
         lines.append("")
-        lines.append("  Logical (Rules + Neuro-LCV):")
-        lines.append(f"    Neuro-LCV score      : {lg.get('neuro_lcv_score_pct', '—')}%")
-        lines.append(f"    Neuro violation rate : {lg.get('neuro_violation_rate_pct', '—')}%")
+        lines.append("  Logical (Rules + LCV):")
+        lines.append(f"    LCV score      : {lg.get('lcv_score_pct', '—')}%")
+        lines.append(f"    LCV violation rate : {lg.get('lcv_violation_rate_pct', '—')}%")
         lines.append(f"    Rule violation rate  : {lg.get('rule_violation_rate_pct', '—')}%")
         lines.append(f"    Mean penalty         : {lg.get('mean_penalty_pct', '—')}%")
         lines.append(f"    Rule violations      : {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})")

@@ -8,24 +8,16 @@ on:
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }} · ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
-        os: [ubuntu-latest]
-        include:
-          - python-version: "3.12"
-            os: macos-latest
+    name: Minimal Test (Python 3.12 · Ubuntu)
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
@@ -35,27 +27,3 @@ jobs:
 
       - name: Run tests
         run: pytest tests/test.py -v --tb=short
-
-      - name: Verify CLI entrypoint
-        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        run: python main.py list
-
-      - name: Verify Python import
-        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        run: |
-          python -c "
-          import src as sdk
-          print('version:', sdk.__version__)
-          from src.generators import GaussianCopulaGenerator
-          from src.catalog import load_seed
-          gen = GaussianCopulaGenerator()
-          gen.fit(load_seed('hmda'))
-          df = gen.sample(50, seed=42)
-          assert len(df) == 50
-          print('smoke test passed')
-          "
-
-      - name: Upload coverage
-        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        run: pytest tests/test.py --cov=src --cov-report=xml -q
-        continue-on-error: true

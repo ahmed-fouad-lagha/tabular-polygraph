@@ -1,9 +1,9 @@
 """
-Semantic Filtration Experiment: Prove that Neuro-LCV penalties directly
+Semantic Filtration Experiment: Prove that LCV penalties directly
 correlate with downstream ML performance degradation.
 
 Train XGBoost on (1) real data, (2) all synthetic data,
-(3) clean synthetic data filtered by Neuro-LCV. If (3) > (2), the metric
+(3) clean synthetic data filtered by LCV. If (3) > (2), the metric
 has caught real logical poisoning that degrades ML utility.
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ def semantic_filtration_experiment(
     Trains XGBoost on three data sources:
     1. Real data (baseline)
     2. All synthetic data (SOTA - includes corrupt rows)
-    3. Clean synthetic data (Neuro-LCV filtered, excludes high CSSP rows)
+    3. Clean synthetic data (LCV filtered, excludes high CSSP rows)
     
     Evaluates strictly on held-out real test set.
     
@@ -56,7 +56,7 @@ def semantic_filtration_experiment(
     synth_df : pd.DataFrame
         Synthetic data with 'syn_id' column
     row_penalties : np.ndarray
-        Neuro-LCV CSSP scores from evaluate_synthetic(), same length as synth_df
+        LCV CSSP scores from evaluate_synthetic(), same length as synth_df
     target_col : str
         Target column name for downstream classification/regression
     severity_threshold : float
@@ -122,7 +122,7 @@ def semantic_filtration_experiment(
         print(f"  Real test set:  {len(real_test)} rows (strict holdout)")
         print(f"  Target classes: {le.classes_}")
     
-    # ── 2. Partition synthetic data by Neuro-LCV penalties ──────────────────
+    # ── 2. Partition synthetic data by LCV penalties ──────────────────
     clean_mask = row_penalties <= severity_threshold
     corrupt_mask = row_penalties > severity_threshold
     
@@ -210,7 +210,7 @@ def semantic_filtration_experiment(
     # Train on three datasets
     real_metrics = train_and_eval(real_train, "Real Data Baseline")
     full_synthetic_metrics = train_and_eval(synth_df, "Full Synthetic (SOTA - All Rows)")
-    clean_synthetic_metrics = train_and_eval(synth_clean_df, "Neuro-LCV Filtered Synthetic (Clean Only)")
+    clean_synthetic_metrics = train_and_eval(synth_clean_df, "LCV Filtered Synthetic (Clean Only)")
     
     # ── 4. Compute gains and validate the kill shot ────────────────────────
     results = {
@@ -242,7 +242,7 @@ def semantic_filtration_experiment(
             if kill_shot_validated:
                 print("  ✓✓✓ KILL SHOT VALIDATED ✓✓✓")
                 print("  Filtering out logically corrupt rows IMPROVED downstream performance!")
-                print("  This proves Neuro-LCV catches rows that actively poison ML models.")
+                print("  This proves LCV catches rows that actively poison ML models.")
             else:
                 print("  Note: Clean synthetic F1 ≤ Full synthetic F1.")
                 print("  Possible reasons:")
@@ -259,7 +259,7 @@ def semantic_filtration_experiment(
             "f1_improvement": gains["f1_clean_vs_full"],
             "interpretation": (
                 "Logical violations directly degrade downstream ML performance. "
-                "Neuro-LCV metric successfully identifies and filters them."
+                "LCV metric successfully identifies and filters them."
                 if kill_shot_validated
                 else "Threshold or architecture tuning recommended."
             )
@@ -273,7 +273,7 @@ def print_experiment_report(results: Dict[str, Any]) -> str:
     """Format experiment results into a publication-ready report."""
     lines = []
     lines.append("\n" + "=" * 70)
-    lines.append("DOWNSTREAM VALIDATION REPORT: Neuro-LCV Causality Proof")
+    lines.append("DOWNSTREAM VALIDATION REPORT: LCV Causality Proof")
     lines.append("=" * 70)
     
     if results.get("real_metrics"):
@@ -289,7 +289,7 @@ def print_experiment_report(results: Dict[str, Any]) -> str:
                 lines.append(f"  {k:<15} {v:.4f}")
     
     if results.get("clean_synthetic_metrics"):
-        lines.append("\n[Neuro-LCV Filtered Synthetic (Clean Only)]")
+        lines.append("\n[LCV Filtered Synthetic (Clean Only)]")
         for k, v in results["clean_synthetic_metrics"].items():
             if k != "n_train":
                 lines.append(f"  {k:<15} {v:.4f}")
@@ -314,7 +314,7 @@ def print_experiment_report(results: Dict[str, Any]) -> str:
 if __name__ == "__main__":
     from src.catalog.loader import load_seed # load_dataset
     from src.generators.cross_sectional.gaussian_copula import GaussianCopulaGenerator
-    from src.fidelity.logical import neuro_lcv_score
+    from src.fidelity.logical import lcv_score
 
     print("Initializing Semantic Filtration Proof...")
     
@@ -340,9 +340,9 @@ if __name__ == "__main__":
             unique_vals = real_df[col].unique()
             synth_df.loc[poison_idx, col] = np.random.choice(unique_vals, size=len(poison_idx))
 
-    # 4. Evaluate via Neuro-LCV
-    print("Running Neuro-LCV Semantic Evaluation (CSSP)...")
-    lcv_results = neuro_lcv_score(real_df, synth_df, epochs=50, verbose=True)
+    # 4. Evaluate via LCV
+    print("Running LCV Semantic Evaluation (CSSP)...")
+    lcv_results = lcv_score(real_df, synth_df, epochs=50, verbose=True)
     penalties = lcv_results["row_penalties"]
 
     # 5. Run the Filtration Experiment

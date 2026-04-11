@@ -1,5 +1,5 @@
 """
-Neuro-LCV: Neurosymbolic Logical Constraint Validator for Synthetic Tabular Data.
+LCV: Neurosymbolic Logical Constraint Validator for Synthetic Tabular Data.
 
 Trains an under-complete autoencoder on real data to extract semantic boundaries,
 and evaluates synthetic data using a Continuous Semantic Severity Penalty (CSSP).
@@ -8,7 +8,7 @@ Mathematical Foundation
 -----------------------
 The frozen autoencoder approximates P(x_i = c | x_{-i}) for each feature.
 CSSP(x_g,i) = 1 - P(category_chosen | others) measures logical impossibility.
-Neuro-LCV Score ∈ [0, 1] is the geometric mean of the per-feature chosen-category
+LCV Score ∈ [0, 1] is the geometric mean of the per-feature chosen-category
 probabilities, averaged across synthetic rows.
 """
 from __future__ import annotations
@@ -74,13 +74,13 @@ def _canonicalize_code_columns(
     return real_norm, synthetic_norm
 
 
-class NeuroLCVAutoencoder(nn.Module):
+class LCVAutoencoder(nn.Module):
     """
     Under-complete denoising autoencoder trained on categorical tabular data.
     Serves as the frozen "Laws of Physics" oracle for semantic validation.
     """
     def __init__(self, input_dim: int, hidden_dim: int, learning_rate: float = 0.005):
-        super(NeuroLCVAutoencoder, self).__init__()
+        super(LCVAutoencoder, self).__init__()
         assert hidden_dim < input_dim, "Hidden dimension must compress input for under-complete design."
         
         self.input_dim = input_dim
@@ -138,7 +138,7 @@ class NeuroLCVAutoencoder(nn.Module):
             Print training progress
         """
         if verbose:
-            print(f"[Neuro-LCV] Training on {len(real_tensor)} real records...")
+            print(f"[LCV] Training on {len(real_tensor)} real records...")
         
         self.train()
         dataset = torch.utils.data.TensorDataset(real_tensor, real_tensor)
@@ -163,11 +163,11 @@ class NeuroLCVAutoencoder(nn.Module):
             
             if verbose and (epoch + 1) % max(1, epochs // 3) == 0:
                 avg_loss = epoch_loss / len(dataloader)
-                print(f"[Neuro-LCV] Epoch [{epoch+1}/{epochs}], Reconstruction Loss: {avg_loss:.4f}")
+                print(f"[LCV] Epoch [{epoch+1}/{epochs}], Reconstruction Loss: {avg_loss:.4f}")
         
         self.is_trained = True
         if verbose:
-            print("[Neuro-LCV] Semantic extraction complete.")
+            print("[LCV] Semantic extraction complete.")
 
     def evaluate(self, synth_tensor: torch.Tensor) -> Tuple[float, np.ndarray]:
         """
@@ -181,12 +181,12 @@ class NeuroLCVAutoencoder(nn.Module):
         Returns
         -------
         lcv_score : float
-            Neuro-LCV fidelity ∈ [0, 1]. Higher is better (1.0 = perfect logical alignment).
+            LCV fidelity ∈ [0, 1]. Higher is better (1.0 = perfect logical alignment).
         row_penalties : np.ndarray
             Per-row Continuous Semantic Severity Penalty ∈ [0, 1].
         """
         if not self.is_trained:
-            raise RuntimeError("NeuroLCVAutoencoder must be fitted first.")
+            raise RuntimeError("LCVAutoencoder must be fitted first.")
         
         self.eval()
         with torch.no_grad():
@@ -215,7 +215,7 @@ class NeuroLCVAutoencoder(nn.Module):
             return lcv_score, row_penalties.cpu().numpy()
 
 
-def neuro_lcv_score(
+def lcv_score(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
@@ -223,7 +223,7 @@ def neuro_lcv_score(
     verbose: bool = True,
 ) -> dict:
     """
-    Compute Neuro-LCV logical constraint validation score.
+    Compute LCV logical constraint validation score.
     
     Trains an autoencoder on categorical real data and evaluates whether
     the synthetic data respects the learned semantic boundaries.
@@ -245,14 +245,14 @@ def neuro_lcv_score(
     -------
     dict
         Contains:
-        - neuro_lcv_score : float ∈ [0, 1]
+        - lcv_score : float ∈ [0, 1]
         - row_penalties : np.ndarray
         - violation_rate : float (fraction of rows with penalty > 0.5)
         - mean_penalty : float
         - columns_used : list[str]
     """
     if not TORCH_AVAILABLE:
-        raise ImportError("Neuro-LCV requires PyTorch. Install with: pip install torch")
+        raise ImportError("LCV requires PyTorch. Install with: pip install torch")
     
     # Determine columns to use
     if columns is None:
@@ -294,7 +294,7 @@ def neuro_lcv_score(
     input_dim = real_tensor.shape[1]
     hidden_dim = max(1, int(input_dim * 0.5))  # Under-complete bottleneck
     
-    model = NeuroLCVAutoencoder(input_dim=input_dim, hidden_dim=hidden_dim)
+    model = LCVAutoencoder(input_dim=input_dim, hidden_dim=hidden_dim)
     model.feature_groups = feature_groups
     model.fit(real_tensor, epochs=epochs, verbose=verbose)
 
@@ -307,7 +307,7 @@ def neuro_lcv_score(
     violation_rate = float(num_violations / len(row_penalties))
     
     return {
-        "neuro_lcv_score": round(float(lcv_score), 4),
+        "lcv_score": round(float(lcv_score), 4),
         "row_penalties": row_penalties,
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),

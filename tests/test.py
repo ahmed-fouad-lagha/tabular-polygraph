@@ -333,7 +333,7 @@ class TestLogicalFidelity:
     def test_neuro_lcv_penalizes_unseen_categories(self):
         import numpy as np
         import torch
-        from src.fidelity.logical import neuro_lcv_score
+        from src.fidelity.logical import lcv_score
 
         np.random.seed(0)
         torch.manual_seed(0)
@@ -349,16 +349,16 @@ class TestLogicalFidelity:
         bad.loc[:19, "state"] = "__ILLOGICAL__"
         bad.loc[:19, "county"] = "__ILLOGICAL__"
 
-        clean_result = neuro_lcv_score(real, clean, columns=["state", "county", "class"], epochs=6, verbose=False)
-        bad_result = neuro_lcv_score(real, bad, columns=["state", "county", "class"], epochs=6, verbose=False)
+        clean_result = lcv_score(real, clean, columns=["state", "county", "class"], epochs=6, verbose=False)
+        bad_result = lcv_score(real, bad, columns=["state", "county", "class"], epochs=6, verbose=False)
 
-        assert clean_result["neuro_lcv_score"] > bad_result["neuro_lcv_score"]
+        assert clean_result["lcv_score"] > bad_result["lcv_score"]
         assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
 
     def test_neuro_lcv_canonicalizes_code_columns(self):
         import numpy as np
         import torch
-        from src.fidelity.logical import neuro_lcv_score
+        from src.fidelity.logical import lcv_score
 
         np.random.seed(1)
         torch.manual_seed(1)
@@ -377,10 +377,10 @@ class TestLogicalFidelity:
         bad.loc[:199, "state_fips"] = "__ILLOGICAL__"
         bad.loc[:199, "county"] = "__ILLOGICAL__"
 
-        clean_result = neuro_lcv_score(real, clean, columns=["state_fips", "county"], epochs=6, verbose=False)
-        bad_result = neuro_lcv_score(real, bad, columns=["state_fips", "county"], epochs=6, verbose=False)
+        clean_result = lcv_score(real, clean, columns=["state_fips", "county"], epochs=6, verbose=False)
+        bad_result = lcv_score(real, bad, columns=["state_fips", "county"], epochs=6, verbose=False)
 
-        assert clean_result["neuro_lcv_score"] > bad_result["neuro_lcv_score"]
+        assert clean_result["lcv_score"] > bad_result["lcv_score"]
         assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
         assert clean_result["violation_rate"] <= bad_result["violation_rate"]
 

@@ -3,7 +3,7 @@
 ## Paper Drafting
 - [ ] Write abstract (problem, method, key result, contribution)
 - [ ] Write introduction (fidelity-validity gap + motivation)
-- [ ] Write methods section for Neuro-LCV (theory + implementation details)
+- [ ] Write methods section for LCV (theory + implementation details)
 - [ ] Draft experimental protocol (datasets, generators, tasks, thresholds)
 - [ ] Draft results section template with placeholders for tables/figures
 
@@ -17,13 +17,13 @@
 ## Analysis and Ablations
 - [ ] Threshold sensitivity study (60/70/75/80/90 percentiles)
 - [ ] Ablation: remove bottleneck in autoencoder and compare
-- [ ] Ablation: random/noise baseline penalties vs Neuro-LCV penalties
+- [ ] Ablation: random/noise baseline penalties vs LCV penalties
 - [ ] Correlation analysis between fidelity score and logical validity score
 
 
 ## Figures and Tables
 - [ ] Figure 1: motivating gap (high fidelity vs logical violations)
-- [ ] Figure 2: Neuro-LCV architecture + CSSP mechanism
+- [ ] Figure 2: LCV architecture + CSSP mechanism
 - [ ] Figure 3: fidelity vs logical validity scatter across runs
 - [ ] Figure 4: downstream performance heatmap (full vs clean synthetic)
 - [ ] Figure 5: semantic filtration pipeline diagram
