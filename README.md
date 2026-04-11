@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](.github/workflows/ci.yml)
+[![CI](https://github.com/ahmed-fouad-lagha/LCV/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/LCV/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -11,13 +11,11 @@
 
 </div>
 
-LCV (Logical Constraint Validator) is a research framework for evaluating synthetic tabular data quality beyond distributional similarity. It targets a practical gap: synthetic datasets can score well on classical statistics while still containing logically inconsistent rows that hurt downstream use.
-
 ---
 
 ## Overview
 
-LCV provides a semantic evaluation layer built around neurosymbolic extraction of latent tabular constraints.
+LCV (Logical Constraint Validator) is a research framework for evaluating synthetic tabular data quality beyond distributional similarity. Most synthetic data evaluation pipelines emphasize Euclidean and distributional agreement, which can miss row-level semantic inconsistencies such as incompatible categorical combinations or physically implausible numeric relations. LCV addresses this gap with a semantic evaluation layer built around neurosymbolic extraction of latent tabular constraints.
 
 Core workflow:
 1. Learn structural regularities from real data using an unsupervised model.
@@ -26,15 +24,11 @@ Core workflow:
 
 This complements existing fidelity metrics (marginal, joint, temporal, stylized facts, downstream, privacy) with logic-aware validation.
 
-## Research Motivation
-
-Most synthetic data evaluation pipelines emphasize Euclidean and distributional agreement. In practice, this can miss row-level semantic inconsistencies (for example, incompatible categorical combinations or physically implausible numeric relations).
-
-LCV is designed to detect and quantify those inconsistencies continuously, not only through hard-coded binary rules.
-
 ## Setup
 
 ```bash
+git clone https://github.com/ahmed-fouad-lagha/LCV.git
+cd LCV
 python3 -m pip install -r requirements.txt
 
 # Optional sanity checks
@@ -95,4 +89,4 @@ print(report.get("logical", {}))
 
 ## License
 
-MIT License — free to use for any purpose including commercial. See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).
