@@ -373,7 +373,7 @@ class TestLogicalFidelity:
             "county": [37, 109, 83, 19, 1, 97, 71, 73, 5, 111] * 40,
         })
 
-        bad = clean.copy()
+        bad = clean.astype({"state_fips": "object", "county": "object"}).copy()
         bad.loc[:199, "state_fips"] = "__ILLOGICAL__"
         bad.loc[:199, "county"] = "__ILLOGICAL__"
 
