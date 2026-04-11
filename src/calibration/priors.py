@@ -20,12 +20,12 @@ Usage
 -----
     from src.calibration.priors import PriorSet, DATASET_PRIORS
     from src.generators import GaussianCopulaGenerator
-    from src.catalog import load_seed
+    from src.catalog import load_dataset
 
     # Use a built-in prior set
     priors = DATASET_PRIORS["hmda"]
     gen = GaussianCopulaGenerator(priors=priors)
-    gen.fit(load_seed("hmda").sample(100))   # only 100 rows — priors stabilise estimates
+    gen.fit(load_dataset("hmda").sample(100))   # only 100 rows — priors stabilise estimates
 
     # Define a custom prior set
     from src.calibration.priors import Prior, PriorSet

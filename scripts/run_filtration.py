@@ -312,7 +312,7 @@ def print_experiment_report(results: Dict[str, Any]) -> str:
 
 
 if __name__ == "__main__":
-    from src.catalog.loader import load_seed # load_dataset
+    from src.catalog.loader import load_dataset # load_dataset
     from src.generators.cross_sectional.gaussian_copula import GaussianCopulaGenerator
     from src.fidelity.logical import lcv_score
 
@@ -320,7 +320,7 @@ if __name__ == "__main__":
     
     # 1. Load sample dataset (HMDA) - Scaling to High Fidelity
     try:
-        real_df = load_seed("hmda", n=10000)
+        real_df = load_dataset("hmda", n=10000)
     except Exception as e:
         print(f"Error loading dataset: {e}")
         sys.exit(1)

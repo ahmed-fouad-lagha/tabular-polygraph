@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 from src.generators import GaussianCopulaGenerator
-from src.catalog import load_seed
+from src.catalog import load_dataset
 from src.privacy import privacy_audit, format_audit
 from src.privacy.dp import PrivacyBudget, laplace_mechanism, gaussian_mechanism
 from src.privacy.singling_out import singling_out_risk
@@ -33,7 +33,7 @@ def main():
 
     # ── 1. Generate synthetic data ────────────────────────────────────────────
     print("\n[1/4] Generating synthetic HMDA data...")
-    seed = load_seed("hmda")
+    seed = load_dataset("hmda")
     gen = GaussianCopulaGenerator()
     gen.fit(seed)
     syn = gen.sample(1000, seed=42)

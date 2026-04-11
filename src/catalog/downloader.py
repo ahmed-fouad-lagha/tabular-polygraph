@@ -2,7 +2,7 @@
 src.catalog.downloader
 ------------------------------
 Downloads real bulk data from public government sources and caches it locally.
-Once downloaded, load_seed() uses the real data instead of hand-coded approximations.
+Once downloaded, load_dataset() uses the real data instead of hand-coded approximations.
 
 Usage
 -----
@@ -533,7 +533,7 @@ def download(
 def load_cached(dataset_id: str) -> pd.DataFrame | None:
     """
     Load cached real data if available, else return None.
-    Used by load_seed() to prefer real data over hand-coded approximations.
+    Used by load_dataset() to prefer real data over hand-coded approximations.
     """
     p = cache_path(dataset_id)
     if p.exists():

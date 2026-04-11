@@ -16,7 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import pandas as pd
 import numpy as np
 from src.generators.time_series import VARGenerator
-from src.catalog import load_seed
+from src.catalog import load_dataset
 from src.calibration import apply_scenario, list_scenarios
 from src.fidelity import fidelity_report
 from src.io import write
@@ -29,7 +29,7 @@ def main():
 
     # ── 1. Fit VAR generator ──────────────────────────────────────────────────
     print("\n[1/4] Fitting VAR(2) generator on fred_macro...")
-    seed = load_seed("fred_macro")
+    seed = load_dataset("fred_macro")
     gen = VARGenerator(lags=2, time_col="year")
     gen.fit(seed)
     print(f"      {gen}")

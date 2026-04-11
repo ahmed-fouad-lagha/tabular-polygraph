@@ -214,7 +214,7 @@ def get_dataset_info(dataset_id: str) -> dict:
     return DATASETS[dataset_id]
 
 
-def load_seed(dataset_id: str, n: int = 2000) -> pd.DataFrame:
+def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     """
     Return seed data for the requested dataset.
     

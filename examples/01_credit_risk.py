@@ -15,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import pandas as pd
 import numpy as np
 from src.generators import GaussianCopulaGenerator
-from src.catalog import load_seed
+from src.catalog import load_dataset
 from src.fidelity import fidelity_report, format_report
 from src.privacy import privacy_audit, format_audit
 from src.calibration.priors import get_priors
@@ -28,7 +28,7 @@ def main():
 
     # ── 1. Load seed and fit generator ────────────────────────────────────────
     print("\n[1/5] Fitting generator on credit_risk seed data...")
-    seed = load_seed("credit_risk")
+    seed = load_dataset("credit_risk")
     priors = get_priors("credit_risk")
 
     gen = GaussianCopulaGenerator(priors=priors)

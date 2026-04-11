@@ -65,7 +65,7 @@ class VECMGARCHGenerator(BaseGenerator):
         from src.generators.time_series import VECMGARCHGenerator
 
         gen = VECMGARCHGenerator(lags=2, time_col="year")
-        gen.fit(load_seed("fred_macro"))
+        gen.fit(load_dataset("fred_macro"))
         syn = gen.sample(500)
 
     Parameters

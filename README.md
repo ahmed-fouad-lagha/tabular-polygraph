@@ -2,51 +2,57 @@
 
 <div align="center">
 
+**Unsupervised semantic evaluation of logical consistency in synthetic tabular data.**
+
+---
+
+
 [![CI](https://github.com/ahmed-fouad-lagha/LCV/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/LCV/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Unsupervised semantic evaluation of logical consistency in synthetic tabular data.**
-
 </div>
-
----
 
 ## Overview
 
-LCV (Logical Constraint Validator) is a research framework for evaluating synthetic tabular data quality beyond distributional similarity. Most synthetic data evaluation pipelines emphasize Euclidean and distributional agreement, which can miss row-level semantic inconsistencies such as incompatible categorical combinations or physically implausible numeric relations. LCV addresses this gap with a semantic evaluation layer built around neurosymbolic extraction of latent tabular constraints.
+LCV (Logical Constraint Validator) is a research framework for evaluating synthetic tabular data quality beyond distributional similarity.
 
-Core workflow:
-1. Learn structural regularities from real data using an unsupervised model.
-2. Score each synthetic row by semantic deviation severity.
-3. Aggregate violations into dataset-level quality diagnostics.
+Standard evaluation pipelines measure Euclidean and distributional agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. LCV addresses this gap through neurosymbolic learning and validation of latent tabular constraints.
 
-This complements existing fidelity metrics (marginal, joint, temporal, stylized facts, downstream, privacy) with logic-aware validation.
+**What LCV adds:**
+- Neural semantic scoring of row-level plausibility
+- Symbolic rule mining and violation diagnostics
+- Integrated reporting alongside marginal, joint, temporal, stylized-facts, downstream, and privacy metrics
+
+**Core workflow:**
+1. Learn structural regularities from real data using an unsupervised model
+2. Score each synthetic row by semantic deviation severity
+3. Aggregate violations into dataset-level quality diagnostics
 
 ## Setup
 
 ```bash
 git clone https://github.com/ahmed-fouad-lagha/LCV.git
 cd LCV
-python3 -m pip install -r requirements.txt
+pip install -r requirements.txt
 
-# Optional sanity checks
-python3 main.py list
+# Optional: verify installation
+python main.py list
 pytest tests/test.py -v --tb=short
 ```
 
-## Quick Usage
+## CLI Usage
 
 ```bash
 # Generate synthetic data from a built-in profile
-python3 main.py generate hmda --rows 10000 --output syn.csv
+python main.py generate hmda --rows 10000 --output syn.csv
 
 # Evaluate fidelity
-python3 main.py evaluate real.csv syn.csv --type cross_sectional
+python main.py evaluate real.csv syn.csv --type cross_sectional
 
 # Evaluate fidelity with logical rule controls
-python3 main.py evaluate real.csv syn.csv \
+python main.py evaluate real.csv syn.csv \
   --type cross_sectional \
   --rule-min-confidence 0.7 \
   --rule-min-support 0.01 \
@@ -55,25 +61,27 @@ python3 main.py evaluate real.csv syn.csv \
   --rule-max-rules 200
 
 # Run privacy audit
-python3 main.py audit real.csv syn.csv --attacks 300
+python main.py audit real.csv syn.csv --attacks 300
 ```
 
-Python API example:
+## Python API
 
 ```python
 from src.generators import GaussianCopulaGenerator
-from src.catalog import load_seed
+from src.catalog import load_dataset
 from src.fidelity import fidelity_report
 
-real = load_seed("hmda")
+real = load_dataset("hmda")
+
 gen = GaussianCopulaGenerator()
 gen.fit(real)
 syn = gen.sample(10000, seed=42)
 
+# Basic evaluation
 report = fidelity_report(real, syn, include_logical=True)
 print(report["summary"])
 
-# Optional: tune symbolic logical rule mining
+# With tuned symbolic rule mining
 report = fidelity_report(
     real,
     syn,
@@ -89,4 +97,4 @@ print(report.get("logical", {}))
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

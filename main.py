@@ -104,13 +104,13 @@ def _parse_drop_cols(drop_cols_arg: str | None) -> list[str]:
 
 def _load_generator(dataset_id, generator_type="auto", drop_cols: list[str] | None = None):
     """Load and fit a generator for the given dataset."""
-    from src.catalog import load_seed, get_dataset_info
+    from src.catalog import load_dataset, get_dataset_info
     from src.generators import GaussianCopulaGenerator
     from src.generators.time_series import VARGenerator
     from src.generators.panel import FixedEffectsGenerator
 
     meta = get_dataset_info(dataset_id)
-    seed_df = load_seed(dataset_id)
+    seed_df = load_dataset(dataset_id)
 
     if drop_cols:
         drop_present = [c for c in drop_cols if c in seed_df.columns]

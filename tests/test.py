@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 @pytest.fixture(scope="module")
 def all_seeds():
-    from src.catalog import load_seed, DATASETS
-    return {did: load_seed(did) for did in DATASETS}
+    from src.catalog import load_dataset, DATASETS
+    return {did: load_dataset(did) for did in DATASETS}
 
 @pytest.fixture(scope="module")
 def hmda(all_seeds):      return all_seeds["hmda"]
@@ -84,8 +84,8 @@ class TestCatalog:
         "commercial_real_estate","rental_market","retail_transactions","commodity_prices"
     ])
     def test_all_seeds_build(self, did):
-        from src.catalog import load_seed
-        df = load_seed(did)
+        from src.catalog import load_dataset
+        df = load_dataset(did)
         assert len(df) == 2000
         assert df.shape[1] > 0
         assert not df.isnull().all().any()
@@ -186,9 +186,9 @@ class TestGaussianCopula:
     def test_small_dataset_stability(self):
         """Generator should not crash on very small datasets (n=30)."""
         from src.generators import GaussianCopulaGenerator
-        from src.catalog import load_seed
+        from src.catalog import load_dataset
         gen = GaussianCopulaGenerator()
-        gen.fit(load_seed("hmda").sample(30, random_state=0))
+        gen.fit(load_dataset("hmda").sample(30, random_state=0))
         df = gen.sample(20, seed=1)
         assert len(df) == 20
 
