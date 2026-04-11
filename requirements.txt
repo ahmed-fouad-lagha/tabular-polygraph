@@ -6,6 +6,7 @@ pytest-cov
 pyarrow>=12
 openpyxl>=3.1
 pyreadstat>=1.2
+pre-commit
 build
 twine
 xgboost

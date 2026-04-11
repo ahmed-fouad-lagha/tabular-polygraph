@@ -7,6 +7,28 @@ on:
     branches: ["main"]
 
 jobs:
+  lint:
+    name: Lint (pre-commit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pre-commit install-hooks
+
+      - name: Run pre-commit checks
+        run: pre-commit run --all-files
+
   test:
     name: Tests (Python 3.12 · Ubuntu)
     runs-on: ubuntu-latest
