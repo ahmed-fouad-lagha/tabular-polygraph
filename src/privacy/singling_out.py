@@ -13,6 +13,7 @@ Methodology (simplified generalised singling-out):
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from src.utils import categorical_columns
 
 
 def singling_out_risk(
@@ -32,10 +33,10 @@ def singling_out_risk(
     rng = np.random.default_rng(seed)
 
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
-    qi_cols = (
-        quasi_id_cols
-        or [c for c in shared if not pd.api.types.is_numeric_dtype(real[c])][:8]
-    )
+    if quasi_id_cols is None:
+        qi_cols = [c for c in categorical_columns(real) if c in shared][:8]
+    else:
+        qi_cols = quasi_id_cols
 
     if not qi_cols:
         return {"error": "No quasi-identifier columns found", "singling_out_rate": 0.0}

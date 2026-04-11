@@ -9,6 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 from scipy import stats
+from src.utils import numeric_columns, to_numeric_array
 
 
 def moment_matching_scores(
@@ -17,11 +18,10 @@ def moment_matching_scores(
     columns: list[str] | None = None,
 ) -> dict[str, float]:
     """Per-column marginal moment-matching scores for numeric columns."""
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
     scores: dict[str, float] = {}
     eps = 1e-8
 
@@ -31,8 +31,8 @@ def moment_matching_scores(
         ) or not pd.api.types.is_numeric_dtype(synthetic[col]):
             continue
 
-        r = real[col].dropna().astype(float)
-        s = synthetic[col].dropna().astype(float)
+        r = to_numeric_array(real[col], fill_method="dropna")
+        s = to_numeric_array(synthetic[col], fill_method="dropna")
         if len(r) < 10 or len(s) < 10:
             continue
 
@@ -71,11 +71,10 @@ def ks_distribution_scores(
     columns: list[str] | None = None,
 ) -> dict[str, float]:
     """Per-column KS distributional fit scores for numeric columns."""
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
     scores: dict[str, float] = {}
 
     for col in cols:
@@ -84,8 +83,8 @@ def ks_distribution_scores(
         ) or not pd.api.types.is_numeric_dtype(synthetic[col]):
             continue
 
-        r = real[col].dropna().astype(float)
-        s = synthetic[col].dropna().astype(float)
+        r = to_numeric_array(real[col], fill_method="dropna")
+        s = to_numeric_array(synthetic[col], fill_method="dropna")
         if len(r) < 10 or len(s) < 10:
             continue
 

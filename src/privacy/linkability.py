@@ -16,13 +16,14 @@ Methodology:
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from src.utils import numeric_columns, normalize
 
 
 def _normalise(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
     arr = df[cols].fillna(0).values.astype(float)
-    mu = arr.mean(0)
-    sd = arr.std(0) + 1e-9
-    return (arr - mu) / sd
+    result = normalize(arr, return_params=False)
+    assert isinstance(result, np.ndarray)
+    return result
 
 
 def _nearest_neighbour_idx(query: np.ndarray, pool: np.ndarray) -> int:
@@ -47,13 +48,12 @@ def linkability_risk(
     """
     rng = np.random.default_rng(seed)
 
-    cols = numeric_cols or [
-        c
-        for c in real.columns
-        if c in synthetic.columns
-        and pd.api.types.is_numeric_dtype(real[c])
-        and c != "syn_id"
-    ]
+    if numeric_cols is None:
+        cols = [
+            c for c in numeric_columns(real) if c in synthetic.columns and c != "syn_id"
+        ]
+    else:
+        cols = numeric_cols
 
     if len(cols) < 2 or len(real) < 20:
         return {

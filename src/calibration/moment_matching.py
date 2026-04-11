@@ -1,6 +1,4 @@
 """
-src.calibration.moment_matching
-----------------------------------------
 Post-hoc calibration: adjust synthetic data so its first four moments
 (mean, variance, skewness, kurtosis) match the real data exactly.
 
@@ -12,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy import stats
+from src.utils import numeric_columns, to_numeric_array
 
 
 def match_moments(
@@ -35,15 +34,14 @@ def match_moments(
     """
     syn = synthetic.copy()
 
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
 
     for col in cols:
-        r = real[col].dropna().astype(float).values
-        s = syn[col].dropna().astype(float).values
+        r = to_numeric_array(real[col], fill_method="dropna")
+        s = to_numeric_array(syn[col], fill_method="dropna")
         if len(r) < 4 or len(s) < 4:
             continue
 
@@ -97,15 +95,14 @@ def moment_report(
     """
     Return a DataFrame comparing first four moments between real and synthetic.
     """
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
     rows = []
     for col in cols:
-        r = real[col].dropna().astype(float)
-        s = synthetic[col].dropna().astype(float)
+        r = to_numeric_array(real[col], fill_method="dropna")
+        s = to_numeric_array(synthetic[col], fill_method="dropna")
         if len(r) < 4 or len(s) < 4:
             continue
         rows.append(

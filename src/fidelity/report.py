@@ -6,6 +6,7 @@ Returns a structured dict suitable for JSON serialisation or CLI display.
 from __future__ import annotations
 import time
 import pandas as pd
+from src.utils import numeric_columns
 
 from .marginal import (
     moment_matching_scores,
@@ -221,7 +222,7 @@ def fidelity_report(
     report: dict = {"dataset_type": dataset_type, "columns_evaluated": cols}
 
     # ── Joint ─────────────────────────────────────────────────────────────────
-    num_cols = [c for c in cols if pd.api.types.is_numeric_dtype(real[c])]
+    num_cols = [c for c in cols if c in numeric_columns(real)]
     corr_score = correlation_distance_score(real, syn, num_cols)
     report["joint"] = {
         "correlation_distance_score": corr_score,

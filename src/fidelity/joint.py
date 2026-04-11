@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from src.utils import numeric_columns
 
 
 def correlation_distance_score(
@@ -24,11 +25,10 @@ def correlation_distance_score(
     Score based on Frobenius distance between Spearman correlation matrices.
     Score = 100 means identical correlation structure.
     """
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
     if len(cols) < 2:
         return 100.0
 
@@ -63,11 +63,10 @@ def pairwise_correlation_report(
     Per-pair Spearman correlation delta (real − synthetic).
     Returns dict of 'col_a × col_b' → delta.
     """
-    cols = columns or [
-        c
-        for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [c for c in numeric_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
     # Ensure we only use truly numeric columns
     cols = [c for c in cols if pd.api.types.is_numeric_dtype(real[c])]
     result = {}

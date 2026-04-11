@@ -12,6 +12,7 @@ Supports: classification (default_12m, action_taken) and regression tasks.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from src.utils import numeric_columns, normalize
 
 
 def _gini(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -79,9 +80,7 @@ def tstr_score(
     all_cols = [c for c in real.columns if c in synthetic.columns]
     if feature_cols is None:
         feature_cols = [
-            c
-            for c in all_cols
-            if c != target_col and pd.api.types.is_numeric_dtype(real[c])
+            c for c in numeric_columns(real) if c in all_cols and c != target_col
         ]
 
     if not feature_cols or target_col not in real.columns:
@@ -107,8 +106,8 @@ def tstr_score(
         X = df[feature_cols].values.astype(float)
         y = df[target_col].values.astype(float)
         # Normalise features
-        mu, sd = X.mean(0), X.std(0) + 1e-9
-        return (X - mu) / sd, y, mu, sd
+        X_norm, mu, sd = normalize(X, return_params=True)
+        return X_norm, y, mu, sd
 
     X_real_tr, y_real_tr, mu, sd = to_arrays(real_train)
     X_test_raw = real_test[feature_cols].values.astype(float)

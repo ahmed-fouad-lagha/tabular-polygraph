@@ -57,10 +57,6 @@ def dim(m):
     print(_c(m, C.GRAY))
 
 
-def bold(m):
-    print(_c(m, C.BOLD))
-
-
 def header(title, sub=""):
     print()
     print(_c("  " + title, C.BOLD))

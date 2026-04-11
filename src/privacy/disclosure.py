@@ -15,6 +15,7 @@ Methodology (shadow model approach, simplified):
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from src.utils import numeric_columns, normalize
 
 
 def _min_dist_to_synthetic(
@@ -66,10 +67,8 @@ def membership_inference_risk(
     """
     cols = numeric_cols or [
         c
-        for c in real_train.columns
-        if c in synthetic.columns
-        and pd.api.types.is_numeric_dtype(real_train[c])
-        and c != "syn_id"
+        for c in numeric_columns(real_train)
+        if c in synthetic.columns and c != "syn_id"
     ]
 
     if len(cols) < 2:
@@ -78,9 +77,7 @@ def membership_inference_risk(
     def prep(df, n):
         sample = df.sample(n=min(n, len(df)), random_state=int(seed))
         arr = sample[cols].fillna(0).values.astype(float)
-        mu = arr.mean(0)
-        sd = arr.std(0) + 1e-9
-        return (arr - mu) / sd
+        return normalize(arr)
 
     members = prep(real_train, n_sample)
     nonmembers = prep(real_holdout, n_sample)
