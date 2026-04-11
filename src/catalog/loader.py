@@ -214,9 +214,13 @@ def get_dataset_info(dataset_id: str) -> dict:
     return DATASETS[dataset_id]
 
 
-def load_seed(dataset_id: str) -> pd.DataFrame:
+def load_seed(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     """
     Return seed data for the requested dataset.
+    
+    Args:
+        dataset_id: Unique ID of the dataset
+        n: Number of records to generate (default 2000)
 
     Priority:
     1. Real downloaded data cached via ``src download <id>``
@@ -239,7 +243,7 @@ def load_seed(dataset_id: str) -> pd.DataFrame:
         if cached is not None and len(cached) >= 100:
             return (
                 cached
-                .sample(min(2000, len(cached)), random_state=42)
+                .sample(min(n, len(cached)), random_state=42)
                 .reset_index(drop=True)
             )
     except Exception:
@@ -266,7 +270,7 @@ def load_seed(dataset_id: str) -> pd.DataFrame:
         "retail_transactions":    _build_retail_transactions,
         "commodity_prices":       _build_commodity_prices,
     }
-    return _builders[dataset_id]()
+    return _builders[dataset_id](n=n)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -301,14 +305,27 @@ def _lognorm(
 
 def _build_hmda(n: int = 2000) -> pd.DataFrame:
     rng = _rng()
-    states = ["CA","TX","FL","NY","PA","IL","OH","GA","NC","MI",
-              "NJ","VA","WA","AZ","MA"]
+    states = ["CA","TX","FL","NY","PA","IL","OH","GA","NC","MI","NJ","VA","WA","AZ","MA"]
     income = _lognorm(rng, 11.2, 0.6, 20_000, 500_000, n).astype(int)
+    loan_amount = _lognorm(rng, 12.1, 0.7, 50_000, 2_000_000, n).astype(int)
     dti = np.clip(45 - (income / 500_000) * 20 + rng.normal(0, 8, n), 5, 65).round(1)
+    
+    # ── CAUSAL LOGIC (The Laws of Physics) ──
+    # Approval Probability (P) based on financial sanity
+    p_approval = np.full(n, 0.75) # Base 75% approval
+    p_approval[dti > 43] -= 0.40  # DTI penalty
+    p_approval[loan_amount > income * 5] -= 0.30 # Leverage penalty
+    p_approval[income < 35000] -= 0.10 # Low income penalty
+    p_approval = np.clip(p_approval, 0.05, 0.95)
+    
+    # Assign 'action_taken' (1=Originated, 3=Denied) based on sanity
+    draw = rng.uniform(0, 1, n)
+    action = np.where(draw < p_approval, "1", "3")
+    
     return pd.DataFrame({
-        "loan_amount":       _lognorm(rng, 12.1, 0.7, 50_000, 2_000_000, n).astype(int),
+        "loan_amount":       loan_amount,
         "applicant_income":  income,
-        "action_taken":      _weighted(rng, ["1","2","3","6","7","8"], [64,11,9,4,7,5], n),
+        "action_taken":      action,
         "loan_purpose":      _weighted(rng, ["1","2","31","32"], [42,28,18,12], n),
         "property_type":     _weighted(rng, ["Single Family","Multifamily","Manufactured","Condo"], [72,12,8,8], n),
         "debt_to_income":    dti,

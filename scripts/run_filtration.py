@@ -23,6 +23,7 @@ try:
     import xgboost as xgb
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
     from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import LabelEncoder
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
@@ -91,12 +92,25 @@ def semantic_filtration_experiment(
         print("SEMANTIC FILTRATION EXPERIMENT: Downstream Validation")
         print("=" * 70)
     
-    # ── 1. Split real data into train/test ──────────────────────────────────
+    # ── 1. Handle Target Encoding ───────────────────────────────────────────
+    le = LabelEncoder()
+    # Fit on real data first to ensure mapping is consistent
+    real_df = real_df.copy()
+    real_df[target_col] = le.fit_transform(real_df[target_col].astype(str))
+    
+    # Apply same mapping to synthetic data
+    synth_df = synth_df.copy()
+    # Map, handling unseen labels if any (shouldn't happen with our generator design)
+    known_labels = set(le.classes_)
+    synth_df[target_col] = synth_df[target_col].apply(lambda x: x if str(x) in known_labels else list(known_labels)[0])
+    synth_df[target_col] = le.transform(synth_df[target_col].astype(str))
+
+    # ── 2. Split real data into train/test ──────────────────────────────────
     real_train, real_test = train_test_split(
         real_df, 
         test_size=test_size, 
         random_state=random_state,
-        stratify=real_df[target_col] if real_df[target_col].dtype in ['int64', 'int32', 'object'] else None
+        stratify=real_df[target_col]
     )
     
     X_test_real = real_test.drop(columns=[target_col])
@@ -106,6 +120,7 @@ def semantic_filtration_experiment(
         print(f"\n[Data Split]")
         print(f"  Real train set: {len(real_train)} rows")
         print(f"  Real test set:  {len(real_test)} rows (strict holdout)")
+        print(f"  Target classes: {le.classes_}")
     
     # ── 2. Partition synthetic data by Neuro-LCV penalties ──────────────────
     clean_mask = row_penalties <= severity_threshold
@@ -154,9 +169,10 @@ def semantic_filtration_experiment(
                 use_label_encoder=False,
                 eval_metric='logloss',
                 random_state=random_state,
-                n_estimators=100,
-                max_depth=5,
+                n_estimators=100, # Scientifically robust 
+                max_depth=5,      # Sufficient depth
                 learning_rate=0.1,
+                n_jobs=-1,        # Use all cores for speed
                 verbosity=0
             )
             model.fit(X_train, y_train)
@@ -188,7 +204,7 @@ def semantic_filtration_experiment(
             
             return metrics
         except Exception as e:
-            print(f"  ✗ Error training {name}: {e}")
+            print(f"  Error training {name}: {e}")
             return None
     
     # Train on three datasets
@@ -296,39 +312,37 @@ def print_experiment_report(results: Dict[str, Any]) -> str:
 
 
 if __name__ == "__main__":
-    from src.catalog.loader import load_dataset
-    from src.generators.copula import GaussianCopulaGenerator
+    from src.catalog.loader import load_seed # load_dataset
+    from src.generators.cross_sectional.gaussian_copula import GaussianCopulaGenerator
     from src.fidelity.logical import neuro_lcv_score
 
-    print("🚀 Initializing Semantic Filtration Proof...")
+    print("Initializing Semantic Filtration Proof...")
     
-    # 1. Load sample dataset (HMDA)
+    # 1. Load sample dataset (HMDA) - Scaling to High Fidelity
     try:
-        real_df, _ = load_dataset("hmda", rows=10000)
+        real_df = load_seed("hmda", n=10000)
     except Exception as e:
-        print(f"❌ Error loading dataset: {e}")
+        print(f"Error loading dataset: {e}")
         sys.exit(1)
 
     # 2. Generate Synthetic Data
-    print("📈 Generating synthetic data via Gaussian Copula...")
+    print("Generating synthetic data via Gaussian Copula...")
     gen = GaussianCopulaGenerator()
     gen.fit(real_df)
-    synth_df = gen.generate(n_samples=5000)
+    synth_df = gen.sample(n=20000)
 
     # 3. Simulate Logical Corruption
-    # We slightly poison the synthetic data by adding random noise to categorical fields
-    # to simulate the "impossibility" that Neuro-LCV should catch.
-    print("🧪 Simulating semantic corruption in synthetic data...")
+    print("🧪 Simulating semantic corruption in synthetic data (20% poison)...")
     cat_cols = real_df.select_dtypes(include=['object', 'category']).columns.tolist()
     if cat_cols:
-        poison_idx = np.random.choice(synth_df.index, size=int(len(synth_df) * 0.15), replace=False)
+        poison_idx = np.random.choice(synth_df.index, size=int(len(synth_df) * 0.20), replace=False)
         for col in cat_cols:
             unique_vals = real_df[col].unique()
             synth_df.loc[poison_idx, col] = np.random.choice(unique_vals, size=len(poison_idx))
 
     # 4. Evaluate via Neuro-LCV
-    print("🧠 Running Neuro-LCV Semantic Evaluation (CSSP)...")
-    lcv_results = neuro_lcv_score(real_df, synth_df, epochs=20, verbose=True)
+    print("Running Neuro-LCV Semantic Evaluation (CSSP)...")
+    lcv_results = neuro_lcv_score(real_df, synth_df, epochs=50, verbose=True)
     penalties = lcv_results["row_penalties"]
 
     # 5. Run the Filtration Experiment
@@ -348,6 +362,6 @@ if __name__ == "__main__":
         report = print_experiment_report(results)
         print(report)
     except Exception as e:
-        print(f"❌ Experiment failed: {e}")
+        print(f"Experiment failed: {e}")
         import traceback
         traceback.print_exc()

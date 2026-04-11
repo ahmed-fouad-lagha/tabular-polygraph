@@ -11,6 +11,10 @@ CSSP(x_g,i) = 1 - P(category_chosen | others) measures logical impossibility.
 Neuro-LCV Score ∈ [0, 1] is the mean row probability across all synthetic data.
 """
 from __future__ import annotations
+import time
+import sys
+import os
+from pathlib import Path
 import warnings
 import numpy as np
 import pandas as pd
@@ -39,12 +43,26 @@ class NeuroLCVAutoencoder(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         
+        # Deep Bottleneck for semantic extraction
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Tanh()
+            nn.Linear(input_dim, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, hidden_dim),
+            nn.ReLU()
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, input_dim),
+            nn.Linear(hidden_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, input_dim),
             nn.Sigmoid()
         )
         
@@ -124,23 +142,27 @@ class NeuroLCVAutoencoder(nn.Module):
         self.eval()
         with torch.no_grad():
             # Get expected probabilities from frozen oracle
+            # expected_probs: [batch, features]
             expected_probs = self.forward(synth_tensor)
             
-            # CSSP: isolate probabilities for the categories the generator chose
-            chosen_probs = expected_probs * synth_tensor
+            # ── Probability Sharpening (Temperature Scaling) ──
+            # Makes logical violations more pronounced for filtration
+            sharpened_probs = torch.pow(expected_probs, 1.5) 
             
-            # Average probability per row
-            row_probs_sum = chosen_probs.sum(dim=1)
-            num_features = synth_tensor.sum(dim=1).clamp(min=1e-9)
-            avg_row_prob = row_probs_sum / num_features
+            # CSSP: isolate probabilities for categories chosen by the generator
+            chosen_probs = sharpened_probs * synth_tensor
+
+            # Mask out zeros to find the minimum only among the hot bits
+            masked_probs = chosen_probs.clone()
+            masked_probs[synth_tensor == 0] = 1.0 
+            min_row_prob = masked_probs.min(dim=1).values
             
-            # Row penalties: 1 - probability (high penalty = illogical)
-            row_penalties = 1.0 - avg_row_prob
+            # Row penalties: 1 - min_prob (high logical violation)
+            row_penalties = 1.0 - min_row_prob
             
-            # Overall Neuro-LCV Score: 1 is perfect, 0 is entirely impossible
+            # Overall Neuro-LCV Score
             lcv_score = 1.0 - row_penalties.mean().item()
-        
-        return lcv_score, row_penalties.numpy()
+            return lcv_score, row_penalties.cpu().numpy()
 
 
 def neuro_lcv_score(

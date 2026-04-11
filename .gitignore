@@ -51,3 +51,7 @@ manuscript/
 
 # results
 results/
+
+# data
+*.csv
+*.parquet

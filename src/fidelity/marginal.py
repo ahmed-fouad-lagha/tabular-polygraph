@@ -1,10 +1,8 @@
 """
-Per-column marginal distribution fidelity.
+Per-column fidelity metrics for research reporting.
 
-Numeric  → Kolmogorov-Smirnov two-sample test  (score = 1 - KS statistic)
-Categorical → Total Variation Distance          (score = 1 - TVD/2)
-
-Scores range 0–100. Higher = more faithful.
+Moment matching and KS fit are the primary marginal metrics used by the
+current fidelity report. Scores range 0–100. Higher = more faithful.
 """
 from __future__ import annotations
 import pandas as pd
@@ -12,45 +10,76 @@ import numpy as np
 from scipy import stats
 
 
-def marginal_scores(
+def moment_matching_scores(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
 ) -> dict[str, float]:
-    """
-    Compute per-column marginal fidelity scores.
-
-    Parameters
-    ----------
-    real, synthetic : DataFrames to compare
-    columns         : subset of columns to score (default: all shared columns)
-
-    Returns
-    -------
-    dict mapping column name → score (0–100)
-    """
-    cols = columns or [c for c in real.columns if c in synthetic.columns]
+    """Per-column marginal moment-matching scores for numeric columns."""
+    cols = columns or [
+        c for c in real.columns
+        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
+    ]
     scores: dict[str, float] = {}
+    eps = 1e-8
 
     for col in cols:
-        r = real[col].dropna()
-        s = synthetic[col].dropna()
-        if len(r) == 0 or len(s) == 0:
+        if not pd.api.types.is_numeric_dtype(real[col]) or not pd.api.types.is_numeric_dtype(synthetic[col]):
             continue
 
-        if pd.api.types.is_numeric_dtype(r):
-            ks, _ = stats.ks_2samp(r.astype(float), s.astype(float))
-            scores[col] = round((1 - ks) * 100, 2)
-        else:
-            r_freq = r.value_counts(normalize=True)
-            s_freq = s.value_counts(normalize=True)
-            all_cats = set(r_freq.index) | set(s_freq.index)
-            tvd = sum(abs(r_freq.get(c, 0) - s_freq.get(c, 0)) for c in all_cats) / 2
-            scores[col] = round((1 - tvd) * 100, 2)
+        r = real[col].dropna().astype(float)
+        s = synthetic[col].dropna().astype(float)
+        if len(r) < 10 or len(s) < 10:
+            continue
+
+        mean_r, std_r = float(r.mean()), float(r.std(ddof=0))
+        mean_s, std_s = float(s.mean()), float(s.std(ddof=0))
+        skew_r, skew_s = float(stats.skew(r, nan_policy="omit")), float(stats.skew(s, nan_policy="omit"))
+        kurt_r, kurt_s = float(stats.kurtosis(r, fisher=False, nan_policy="omit")), float(stats.kurtosis(s, fisher=False, nan_policy="omit"))
+
+        mean_err = abs(mean_s - mean_r) / (abs(mean_r) + eps)
+        std_err = abs(std_s - std_r) / (std_r + eps)
+        skew_err = abs(skew_s - skew_r) / (abs(skew_r) + 0.5)
+        kurt_err = abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0)
+
+        score = 100.0 * (1.0 - 0.40 * mean_err - 0.35 * std_err - 0.15 * skew_err - 0.10 * kurt_err)
+        scores[col] = round(float(max(0.0, min(100.0, score))), 2)
 
     return scores
 
 
-def mean_marginal_score(scores: dict[str, float]) -> float:
-    """Mean of all marginal scores."""
+def mean_moment_matching_score(scores: dict[str, float]) -> float:
+    """Mean moment-matching score across numeric columns."""
+    return round(float(np.mean(list(scores.values()))), 2) if scores else 0.0
+
+
+def ks_distribution_scores(
+    real: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    columns: list[str] | None = None,
+) -> dict[str, float]:
+    """Per-column KS distributional fit scores for numeric columns."""
+    cols = columns or [
+        c for c in real.columns
+        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
+    ]
+    scores: dict[str, float] = {}
+
+    for col in cols:
+        if not pd.api.types.is_numeric_dtype(real[col]) or not pd.api.types.is_numeric_dtype(synthetic[col]):
+            continue
+
+        r = real[col].dropna().astype(float)
+        s = synthetic[col].dropna().astype(float)
+        if len(r) < 10 or len(s) < 10:
+            continue
+
+        ks_stat, _ = stats.ks_2samp(r, s)
+        scores[col] = round(float(max(0.0, min(100.0, (1.0 - ks_stat) * 100.0))), 2)
+
+    return scores
+
+
+def mean_ks_score(scores: dict[str, float]) -> float:
+    """Mean KS score across numeric columns."""
     return round(float(np.mean(list(scores.values()))), 2) if scores else 0.0

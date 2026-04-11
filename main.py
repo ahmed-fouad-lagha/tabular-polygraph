@@ -205,7 +205,6 @@ def cmd_generate(args):
     try:
         if input_file:
             # Custom file — validate, load, fit GaussianCopula
-            from pathlib import Path
             if not Path(input_file).exists():
                 err(f"File not found: {input_file}"); sys.exit(1)
             from src.io import read, validate as validate_df
@@ -266,14 +265,38 @@ def cmd_generate(args):
         s = report["summary"]
 
         section("Fidelity report")
-        for col, score in report["marginal"]["column_scores"].items():
-            print(f"    {col:<26}{bar(score)}  {_c(str(score)+'%', C.GREEN if score>=90 else C.YELLOW)}")
+        mm_cols = report.get("moment_matching", {}).get("column_scores", {})
+        if mm_cols:
+            print("    Moment matching")
+            for col, score in mm_cols.items():
+                print(f"    {col:<26}{bar(score)}  {_c(str(score)+'%', C.GREEN if score>=90 else C.YELLOW)}")
+            print()
+
+        ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
+        if ks_cols:
+            print("    KS distribution")
+            for col, score in ks_cols.items():
+                print(f"    {col:<26}{bar(score)}  {_c(str(score)+'%', C.GREEN if score>=90 else C.YELLOW)}")
+            print()
+        print(f"    {_c('Overall fidelity:',     C.GRAY):<34}{_c(str(s['overall_fidelity'])+'%',C.GREEN)}")
+        print(f"    {_c('Moment matching:',      C.GRAY):<34}{_c(str(s['moment_matching_score'])+'%', C.GREEN)}")
+        print(f"    {_c('KS distribution:',      C.GRAY):<34}{_c(str(s['ks_score'])+'%', C.GREEN)}")
+        print(f"    {_c('Joint score:',          C.GRAY):<34}{_c(str(s['joint_score'])+'%',     C.GREEN)}")
+        print(f"    {_c('Privacy score:',        C.GRAY):<34}{_c(str(s['privacy_score'])+'%',   C.GREEN)}")
+        print(f"    {_c('Exact copies:',         C.GRAY):<34}{s['exact_copies']}")
+
+        sf_summary = report.get("stylized_facts", {}).get("_summary", {})
         print()
-        print(f"    {_c('Marginal score:',  C.GRAY):<34}{_c(str(s['marginal_score'])+'%',  C.GREEN)}")
-        print(f"    {_c('Joint score:',     C.GRAY):<34}{_c(str(s['joint_score'])+'%',     C.GREEN)}")
-        print(f"    {_c('Overall fidelity:',C.GRAY):<34}{_c(str(s['overall_fidelity'])+'%',C.GREEN)}")
-        print(f"    {_c('Privacy score:',   C.GRAY):<34}{_c(str(s['privacy_score'])+'%',   C.GREEN)}")
-        print(f"    {_c('Exact copies:',    C.GRAY):<34}{s['exact_copies']}")
+        section("Stylized facts")
+        if sf_summary.get("applicable", True):
+            print(f"    {_c('Mean score:',         C.GRAY):<34}{_c(str(sf_summary.get('mean_score'))+'%', C.GREEN)}")
+            print(f"    {_c('Columns tested:',     C.GRAY):<34}{sf_summary.get('columns_tested', 0)}")
+            for col, item in report.get("stylized_facts", {}).items():
+                if col == "_summary":
+                    continue
+                print(f"    {col:<26}{item.get('score', '—')}%")
+        else:
+            print(f"    {sf_summary.get('note', 'Not evaluated.')}")
 
         if "temporal" in report:
             t = report["temporal"]

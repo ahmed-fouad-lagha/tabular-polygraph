@@ -8,6 +8,9 @@ that a good generator should preserve:
   2. Volatility clustering — autocorrelation of squared returns (ARCH effects)
   3. Return autocorrelation — near-zero AC of raw returns
   4. Skewness sign   — left-skewed for equity returns, right for income data
+
+For cross-sectional datasets, this diagnostic is usually reported separately
+and excluded from the overall fidelity composite.
 """
 from __future__ import annotations
 import numpy as np
