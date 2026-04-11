@@ -15,14 +15,14 @@
 
 ## Overview
 
-LCV (Logical Constraint Validator) is a research framework for evaluating synthetic tabular data quality beyond distributional similarity.
+LCV (Logical Constraint Validator) for evaluating synthetic tabular data quality beyond distributional similarity.
 
 Standard evaluation pipelines measure Euclidean and distributional agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. LCV addresses this gap through neurosymbolic learning and validation of latent tabular constraints.
 
 **What LCV adds:**
-- Neural semantic scoring of row-level plausibility
+- Semantic scoring of row-level plausibility
 - Symbolic rule mining and violation diagnostics
-- Integrated reporting alongside marginal, joint, temporal, stylized-facts, downstream, and privacy metrics
+- Reporting alongside marginal, joint, temporal, stylized-facts, downstream, and privacy metrics
 
 **Core workflow:**
 1. Learn structural regularities from real data using an unsupervised model
