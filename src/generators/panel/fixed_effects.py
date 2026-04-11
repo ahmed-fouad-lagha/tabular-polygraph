@@ -72,7 +72,9 @@ class FixedEffectsGenerator(BaseGenerator):
             and c not in (self._entity_col, self._time_col)
         ]
         for col in self._cat_cols:
-            self._cat_freqs[col] = df[col].value_counts(normalize=True).to_dict()
+            freqs = df[col].dropna().value_counts(normalize=True)
+            # Keep sampling robust even when a categorical column is entirely missing.
+            self._cat_freqs[col] = freqs.to_dict() if not freqs.empty else {"unknown": 1.0}
 
         # Entity fixed effects: mean of each numeric col per entity
         if self._entity_col in df.columns:
@@ -159,7 +161,18 @@ class FixedEffectsGenerator(BaseGenerator):
             for col in self._cat_cols:
                 cats  = list(self._cat_freqs[col].keys())
                 probs = list(self._cat_freqs[col].values())
-                row[col] = rng.choice(cats, p=np.array(probs) / sum(probs))
+                if not cats:
+                    row[col] = "unknown"
+                    continue
+
+                probs_arr = np.array(probs, dtype=float)
+                prob_sum = float(probs_arr.sum())
+                if prob_sum <= 0:
+                    probs_arr = np.ones(len(cats), dtype=float) / len(cats)
+                else:
+                    probs_arr = probs_arr / prob_sum
+
+                row[col] = rng.choice(cats, p=probs_arr)
 
             rows.append(row)
 

@@ -56,10 +56,18 @@ def breaks_score(
     A break is 'matched' if synthetic has one within ±tolerance steps.
     Score = fraction of real breaks that are matched.
     """
-    cols = columns or [
-        c for c in real.columns
-        if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
-    ]
+    if columns is None:
+        cols = [
+            c for c in real.columns
+            if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
+        ]
+    else:
+        cols = [
+            c for c in columns
+            if c in real.columns and c in synthetic.columns
+            and pd.api.types.is_numeric_dtype(real[c])
+            and pd.api.types.is_numeric_dtype(synthetic[c])
+        ]
     results = {}
     total_real = total_matched = 0
 

@@ -32,6 +32,7 @@ import os
 import json
 import time
 import hashlib
+import io
 from pathlib import Path
 from typing import Callable
 
@@ -335,6 +336,127 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
+def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
+    """Download BLS QCEW annual state-level employment and wages (no API key)."""
+    try:
+        import urllib.request
+    except ImportError:
+        raise ImportError("urllib required (should be in stdlib)")
+
+    # Annual QCEW files for state totals use area codes XX000.
+    years = list(range(2018, 2024))
+    area_codes = [f"{i:02d}000" for i in range(1, 57)] + ["US000"]
+    base_url = "https://data.bls.gov/cew/data/api"
+
+    ownership_map = {
+        "0": "total",
+        "1": "private",
+        "2": "federal_gov",
+        "3": "state_gov",
+        "5": "local_gov",
+    }
+    state_fips_to_abbr = {
+        "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO",
+        "09": "CT", "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI",
+        "16": "ID", "17": "IL", "18": "IN", "19": "IA", "20": "KS", "21": "KY",
+        "22": "LA", "23": "ME", "24": "MD", "25": "MA", "26": "MI", "27": "MN",
+        "28": "MS", "29": "MO", "30": "MT", "31": "NE", "32": "NV", "33": "NH",
+        "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND", "39": "OH",
+        "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD",
+        "47": "TN", "48": "TX", "49": "UT", "50": "VT", "51": "VA", "53": "WA",
+        "54": "WV", "55": "WI", "56": "WY",
+    }
+
+    frames: list[pd.DataFrame] = []
+    for year in years:
+        print(f"    Fetching QCEW annual file(s) for {year}...", flush=True)
+        for area_code in area_codes:
+            url = f"{base_url}/{year}/a/area/{area_code}.csv"
+            try:
+                with urllib.request.urlopen(url, timeout=30) as response:
+                    content = response.read().decode("utf-8", errors="replace")
+                part = pd.read_csv(io.StringIO(content))
+                part["year"] = year
+                frames.append(part)
+            except Exception:
+                continue
+            time.sleep(0.03)
+
+    if not frames:
+        raise RuntimeError("No BLS QCEW data downloaded")
+
+    raw = pd.concat(frames, ignore_index=True)
+
+    required = {
+        "industry_code": "naics_sector",
+        "own_code": "ownership",
+        "area_fips": "state",
+        "annual_avg_wkly_wage": "avg_weekly_wage",
+        "annual_avg_emplvl": "total_employment",
+        "oty_annual_avg_emplvl_pct_chg": "yoy_employment_change",
+        "oty_annual_avg_wkly_wage_pct_chg": "yoy_wage_change",
+        "annual_avg_estabs": "establishments",
+        "qtr": "quarter",
+        "year": "year",
+    }
+    missing = [c for c in required if c not in raw.columns]
+    if missing:
+        raise RuntimeError(f"BLS payload missing expected columns: {missing}")
+
+    df = raw[list(required)].rename(columns=required)
+
+    # Keep top-level NAICS sectors only (2-digit), where signals are strongest.
+    df["naics_sector"] = df["naics_sector"].astype(str)
+    df = df[df["naics_sector"].str.fullmatch(r"\d{2}", na=False)]
+
+    df["ownership"] = (
+        df["ownership"].astype(str).map(ownership_map).fillna("other")
+    )
+
+    # Map state FIPS prefixes to postal codes; US aggregate is retained as US.
+    state_raw = df["state"].astype(str)
+    df["state"] = np.where(
+        state_raw == "US000",
+        "US",
+        state_raw.str[:2].map(state_fips_to_abbr),
+    )
+
+    for col in [
+        "avg_weekly_wage",
+        "total_employment",
+        "yoy_employment_change",
+        "yoy_wage_change",
+        "establishments",
+        "year",
+    ]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    df["quarter"] = np.where(df["quarter"].astype(str).str.upper() == "A", 4, df["quarter"])
+    df["quarter"] = pd.to_numeric(df["quarter"], errors="coerce")
+
+    df = df.dropna(
+        subset=[
+            "naics_sector",
+            "ownership",
+            "state",
+            "avg_weekly_wage",
+            "total_employment",
+            "year",
+            "quarter",
+        ]
+    )
+
+    df = df[df["avg_weekly_wage"] > 0]
+    df = df[df["total_employment"] > 0]
+    df = df.drop_duplicates(subset=["state", "year", "naics_sector", "ownership"])
+    df = df.reset_index(drop=True)
+
+    if len(df) == 0:
+        raise RuntimeError("BLS download produced 0 usable rows after cleaning")
+
+    return df.sample(min(n_sample, len(df)), random_state=42)
+
+
 # ── Main download function ────────────────────────────────────────────────────
 
 def download(
@@ -392,12 +514,14 @@ def download(
         df = _download_world_bank(dataset_id, n_sample)
     elif method == "fred_api":
         df = _download_fred(dataset_id, n_sample)
+    elif method == "bls_api":
+        df = _download_bls(dataset_id, n_sample)
     elif method == "census_api":
         df = _download_census(dataset_id, n_sample)
     else:
         raise NotImplementedError(
             f"Downloader for '{dataset_id}' (method: {method}) requires manual download.\n"
-            f"See BULK_DOWNLOAD.md for step-by-step instructions."
+            f"See DOWNLOAD.md for step-by-step instructions."
         )
 
     # Cache it
