@@ -20,7 +20,7 @@ class TestNewDatasets:
 
         gen = GaussianCopulaGenerator()
         gen.fit(all_seeds[did])
-        df = gen.sample(100, seed=42)
+        df = gen.generate(100, seed=42)
         assert len(df) == 100
         assert expected_col in df.columns
 
@@ -94,7 +94,7 @@ class TestCustomGeneration:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        syn = gen.sample(100, seed=1)
+        syn = gen.generate(100, seed=1)
         assert len(syn) == 100
         assert set(syn.columns) - {"syn_id"} == set(hmda.columns)
 
@@ -113,7 +113,7 @@ class TestCustomGeneration:
         )
         gen = GaussianCopulaGenerator()
         gen.fit(custom)
-        syn = gen.sample(500, seed=42)
+        syn = gen.generate(500, seed=42)
         assert len(syn) == 500
         assert "revenue" in syn.columns
         assert "market" in syn.columns

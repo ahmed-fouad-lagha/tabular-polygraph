@@ -15,7 +15,7 @@ class TestBaseGenerator:
 
         gen = GaussianCopulaGenerator()
         with pytest.raises(RuntimeError, match="not been fitted"):
-            gen.sample(10)
+            gen.generate(10)
 
     def test_fit_sample_fluent(self, hmda):
         from src.generators import GaussianCopulaGenerator
@@ -70,7 +70,7 @@ class TestGaussianCopula:
 
         gen = GaussianCopulaGenerator()
         gen.fit(all_seeds[did])
-        df = gen.sample(100, seed=42)
+        df = gen.generate(100, seed=42)
         assert len(df) == 100
         assert "syn_id" in df.columns
 
@@ -79,8 +79,8 @@ class TestGaussianCopula:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df1 = gen.sample(50, seed=99)
-        df2 = gen.sample(50, seed=99)
+        df1 = gen.generate(50, seed=99)
+        df2 = gen.generate(50, seed=99)
         pd.testing.assert_frame_equal(df1, df2)
 
     def test_different_seeds_differ(self, hmda):
@@ -88,8 +88,8 @@ class TestGaussianCopula:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df1 = gen.sample(100, seed=1)
-        df2 = gen.sample(100, seed=2)
+        df1 = gen.generate(100, seed=1)
+        df2 = gen.generate(100, seed=2)
         assert not df1["loan_amount"].equals(df2["loan_amount"])
 
     def test_no_nulls_in_output(self, syn_hmda):
@@ -123,7 +123,7 @@ class TestGaussianCopula:
 
         gen = GaussianCopulaGenerator()
         gen.fit(load_dataset("hmda").sample(30, random_state=0))
-        df = gen.sample(20, seed=1)
+        df = gen.generate(20, seed=1)
         assert len(df) == 20
 
 
@@ -138,7 +138,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df = gen.sample(500, filters={"state": ["CA", "TX"]}, seed=1)
+        df = gen.generate(500, filters={"state": ["CA", "TX"]}, seed=1)
         assert set(df["state"].unique()).issubset({"CA", "TX"})
 
     def test_numeric_min_filter(self, hmda):
@@ -146,7 +146,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df = gen.sample(500, filters={"debt_to_income_min": 50}, seed=1)
+        df = gen.generate(500, filters={"debt_to_income_min": 50}, seed=1)
         if len(df) > 0:
             assert df["debt_to_income"].min() >= 50
 
@@ -155,7 +155,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df = gen.sample(500, filters={"loan_amount_max": 200000}, seed=1)
+        df = gen.generate(500, filters={"loan_amount_max": 200000}, seed=1)
         if len(df) > 0:
             assert df["loan_amount"].max() <= 200000
 
@@ -165,7 +165,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df = gen.sample(500, filters={"dti_min": 50}, seed=1)
+        df = gen.generate(500, filters={"dti_min": 50}, seed=1)
         if len(df) > 0:
             assert df["debt_to_income"].min() >= 50
 
@@ -174,7 +174,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(edgar)
-        df = gen.sample(400, filters={"sector": "Technology"}, seed=1)
+        df = gen.generate(400, filters={"sector": "Technology"}, seed=1)
         if len(df) > 0:
             assert all(df["sector"] == "Technology")
 
@@ -183,7 +183,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(credit_risk)
-        df = gen.sample(400, filters={"default_12m": 1}, seed=1)
+        df = gen.generate(400, filters={"default_12m": 1}, seed=1)
         if len(df) > 0:
             assert all(df["default_12m"].astype(str) == "1")
 
@@ -192,7 +192,7 @@ class TestFilters:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        df = gen.sample(600, filters={"state": ["CA"], "dti_min": 40}, seed=1)
+        df = gen.generate(600, filters={"state": ["CA"], "dti_min": 40}, seed=1)
         if len(df) > 0:
             assert all(df["state"] == "CA")
             assert df["debt_to_income"].min() >= 40
@@ -222,7 +222,7 @@ class TestVARGenerator:
 
         gen = VARGenerator(lags=2, time_col="quarter")
         gen.fit(all_seeds["bls"])
-        df = gen.sample(100, seed=1)
+        df = gen.generate(100, seed=1)
         assert len(df) == 100
 
 
@@ -247,5 +247,5 @@ class TestPanelGenerator:
 
         gen = FixedEffectsGenerator(entity_col="state", time_col="charter_class")
         gen.fit(all_seeds["fdic"])
-        df = gen.sample(100, seed=1)
+        df = gen.generate(100, seed=1)
         assert len(df) == 100

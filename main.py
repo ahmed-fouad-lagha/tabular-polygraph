@@ -305,7 +305,7 @@ def cmd_generate(args):
     # Generate
     info(f"Sampling {args.rows:,} rows...")
     t1 = time.time()
-    syn = gen.sample(args.rows, filters=filters or None, seed=args.seed)
+    syn = gen.generate(args.rows, filters=filters or None, seed=args.seed)
     ok(f"{len(syn):,} rows generated  ({time.time() - t1:.1f}s)")
 
     # Apply scenario if requested

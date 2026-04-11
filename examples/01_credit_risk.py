@@ -39,7 +39,7 @@ def main():
 
     # ── 2. Generate training data ─────────────────────────────────────────────
     print("\n[2/5] Generating 10,000 synthetic training records...")
-    train = gen.sample(10_000, seed=42)
+    train = gen.generate(10_000, seed=42)
     print(f"      Shape: {train.shape}")
     print(f"      Default rate: {train['default_12m'].mean():.2%}")
 
@@ -47,7 +47,7 @@ def main():
     print("\n[3/5] Generating 2,000 credit-crisis-scenario records...")
     from src.calibration import apply_scenario
 
-    stressed = gen.sample(2_000, seed=99)
+    stressed = gen.generate(2_000, seed=99)
     stressed = apply_scenario(stressed, "credit_crisis", intensity=1.0)
     print(f"      Stressed default rate: {stressed['default_12m'].mean():.2%}")
 

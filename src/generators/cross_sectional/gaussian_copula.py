@@ -114,8 +114,8 @@ class GaussianCopulaGenerator(BaseGenerator):
 
         gen = GaussianCopulaGenerator()
         gen.fit(real_df)
-        syn = gen.sample(1000)
-        syn = gen.sample(500, filters={"state": ["CA", "TX"], "dti_min": 45})
+        syn = gen.generate(1000)
+        syn = gen.generate(500, filters={"state": ["CA", "TX"], "dti_min": 45})
     """
 
     supported_types = ["cross_sectional"]
@@ -176,7 +176,7 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     # ── sample ────────────────────────────────────────────────────────────────
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

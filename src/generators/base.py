@@ -14,17 +14,17 @@ import pandas as pd
 
 class BaseGenerator(ABC):
     """
-    Abstract generator. Subclasses implement fit() and sample().
+    Abstract generator. Subclasses implement fit() and generate().
 
     Lifecycle
     ---------
         gen = MyGenerator(**kwargs)
         gen.fit(real_df)               # learn from data
-        syn = gen.sample(n=1000)       # draw synthetic rows
-        syn = gen.sample(n=500, filters={"state": ["CA"]})
+        syn = gen.generate(n=1000)       # draw synthetic rows
+        syn = gen.generate(n=500, filters={"state": ["CA"]})
 
-    Or shorthand (fit + sample in one call):
-        syn = gen.fit_sample(real_df, n=1000)
+    Or shorthand (fit + generate in one call):
+        syn = gen.fit_generate(real_df, n=1000)
     """
 
     # Subclasses declare which dataset types they support
@@ -54,7 +54,7 @@ class BaseGenerator(ABC):
         """
 
     @abstractmethod
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,
@@ -74,6 +74,25 @@ class BaseGenerator(ABC):
 
     # ── Convenience ───────────────────────────────────────────────────────────
 
+    def fit_generate(
+        self,
+        data: pd.DataFrame,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
+        """Fit on data then immediately generate n rows."""
+        return self.fit(data).generate(n, filters=filters, seed=seed)
+
+    def sample(
+        self,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
+        """Backward-compatible alias for generate()."""
+        return self.generate(n, filters=filters, seed=seed)
+
     def fit_sample(
         self,
         data: pd.DataFrame,
@@ -81,8 +100,8 @@ class BaseGenerator(ABC):
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        """Fit on data then immediately sample n rows."""
-        return self.fit(data).sample(n, filters=filters, seed=seed)
+        """Backward-compatible alias for fit_generate()."""
+        return self.fit_generate(data, n, filters=filters, seed=seed)
 
     # ── Guard ─────────────────────────────────────────────────────────────────
 

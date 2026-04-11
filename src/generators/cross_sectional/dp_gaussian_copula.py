@@ -28,7 +28,7 @@ Usage
 
     gen = DPGaussianCopulaGenerator(epsilon=1.0, delta=1e-5)
     gen.fit(real_df)
-    syn = gen.sample(10_000)
+    syn = gen.generate(10_000)
     print(f"Privacy guarantee: ε={gen.epsilon_used:.3f}, δ={gen.delta}")
 """
 
@@ -205,7 +205,7 @@ class DPGaussianCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

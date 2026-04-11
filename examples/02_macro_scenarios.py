@@ -38,7 +38,7 @@ def main():
 
     # ── 2. Generate baseline ──────────────────────────────────────────────────
     print("\n[2/4] Generating 500 baseline macro observations...")
-    baseline = gen.sample(500, seed=42)
+    baseline = gen.generate(500, seed=42)
     print(f"      GDP growth mean      : {baseline['gdp_growth_yoy'].mean():.2f}%")
     print(f"      Unemployment mean    : {baseline['unemployment_rate'].mean():.1f}%")
     print(f"      Fed Funds Rate mean  : {baseline['fed_funds_rate'].mean():.2f}%")

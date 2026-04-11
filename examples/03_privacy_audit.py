@@ -35,7 +35,7 @@ def main():
     seed = load_dataset("hmda")
     gen = GaussianCopulaGenerator()
     gen.fit(seed)
-    syn = gen.sample(1000, seed=42)
+    syn = gen.generate(1000, seed=42)
     syn_body = syn.drop(columns=["syn_id"])
     print(f"      Real rows: {len(seed):,}  |  Synthetic rows: {len(syn_body):,}")
 

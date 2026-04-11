@@ -30,7 +30,7 @@ class CTGANGenerator(BaseGenerator):
     Usage (same interface as GaussianCopulaGenerator):
         gen = CTGANGenerator(epochs=300, batch_size=500)
         gen.fit(real_df)
-        syn = gen.sample(1000)
+        syn = gen.generate(1000)
     """
 
     supported_types = ["cross_sectional"]
@@ -67,7 +67,7 @@ class CTGANGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

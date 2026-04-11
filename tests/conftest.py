@@ -43,7 +43,7 @@ def syn_hmda(hmda):
 
     gen = GaussianCopulaGenerator()
     gen.fit(hmda)
-    return gen.sample(500, seed=42)
+    return gen.generate(500, seed=42)
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +52,7 @@ def syn_macro(fred_macro):
 
     gen = VARGenerator(lags=2, time_col="year")
     gen.fit(fred_macro)
-    return gen.sample(300, seed=42)
+    return gen.generate(300, seed=42)
 
 
 @pytest.fixture(scope="module")
@@ -61,4 +61,4 @@ def syn_wb(world_bank):
 
     gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
     gen.fit(world_bank)
-    return gen.sample(300, seed=42)
+    return gen.generate(300, seed=42)

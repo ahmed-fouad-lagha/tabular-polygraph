@@ -22,7 +22,7 @@ Usage
 
     gen = VineCopulaGenerator()
     gen.fit(real_df)
-    syn = gen.sample(10_000)
+    syn = gen.generate(10_000)
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class VineCopulaGenerator(BaseGenerator):
     -----
         gen = VineCopulaGenerator(family_set="all")
         gen.fit(real_df)
-        syn = gen.sample(10_000)
+        syn = gen.generate(10_000)
 
     Parameters
     ----------
@@ -142,7 +142,7 @@ class VineCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

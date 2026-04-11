@@ -120,8 +120,8 @@ class TestPriors:
         small = hmda.sample(50, random_state=0)
         gen_no_prior.fit(small)
         gen_with_prior.fit(small)
-        df_no = gen_no_prior.sample(200, seed=1)
-        df_yes = gen_with_prior.sample(200, seed=1)
+        df_no = gen_no_prior.generate(200, seed=1)
+        df_yes = gen_with_prior.generate(200, seed=1)
         # Both should produce valid output
         assert len(df_no) == 200
         assert len(df_yes) == 200

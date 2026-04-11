@@ -34,7 +34,7 @@ class VARGenerator(BaseGenerator):
 
         gen = VARGenerator(lags=2, time_col="year")
         gen.fit(real_df)
-        syn = gen.sample(n=240)   # 240 time steps
+        syn = gen.generate(n=240)   # 240 time steps
     """
 
     supported_types = ["time_series"]
@@ -130,7 +130,7 @@ class VARGenerator(BaseGenerator):
 
     # ── sample ────────────────────────────────────────────────────────────────
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

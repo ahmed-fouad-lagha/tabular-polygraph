@@ -33,7 +33,7 @@ class FixedEffectsGenerator(BaseGenerator):
 
         gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
         gen.fit(real_df)
-        syn = gen.sample(n=1000)
+        syn = gen.generate(n=1000)
     """
 
     supported_types = ["panel"]
@@ -124,7 +124,7 @@ class FixedEffectsGenerator(BaseGenerator):
 
     # ── sample ────────────────────────────────────────────────────────────────
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,
@@ -156,7 +156,7 @@ class FixedEffectsGenerator(BaseGenerator):
                 }
 
         # Draw residuals from the copula
-        resid_df = self._residual_gen.sample(n, seed=seed).drop(columns=["syn_id"])
+        resid_df = self._residual_gen.generate(n, seed=seed).drop(columns=["syn_id"])
 
         # Assign entity + time, add fixed effects back
         rows = []

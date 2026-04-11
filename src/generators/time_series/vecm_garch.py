@@ -29,7 +29,7 @@ Usage
 
     gen = VECMGARCHGenerator(lags=2, time_col="year")
     gen.fit(real_macro_df)
-    syn = gen.sample(500)
+    syn = gen.generate(500)
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ class VECMGARCHGenerator(BaseGenerator):
 
         gen = VECMGARCHGenerator(lags=2, time_col="year")
         gen.fit(load_dataset("fred_macro"))
-        syn = gen.sample(500)
+        syn = gen.generate(500)
 
     Parameters
     ----------
@@ -213,7 +213,7 @@ class VECMGARCHGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def sample(
+    def generate(
         self,
         n: int,
         filters: dict | None = None,

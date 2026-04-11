@@ -231,7 +231,7 @@ class TestStyleAndDownstream:
 
         gen = GaussianCopulaGenerator()
         gen.fit(credit_risk)
-        syn = gen.sample(300, seed=1).drop(columns=["syn_id"])
+        syn = gen.generate(300, seed=1).drop(columns=["syn_id"])
         result = tstr_score(
             credit_risk, syn, target_col="default_12m", task="classification"
         )
@@ -245,7 +245,7 @@ class TestStyleAndDownstream:
 
         gen = GaussianCopulaGenerator()
         gen.fit(hmda)
-        syn = gen.sample(300, seed=1).drop(columns=["syn_id"])
+        syn = gen.generate(300, seed=1).drop(columns=["syn_id"])
         result = tstr_score(hmda, syn, target_col="loan_amount", task="regression")
         assert result["metric"] == "r2"
         assert "ratio" in result
