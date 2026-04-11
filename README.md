@@ -32,13 +32,30 @@ Standard evaluation pipelines measure Euclidean and distributional agreement, wh
 ## Setup
 
 ```bash
+
 git clone https://github.com/ahmed-fouad-lagha/LCV.git
 cd LCV
 pip install -r requirements.txt
 
-# Optional: verify installation
+# Environment check
 python main.py list
-pytest tests
+pytest tests -q
+
+# Credit-risk experiment (fidelity + downstream + privacy)
+python examples/01_credit_risk.py
+
+# Macro scenarios experiment (baseline + stressed scenarios + temporal fidelity)
+python examples/02_macro_scenarios.py
+
+# Privacy audit walkthrough (MI, singling-out, linkability, DP demo)
+python examples/03_privacy_audit.py
+```
+
+Expected output files are written under `examples/`:
+- `output_credit_train.csv`
+- `output_credit_stressed.csv`
+- `output_macro_baseline.csv`
+- `output_macro_*.csv`
 ```
 
 ## CLI Usage
@@ -74,7 +91,7 @@ real = load_dataset("hmda")
 
 gen = GaussianCopulaGenerator()
 gen.fit(real)
-syn = gen.sample(10000, seed=42)
+syn = gen.generate(10000, seed=42)
 
 # Basic evaluation
 report = fidelity_report(real, syn, include_logical=True)
