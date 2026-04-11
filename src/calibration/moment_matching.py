@@ -7,6 +7,7 @@ Post-hoc calibration: adjust synthetic data so its first four moments
 This is applied *after* generation as a lightweight correction layer.
 It does not change the correlation structure, only marginal moments.
 """
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -35,7 +36,8 @@ def match_moments(
     syn = synthetic.copy()
 
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
 
@@ -61,9 +63,14 @@ def match_moments(
                 # Simple skewness correction via cube-root-ish transform
                 lam = 1 + (r_skew - s_skew) * 0.15
                 s_min = s_adj.min()
-                s_adj = np.sign(s_adj - s_min) * np.abs(s_adj - s_min) ** max(lam, 0.1) + s_min
+                s_adj = (
+                    np.sign(s_adj - s_min) * np.abs(s_adj - s_min) ** max(lam, 0.1)
+                    + s_min
+                )
                 # Re-normalise after transform
-                s_adj = (s_adj - s_adj.mean()) / (s_adj.std() + 1e-9) * r.std() + r.mean()
+                s_adj = (s_adj - s_adj.mean()) / (
+                    s_adj.std() + 1e-9
+                ) * r.std() + r.mean()
 
         # Write back, respecting original bounds
         r_min, r_max = r.min(), r.max()
@@ -71,6 +78,7 @@ def match_moments(
         # Cast back to original dtype
         try:
             import pandas as _pd
+
             if _pd.api.types.is_integer_dtype(syn[col]):
                 s_adj = s_adj.round(0).astype("int64")
             syn[col] = syn[col].astype(s_adj.dtype)
@@ -90,7 +98,8 @@ def moment_report(
     Return a DataFrame comparing first four moments between real and synthetic.
     """
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
     rows = []
@@ -99,15 +108,17 @@ def moment_report(
         s = synthetic[col].dropna().astype(float)
         if len(r) < 4 or len(s) < 4:
             continue
-        rows.append({
-            "column":       col,
-            "real_mean":    round(r.mean(), 4),
-            "syn_mean":     round(s.mean(), 4),
-            "real_std":     round(r.std(), 4),
-            "syn_std":      round(s.std(), 4),
-            "real_skew":    round(float(stats.skew(r)), 4),
-            "syn_skew":     round(float(stats.skew(s)), 4),
-            "real_kurt":    round(float(stats.kurtosis(r)), 4),
-            "syn_kurt":     round(float(stats.kurtosis(s)), 4),
-        })
+        rows.append(
+            {
+                "column": col,
+                "real_mean": round(r.mean(), 4),
+                "syn_mean": round(s.mean(), 4),
+                "real_std": round(r.std(), 4),
+                "syn_std": round(s.std(), 4),
+                "real_skew": round(float(stats.skew(r)), 4),
+                "syn_skew": round(float(stats.skew(s)), 4),
+                "real_kurt": round(float(stats.kurtosis(r)), 4),
+                "syn_kurt": round(float(stats.kurtosis(s)), 4),
+            }
+        )
     return pd.DataFrame(rows)

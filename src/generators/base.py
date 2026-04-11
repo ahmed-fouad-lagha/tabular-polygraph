@@ -5,6 +5,7 @@ Abstract base class that every generator must implement.
 Enforces a consistent interface across cross-sectional, time-series,
 panel and deep generators.
 """
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
@@ -31,11 +32,11 @@ class BaseGenerator(ABC):
     supported_types: list[str] = []
 
     def __init__(self, **kwargs: Any):
-        self._fitted   = False
-        self._n_fit    = 0        # rows seen during fit
-        self._columns  = []       # column order from fit
-        self._dtypes   = {}       # original dtypes
-        self._meta: dict = {}     # arbitrary metadata subclasses may store
+        self._fitted = False
+        self._n_fit = 0  # rows seen during fit
+        self._columns: list[str] = []  # column order from fit
+        self._dtypes: dict[str, Any] = {}  # original dtypes
+        self._meta: dict = {}  # arbitrary metadata subclasses may store
         self._init(**kwargs)
 
     def _init(self, **kwargs: Any) -> None:
@@ -96,12 +97,13 @@ class BaseGenerator(ABC):
     def _record_schema(self, df: pd.DataFrame) -> None:
         """Store column order and dtypes from the training DataFrame."""
         self._columns = list(df.columns)
-        self._dtypes  = dict(df.dtypes)
-        self._n_fit   = len(df)
+        self._dtypes = dict(df.dtypes)
+        self._n_fit = len(df)
 
     def _cast_types(self, df: pd.DataFrame) -> pd.DataFrame:
         """Cast generated columns back to original dtypes where safe."""
         import pandas as _pd
+
         for col, dtype in self._dtypes.items():
             if col not in df.columns:
                 continue

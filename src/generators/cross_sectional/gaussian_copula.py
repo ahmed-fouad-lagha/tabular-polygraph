@@ -14,6 +14,7 @@ Algorithm
 Produces statistically faithful synthetic records with zero exact copies
 of real rows and no individual-level information.
 """
+
 from __future__ import annotations
 import warnings
 import numpy as np
@@ -26,6 +27,7 @@ warnings.filterwarnings("ignore")
 
 
 # ── Marginal models ───────────────────────────────────────────────────────────
+
 
 class _NumericMarginal:
     """Fits and inverts a single numeric column distribution."""
@@ -42,7 +44,9 @@ class _NumericMarginal:
             s, loc, scale = stats.lognorm.fit(arr, floc=0)
             self._params = dict(kind="lognorm", s=s, loc=loc, scale=scale)
         else:
-            self._params = dict(kind="norm", loc=float(arr.mean()), scale=float(arr.std()) or 1.0)
+            self._params = dict(
+                kind="norm", loc=float(arr.mean()), scale=float(arr.std()) or 1.0
+            )
         return self
 
     def to_uniform(self, series: pd.Series) -> np.ndarray:
@@ -77,7 +81,7 @@ class _CategoricalMarginal:
 
     def fit(self, series: pd.Series) -> "_CategoricalMarginal":
         vc = series.dropna().value_counts(normalize=True)
-        self._cats  = list(vc.index)
+        self._cats = list(vc.index)
         self._probs = vc.values
         return self
 
@@ -87,7 +91,9 @@ class _CategoricalMarginal:
 
     def from_uniform(self, u: np.ndarray) -> list:
         cum = np.cumsum(self._probs)
-        idx = np.clip(np.searchsorted(cum, np.clip(u, 1e-6, 1 - 1e-6)), 0, len(self._cats) - 1)
+        idx = np.clip(
+            np.searchsorted(cum, np.clip(u, 1e-6, 1 - 1e-6)), 0, len(self._cats) - 1
+        )
         return [self._cats[i] for i in idx]
 
     @property
@@ -96,6 +102,7 @@ class _CategoricalMarginal:
 
 
 # ── Generator ─────────────────────────────────────────────────────────────────
+
 
 class GaussianCopulaGenerator(BaseGenerator):
     """
@@ -115,11 +122,11 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     # Shorthand aliases: 'dti' → 'debt_to_income', etc.
     _ALIASES: dict[str, str] = {
-        "dti":    "debt_to_income",
+        "dti": "debt_to_income",
         "income": "applicant_income",
-        "loan":   "loan_amount",
-        "gdp":    "gdp_growth_yoy",
-        "ffr":    "fed_funds_rate",
+        "loan": "loan_amount",
+        "gdp": "gdp_growth_yoy",
+        "ffr": "fed_funds_rate",
         "assets": "total_assets",
     }
 
@@ -139,19 +146,22 @@ class GaussianCopulaGenerator(BaseGenerator):
                 m = _NumericMarginal().fit(data[col])
                 if self._priors is not None:
                     prior = self._priors.get(col)
-                    if prior is not None and m._params.get("kind") in ("norm", "lognormal"):
+                    if prior is not None and m._params.get("kind") in (
+                        "norm",
+                        "lognormal",
+                    ):
                         n = len(data[col].dropna())
                         p = m._params
-                        p["loc"]   = prior.map_mean(p.get("loc", p.get("scale", 0)), n)
+                        p["loc"] = prior.map_mean(p.get("loc", p.get("scale", 0)), n)
                         p["scale"] = max(prior.map_std(p.get("scale", 1), n), 1e-6)
                 self._marginals[col] = m
             else:
                 self._marginals[col] = _CategoricalMarginal().fit(data[col])
 
         # Transform to normal space
-        uniform = np.column_stack([
-            self._marginals[c].to_uniform(data[c]) for c in self._columns
-        ])
+        uniform = np.column_stack(
+            [self._marginals[c].to_uniform(data[c]) for c in self._columns]
+        )
         normal = stats.norm.ppf(np.clip(uniform, 1e-6, 1 - 1e-6))
 
         # Estimate correlation, ensure PSD
@@ -177,6 +187,8 @@ class GaussianCopulaGenerator(BaseGenerator):
             np.random.seed(seed)
 
         n_gen = n * (6 if filters else 1)
+        if self._corr is None:
+            raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")
 
         # Correlated normal samples via Cholesky
         try:

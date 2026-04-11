@@ -12,6 +12,7 @@ bootstrapped initial conditions to produce synthetic series that preserve:
 
 Suitable for: fred_macro, bls (any dataset with a meaningful time dimension).
 """
+
 from __future__ import annotations
 import warnings
 import numpy as np
@@ -39,17 +40,17 @@ class VARGenerator(BaseGenerator):
     supported_types = ["time_series"]
 
     def _init(self, lags: int = 2, time_col: str | None = None, **kwargs):
-        self._lags     = lags
-        self._time_col = time_col       # column to sort by before fitting
+        self._lags = lags
+        self._time_col = time_col  # column to sort by before fitting
         self._numeric_cols: list[str] = []
-        self._cat_cols:     list[str] = []
-        self._cat_modes:    dict      = {}
-        self._A:    list[np.ndarray]  = []   # VAR coefficient matrices [A1, A2, ..., Ap]
-        self._mu:   np.ndarray | None = None  # intercept
-        self._Sigma: np.ndarray | None = None # residual covariance
-        self._means: np.ndarray | None = None # column means (for de/re-meaning)
-        self._stds:  np.ndarray | None = None # column stds
-        self._marginals: dict = {}            # per-column marginal for back-transform
+        self._cat_cols: list[str] = []
+        self._cat_modes: dict = {}
+        self._A: list[np.ndarray] = []  # VAR coefficient matrices [A1, A2, ..., Ap]
+        self._mu: np.ndarray | None = None  # intercept
+        self._Sigma: np.ndarray | None = None  # residual covariance
+        self._means: np.ndarray | None = None  # column means (for de/re-meaning)
+        self._stds: np.ndarray | None = None  # column stds
+        self._marginals: dict = {}  # per-column marginal for back-transform
 
     # ── fit ───────────────────────────────────────────────────────────────────
 
@@ -61,22 +62,26 @@ class VARGenerator(BaseGenerator):
             df = df.sort_values(self._time_col).reset_index(drop=True)
 
         # Separate numeric / categorical
-        self._numeric_cols = [c for c in self._columns
-                               if pd.api.types.is_numeric_dtype(df[c])
-                               and c != self._time_col]
-        self._cat_cols     = [c for c in self._columns
-                               if not pd.api.types.is_numeric_dtype(df[c])]
-        self._cat_modes    = {c: df[c].mode()[0] for c in self._cat_cols}
+        self._numeric_cols = [
+            c
+            for c in self._columns
+            if pd.api.types.is_numeric_dtype(df[c]) and c != self._time_col
+        ]
+        self._cat_cols = [
+            c for c in self._columns if not pd.api.types.is_numeric_dtype(df[c])
+        ]
+        self._cat_modes = {c: df[c].mode()[0] for c in self._cat_cols}
 
         # Fit per-column marginals for inversion
-        from ..cross_sectional.gaussian_copula import _NumericMarginal, _CategoricalMarginal
+        from ..cross_sectional.gaussian_copula import _NumericMarginal
+
         for col in self._numeric_cols:
             self._marginals[col] = _NumericMarginal().fit(df[col])
 
         # Standardise numeric series
         Y = df[self._numeric_cols].values.astype(float)
         self._means = Y.mean(axis=0)
-        self._stds  = Y.std(axis=0) + 1e-8
+        self._stds = Y.std(axis=0) + 1e-8
         Y_std = (Y - self._means) / self._stds
 
         T, K = Y_std.shape
@@ -84,18 +89,18 @@ class VARGenerator(BaseGenerator):
 
         if T <= p + K * p:
             # Not enough data — fall back to independent normal
-            self._mu    = np.zeros(K)
-            self._A     = [np.zeros((K, K)) for _ in range(p)]
+            self._mu = np.zeros(K)
+            self._A = [np.zeros((K, K)) for _ in range(p)]
             self._Sigma = np.eye(K) * 0.1
         else:
             # Build lagged regressor matrix
             X_rows, Y_rows = [], []
             for t in range(p, T):
-                row = np.concatenate([Y_std[t - l] for l in range(1, p + 1)])
+                row = np.concatenate([Y_std[t - lag] for lag in range(1, p + 1)])
                 X_rows.append(np.concatenate([[1.0], row]))
                 Y_rows.append(Y_std[t])
 
-            X = np.array(X_rows)   # (T-p) × (1 + K*p)
+            X = np.array(X_rows)  # (T-p) × (1 + K*p)
             Yt = np.array(Y_rows)  # (T-p) × K
 
             # OLS: B = (X'X)^{-1} X'Y
@@ -105,7 +110,9 @@ class VARGenerator(BaseGenerator):
                 B = np.zeros((1 + K * p, K))
 
             self._mu = B[0]  # intercept (K,)
-            self._A  = [B[1 + l * K: 1 + (l + 1) * K].T for l in range(p)]
+            self._A = [
+                B[1 + lag_idx * K : 1 + (lag_idx + 1) * K].T for lag_idx in range(p)
+            ]
 
             # Residual covariance
             resid = Yt - X @ B
@@ -131,13 +138,21 @@ class VARGenerator(BaseGenerator):
     ) -> pd.DataFrame:
         self._require_fitted()
         rng = np.random.default_rng(seed)
+        if (
+            self._Y_std is None
+            or self._Sigma is None
+            or self._mu is None
+            or self._stds is None
+            or self._means is None
+        ):
+            raise RuntimeError("VAR model state is incomplete. Call fit() first.")
 
         p, K = self._lags, len(self._numeric_cols)
         T_raw = len(self._Y_std)
 
         # Bootstrap initial conditions from real series
         start = int(rng.integers(0, max(T_raw - p, 1)))
-        history = list(self._Y_std[start: start + p])
+        history = list(self._Y_std[start : start + p])
         while len(history) < p:
             history.append(self._Y_std[0])
 
@@ -151,8 +166,8 @@ class VARGenerator(BaseGenerator):
         series = []
         for _ in range(n):
             y_next = self._mu.copy()
-            for l, A_l in enumerate(self._A):
-                y_next += A_l @ history[-(l + 1)]
+            for lag_idx, A_l in enumerate(self._A):
+                y_next += A_l @ history[-(lag_idx + 1)]
             y_next += L @ rng.standard_normal(K)
             history.append(y_next)
             series.append(y_next)
@@ -160,8 +175,6 @@ class VARGenerator(BaseGenerator):
         Y_syn = np.array(series)  # (n, K)
 
         # Rescale back to original units
-        Y_rescaled = Y_syn * self._stds + self._means
-
         # Clip to marginal bounds via quantile mapping
         records: dict = {}
         for i, col in enumerate(self._numeric_cols):

@@ -10,6 +10,7 @@ Note: This applies DP to the *fitting process* (noise on statistics),
 not post-hoc to synthetic rows. For a rigorous DP guarantee the entire
 generation pipeline must use these mechanisms throughout.
 """
+
 from __future__ import annotations
 import numpy as np
 
@@ -21,14 +22,14 @@ class PrivacyBudget:
         if epsilon <= 0:
             raise ValueError("epsilon must be positive")
         self.epsilon = epsilon
-        self.delta   = delta
+        self.delta = delta
         self._used_epsilon = 0.0
-        self._used_delta   = 0.0
+        self._used_delta = 0.0
         self._log: list[dict] = []
 
     def consume(self, eps: float, delta: float = 0.0, label: str = "") -> None:
         self._used_epsilon += eps
-        self._used_delta   += delta
+        self._used_delta += delta
         self._log.append({"label": label, "epsilon": eps, "delta": delta})
         if self._used_epsilon > self.epsilon:
             raise RuntimeError(

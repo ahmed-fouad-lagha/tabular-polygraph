@@ -9,10 +9,10 @@ Methodology (simplified generalised singling-out):
   on a random subset of quasi-identifier columns. If only 1 real record
   matches, the synthetic record has "singled out" that individual.
 """
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-import itertools
 
 
 def singling_out_risk(
@@ -32,16 +32,21 @@ def singling_out_risk(
     rng = np.random.default_rng(seed)
 
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
-    qi_cols = quasi_id_cols or [
-        c for c in shared if not pd.api.types.is_numeric_dtype(real[c])
-    ][:8]
+    qi_cols = (
+        quasi_id_cols
+        or [c for c in shared if not pd.api.types.is_numeric_dtype(real[c])][:8]
+    )
 
     if not qi_cols:
         return {"error": "No quasi-identifier columns found", "singling_out_rate": 0.0}
 
     n_singled = 0
-    n_tested  = min(n_attacks, len(synthetic))
-    syn_sample = synthetic.sample(n=n_tested, random_state=seed) if len(synthetic) > n_tested else synthetic
+    n_tested = min(n_attacks, len(synthetic))
+    syn_sample = (
+        synthetic.sample(n=n_tested, random_state=seed)
+        if len(synthetic) > n_tested
+        else synthetic
+    )
 
     for _, syn_row in syn_sample.iterrows():
         # Pick a random subset of 2–4 quasi-identifiers
@@ -62,16 +67,20 @@ def singling_out_risk(
     rate = round(n_singled / max(n_tested, 1), 4)
     return {
         "singling_out_rate": rate,
-        "n_attacks":         n_tested,
-        "n_singled_out":     n_singled,
-        "risk_level":        _risk_level(rate),
-        "quasi_id_cols":     qi_cols,
+        "n_attacks": n_tested,
+        "n_singled_out": n_singled,
+        "risk_level": _risk_level(rate),
+        "quasi_id_cols": qi_cols,
     }
 
 
 def _risk_level(rate: float) -> str:
-    if rate < 0.001: return "very_low"
-    if rate < 0.01:  return "low"
-    if rate < 0.05:  return "medium"
-    if rate < 0.15:  return "high"
+    if rate < 0.001:
+        return "very_low"
+    if rate < 0.01:
+        return "low"
+    if rate < 0.05:
+        return "medium"
+    if rate < 0.15:
+        return "high"
     return "very_high"

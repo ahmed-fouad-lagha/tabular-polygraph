@@ -15,12 +15,15 @@ Supported output formats:
 Supported input formats (for real data ingestion):
     csv, parquet, arrow, json, stata, sas, excel
 """
+
 from __future__ import annotations
 from pathlib import Path
+from typing import Callable
 import pandas as pd
 
 
 # ── Write ─────────────────────────────────────────────────────────────────────
+
 
 def write(
     df: pd.DataFrame,
@@ -40,16 +43,16 @@ def write(
     Returns the Path written to.
     """
     path = Path(path)
-    fmt  = fmt or _infer_format(path)
+    fmt = fmt or _infer_format(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     writers = {
-        "csv":     _write_csv,
+        "csv": _write_csv,
         "parquet": _write_parquet,
-        "arrow":   _write_arrow,
-        "json":    _write_json,
-        "stata":   _write_stata,
-        "excel":   _write_excel,
+        "arrow": _write_arrow,
+        "json": _write_json,
+        "stata": _write_stata,
+        "excel": _write_excel,
     }
 
     if fmt not in writers:
@@ -62,20 +65,25 @@ def write(
 def _write_csv(df, path, **kw):
     df.to_csv(path, index=False, **kw)
 
+
 def _write_parquet(df, path, **kw):
     df.to_parquet(path, index=False, **kw)
+
 
 def _write_arrow(df, path, **kw):
     try:
         import pyarrow as pa
         import pyarrow.feather as feather
+
         table = pa.Table.from_pandas(df)
         feather.write_feather(table, str(path))
     except ImportError:
         raise ImportError("Arrow format requires: pip install pyarrow")
 
+
 def _write_json(df, path, **kw):
     df.to_json(path, orient="records", indent=2, **kw)
+
 
 def _write_stata(df, path, **kw):
     # Stata can't handle string columns > 244 chars or certain dtypes
@@ -83,6 +91,7 @@ def _write_stata(df, path, **kw):
     for col in df_stata.select_dtypes(include="object").columns:
         df_stata[col] = df_stata[col].astype(str).str[:244]
     df_stata.to_stata(path, write_index=False, version=118, **kw)
+
 
 def _write_excel(df, path, **kw):
     try:
@@ -92,6 +101,7 @@ def _write_excel(df, path, **kw):
 
 
 # ── Read ──────────────────────────────────────────────────────────────────────
+
 
 def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
     """
@@ -107,14 +117,14 @@ def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
         raise FileNotFoundError(f"File not found: {path}")
 
     fmt = fmt or _infer_format(path)
-    readers = {
-        "csv":     lambda p, **kw: pd.read_csv(p, **kw),
+    readers: dict[str, Callable[..., pd.DataFrame]] = {
+        "csv": lambda p, **kw: pd.read_csv(p, **kw),
         "parquet": lambda p, **kw: pd.read_parquet(p, **kw),
-        "arrow":   _read_arrow,
-        "json":    lambda p, **kw: pd.read_json(p, **kw),
-        "stata":   lambda p, **kw: pd.read_stata(p, **kw),
-        "sas":     _read_sas,
-        "excel":   lambda p, **kw: pd.read_excel(p, **kw),
+        "arrow": _read_arrow,
+        "json": lambda p, **kw: pd.read_json(p, **kw),
+        "stata": lambda p, **kw: pd.read_stata(p, **kw),
+        "sas": _read_sas,
+        "excel": lambda p, **kw: pd.read_excel(p, **kw),
     }
 
     if fmt not in readers:
@@ -123,14 +133,16 @@ def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
     return readers[fmt](path, **kwargs)
 
 
-def _read_arrow(path, **kw):
+def _read_arrow(path, **kw) -> pd.DataFrame:
     try:
         import pyarrow.feather as feather
+
         return feather.read_feather(str(path)).to_pandas()
     except ImportError:
         raise ImportError("Arrow format requires: pip install pyarrow")
 
-def _read_sas(path, **kw):
+
+def _read_sas(path, **kw) -> pd.DataFrame:
     try:
         return pd.read_sas(str(path), format="sas7bdat", encoding="latin-1", **kw)
     except Exception as e:
@@ -140,18 +152,19 @@ def _read_sas(path, **kw):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _EXT_MAP = {
-    ".csv":      "csv",
-    ".parquet":  "parquet",
-    ".pq":       "parquet",
-    ".feather":  "arrow",
-    ".arrow":    "arrow",
-    ".ipc":      "arrow",
-    ".json":     "json",
-    ".dta":      "stata",
+    ".csv": "csv",
+    ".parquet": "parquet",
+    ".pq": "parquet",
+    ".feather": "arrow",
+    ".arrow": "arrow",
+    ".ipc": "arrow",
+    ".json": "json",
+    ".dta": "stata",
     ".sas7bdat": "sas",
-    ".xlsx":     "excel",
-    ".xls":      "excel",
+    ".xlsx": "excel",
+    ".xls": "excel",
 }
+
 
 def _infer_format(path: Path) -> str:
     ext = path.suffix.lower()

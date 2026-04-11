@@ -14,7 +14,9 @@ Installation of the deep extra required:
 This stub raises an informative error until the deep extra is installed,
 and documents the interface so the upgrade path is clear.
 """
+
 from __future__ import annotations
+from typing import Any
 import pandas as pd
 from ..base import BaseGenerator
 
@@ -34,9 +36,9 @@ class CTGANGenerator(BaseGenerator):
     supported_types = ["cross_sectional"]
 
     def _init(self, epochs: int = 300, batch_size: int = 500, **kwargs):
-        self._epochs     = epochs
+        self._epochs = epochs
         self._batch_size = batch_size
-        self._model      = None
+        self._model: Any | None = None
 
     def _require_ctgan(self):
         try:
@@ -56,10 +58,11 @@ class CTGANGenerator(BaseGenerator):
 
         self._record_schema(data)
         discrete_cols = [
-            c for c in self._columns
-            if not pd.api.types.is_numeric_dtype(data[c])
+            c for c in self._columns if not pd.api.types.is_numeric_dtype(data[c])
         ]
-        self._model = CTGAN(epochs=self._epochs, batch_size=self._batch_size, verbose=False)
+        self._model = CTGAN(
+            epochs=self._epochs, batch_size=self._batch_size, verbose=False
+        )
         self._model.fit(data, discrete_columns=discrete_cols)
         self._fitted = True
         return self
@@ -72,6 +75,8 @@ class CTGANGenerator(BaseGenerator):
     ) -> pd.DataFrame:
         self._require_fitted()
         self._require_ctgan()
+        if self._model is None:
+            raise RuntimeError("CTGAN model is not initialised. Call fit() first.")
         df = self._model.sample(n * (4 if filters else 1))
         df = self._cast_types(df)
         if filters:

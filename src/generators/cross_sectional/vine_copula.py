@@ -24,7 +24,9 @@ Usage
     gen.fit(real_df)
     syn = gen.sample(10_000)
 """
+
 from __future__ import annotations
+from typing import Any
 import warnings
 import numpy as np
 import pandas as pd
@@ -73,13 +75,13 @@ class VineCopulaGenerator(BaseGenerator):
     supported_types = ["cross_sectional"]
 
     def _init(self, family_set: str = "parametric", trunc_lvl: int = 0, **kwargs):
-        self._family_set   = family_set
-        self._trunc_lvl    = trunc_lvl
-        self._vine         = None
-        self._marginals    = {}
+        self._family_set = family_set
+        self._trunc_lvl = trunc_lvl
+        self._vine = None
+        self._marginals: dict[str, dict[str, Any]] = {}
         self._numeric_cols: list[str] = []
-        self._cat_cols:     list[str] = []
-        self._cat_marginals = {}
+        self._cat_cols: list[str] = []
+        self._cat_marginals: dict[str, dict[str, Any]] = {}
 
     def fit(self, data: pd.DataFrame) -> "VineCopulaGenerator":
         _require_pyvine()
@@ -87,19 +89,21 @@ class VineCopulaGenerator(BaseGenerator):
 
         self._record_schema(data)
 
-        self._numeric_cols = [c for c in self._columns
-                               if pd.api.types.is_numeric_dtype(data[c])]
-        self._cat_cols     = [c for c in self._columns
-                               if not pd.api.types.is_numeric_dtype(data[c])]
+        self._numeric_cols = [
+            c for c in self._columns if pd.api.types.is_numeric_dtype(data[c])
+        ]
+        self._cat_cols = [
+            c for c in self._columns if not pd.api.types.is_numeric_dtype(data[c])
+        ]
 
         # Fit marginals for each numeric column (empirical CDF)
         for col in self._numeric_cols:
             arr = data[col].dropna().astype(float).values
             self._marginals[col] = {
                 "sorted": np.sort(arr),
-                "n":      len(arr),
-                "min":    arr.min(),
-                "max":    arr.max(),
+                "n": len(arr),
+                "min": arr.min(),
+                "max": arr.max(),
             }
 
         # Fit categorical distributions
@@ -121,10 +125,16 @@ class VineCopulaGenerator(BaseGenerator):
         controls = pv.FitControlsVinecop(
             family_set=pv.BicopFamily.__members__.get(
                 self._family_set, list(pv.BicopFamily.__members__.values())[:8]
-            ) if isinstance(self._family_set, str) and self._family_set != "parametric"
-            else [pv.BicopFamily.gaussian, pv.BicopFamily.student,
-                  pv.BicopFamily.clayton, pv.BicopFamily.gumbel,
-                  pv.BicopFamily.frank,   pv.BicopFamily.joe],
+            )
+            if isinstance(self._family_set, str) and self._family_set != "parametric"
+            else [
+                pv.BicopFamily.gaussian,
+                pv.BicopFamily.student,
+                pv.BicopFamily.clayton,
+                pv.BicopFamily.gumbel,
+                pv.BicopFamily.frank,
+                pv.BicopFamily.joe,
+            ],
             trunc_lvl=self._trunc_lvl,
             num_threads=1,
         )
@@ -146,6 +156,8 @@ class VineCopulaGenerator(BaseGenerator):
         # Simulate from vine
         if seed is not None:
             np.random.seed(seed)
+        if self._vine is None:
+            raise RuntimeError("Vine model is not fitted. Call fit() first.")
         U_syn = self._vine.simulate(n_gen)
         U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
@@ -157,7 +169,7 @@ class VineCopulaGenerator(BaseGenerator):
             quantile_idx = U_syn[:, i] * (m["n"] - 1)
             lower = np.floor(quantile_idx).astype(int)
             upper = np.minimum(lower + 1, m["n"] - 1)
-            frac   = quantile_idx - lower
+            frac = quantile_idx - lower
             values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
             records[col] = np.clip(values, m["min"], m["max"])
 
@@ -178,13 +190,17 @@ class VineCopulaGenerator(BaseGenerator):
         for key, val in filters.items():
             if key.endswith("_min"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] >= val]
+                if col in df.columns:
+                    df = df[df[col] >= val]
             elif key.endswith("_max"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] <= val]
+                if col in df.columns:
+                    df = df[df[col] <= val]
             elif key in df.columns:
-                if isinstance(val, list): df = df[df[key].isin([str(v) for v in val])]
-                else: df = df[df[key] == val]
+                if isinstance(val, list):
+                    df = df[df[key].isin([str(v) for v in val])]
+                else:
+                    df = df[df[key] == val]
         return df
 
     def tail_dependence_report(self) -> dict:
@@ -196,14 +212,14 @@ class VineCopulaGenerator(BaseGenerator):
             return {}
         report = {}
         for i, ci in enumerate(self._numeric_cols):
-            for j, cj in enumerate(self._numeric_cols[i+1:], i+1):
+            for j, cj in enumerate(self._numeric_cols[i + 1 :], i + 1):
                 # Get the bicop for this pair from the first tree
                 try:
                     bicop = self._vine.get_pair_copula(0, i)
                     report[f"{ci} × {cj}"] = {
-                        "family":     str(bicop.family),
+                        "family": str(bicop.family),
                         "parameters": bicop.parameters.tolist(),
-                        "tau":        round(float(bicop.tau), 3),
+                        "tau": round(float(bicop.tau), 3),
                         "lower_tail": round(float(bicop.ltdc()), 3),
                         "upper_tail": round(float(bicop.utdc()), 3),
                     }

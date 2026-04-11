@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 @pytest.fixture(scope="module")
 def all_seeds():
     from src.catalog import load_dataset, DATASETS
+
     return {did: load_dataset(did) for did in DATASETS}
 
 

@@ -8,6 +8,7 @@ correlation_distance : Frobenius norm between real and synthetic
                        correlation matrices, normalised to 0–100.
 pairwise_mi_score    : Average mutual information ratio across column pairs.
 """
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -24,14 +25,15 @@ def correlation_distance_score(
     Score = 100 means identical correlation structure.
     """
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
     if len(cols) < 2:
         return 100.0
 
     R_real = _spearman_matrix(real[cols])
-    R_syn  = _spearman_matrix(synthetic[cols])
+    R_syn = _spearman_matrix(synthetic[cols])
 
     max_possible = np.sqrt(2 * len(cols) * (len(cols) - 1))  # all ±1 → 0
     dist = np.linalg.norm(R_real - R_syn, "fro")
@@ -62,14 +64,15 @@ def pairwise_correlation_report(
     Returns dict of 'col_a × col_b' → delta.
     """
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
     # Ensure we only use truly numeric columns
     cols = [c for c in cols if pd.api.types.is_numeric_dtype(real[c])]
     result = {}
     for i, ca in enumerate(cols):
-        for cb in cols[i + 1:]:
+        for cb in cols[i + 1 :]:
             r_real, _ = spearmanr(
                 real[ca].fillna(0).astype(float),
                 real[cb].fillna(0).astype(float),

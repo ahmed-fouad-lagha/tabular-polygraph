@@ -6,18 +6,19 @@ model on it, evaluate on real-world-like holdout, and audit privacy.
 
 Run: python examples/01_credit_risk.py
 """
+
 import sys
 from pathlib import Path
+
+# ruff: noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import pandas as pd
-import numpy as np
 from src.generators import GaussianCopulaGenerator
 from src.catalog import load_dataset
-from src.fidelity import fidelity_report, format_report
-from src.privacy import privacy_audit, format_audit
+from src.fidelity import fidelity_report
+from src.privacy import privacy_audit
 from src.calibration.priors import get_priors
 
 
@@ -45,6 +46,7 @@ def main():
     # ── 3. Generate stressed data (credit crisis scenario) ────────────────────
     print("\n[3/5] Generating 2,000 credit-crisis-scenario records...")
     from src.calibration import apply_scenario
+
     stressed = gen.sample(2_000, seed=99)
     stressed = apply_scenario(stressed, "credit_crisis", intensity=1.0)
     print(f"      Stressed default rate: {stressed['default_12m'].mean():.2%}")
@@ -52,7 +54,9 @@ def main():
     # ── 4. Full fidelity report ───────────────────────────────────────────────
     print("\n[4/5] Running fidelity report...")
     syn_body = train.drop(columns=["syn_id"])
-    report = fidelity_report(seed, syn_body, target_col="default_12m", include_downstream=True)
+    report = fidelity_report(
+        seed, syn_body, target_col="default_12m", include_downstream=True
+    )
     s = report["summary"]
     print(f"      Overall fidelity : {s['overall_fidelity']}%")
     print(f"      Moment matching  : {s['moment_matching_score']}%")
@@ -60,7 +64,9 @@ def main():
     print(f"      Joint score      : {s['joint_score']}%")
     if "downstream" in report:
         d = report["downstream"]
-        print(f"      TSTR Gini        : {d['tstr_score']}  (TRR: {d['trr_score']})  ratio: {d['ratio']}")
+        print(
+            f"      TSTR Gini        : {d['tstr_score']}  (TRR: {d['trr_score']})  ratio: {d['ratio']}"
+        )
 
     # ── 5. Privacy audit ──────────────────────────────────────────────────────
     print("\n[5/5] Running privacy audit (200 attacks)...")
@@ -73,7 +79,8 @@ def main():
 
     # ── Save outputs ──────────────────────────────────────────────────────────
     from src.io import write
-    write(train,   "examples/output_credit_train.csv")
+
+    write(train, "examples/output_credit_train.csv")
     write(stressed, "examples/output_credit_stressed.csv")
     print(f"\n  Saved: examples/output_credit_train.csv   ({len(train):,} rows)")
     print(f"         examples/output_credit_stressed.csv ({len(stressed):,} rows)")

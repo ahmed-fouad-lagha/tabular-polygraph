@@ -27,14 +27,13 @@ Sources
 All sources are free, public, and require no authentication except FRED
 (which needs a free API key from fred.stlouisfed.org/docs/api/api_key.html).
 """
+
 from __future__ import annotations
 import os
 import json
 import time
-import hashlib
 import io
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -42,6 +41,7 @@ import pandas as pd
 # ── Cache location ────────────────────────────────────────────────────────────
 # Default: ~/.src/cache/
 # Override: set SRC_CACHE env var
+
 
 def _cache_dir() -> Path:
     base = Path(os.environ.get("SRC_CACHE", Path.home() / ".src" / "cache"))
@@ -60,92 +60,87 @@ def is_cached(dataset_id: str) -> bool:
 # ── Download registry ─────────────────────────────────────────────────────────
 
 DOWNLOADERS: dict[str, dict] = {
-
     "hmda": {
-        "name":        "HMDA Mortgage Applications",
-        "source":      "CFPB HMDA 2022",
-        "url":         "https://ffiec.cfpb.gov/data-download",
-        "method":      "cfpb_api",
-        "size_hint":   "~3 GB (14M rows) — may take 5–10 minutes",
+        "name": "HMDA Mortgage Applications",
+        "source": "CFPB HMDA 2022",
+        "url": "https://ffiec.cfpb.gov/data-download",
+        "method": "cfpb_api",
+        "size_hint": "~3 GB (14M rows) — may take 5–10 minutes",
         "columns_map": {
-            "loan_amount":           "loan_amount",
-            "income":                "applicant_income",
-            "action_taken":          "action_taken",
-            "loan_purpose":          "loan_purpose",
+            "loan_amount": "loan_amount",
+            "income": "applicant_income",
+            "action_taken": "action_taken",
+            "loan_purpose": "loan_purpose",
             "derived_dwelling_category": "property_type",
-            "debt_to_income_ratio":  "debt_to_income",
-            "state_code":            "state",
+            "debt_to_income_ratio": "debt_to_income",
+            "state_code": "state",
         },
     },
-
     "fdic": {
-        "name":      "FDIC Bank Call Reports",
-        "source":    "FDIC Statistics on Depository Institutions",
-        "url":       "https://banks.data.fdic.gov/api/financials",
-        "method":    "fdic_api",
+        "name": "FDIC Bank Call Reports",
+        "source": "FDIC Statistics on Depository Institutions",
+        "url": "https://banks.data.fdic.gov/api/financials",
+        "method": "fdic_api",
         "size_hint": "~50 MB (5,000 banks × 20 quarters)",
     },
-
     "fred_macro": {
-        "name":      "FRED Macroeconomic Indicators",
-        "source":    "Federal Reserve FRED",
-        "url":       "https://api.stlouisfed.org/fred/series/observations",
-        "method":    "fred_api",
+        "name": "FRED Macroeconomic Indicators",
+        "source": "Federal Reserve FRED",
+        "url": "https://api.stlouisfed.org/fred/series/observations",
+        "method": "fred_api",
         "size_hint": "~1 MB — fast",
-        "requires":  "FRED_API_KEY environment variable",
+        "requires": "FRED_API_KEY environment variable",
         "series": {
-            "GDP":       "gdp_growth_yoy",
-            "CPIAUCSL":  "cpi_yoy",
-            "CPILFESL":  "core_cpi_yoy",
-            "UNRATE":    "unemployment_rate",
-            "FEDFUNDS":  "fed_funds_rate",
-            "GS10":      "t10y_rate",
-            "GS2":       "t2y_rate",
-            "M2SL":      "m2_growth",
-            "HOUST":     "housing_starts",
-            "INDPRO":    "industrial_production",
-            "UMCSENT":   "consumer_sentiment",
-            "VIXCLS":    "vix",
+            "GDP": "gdp_growth_yoy",
+            "CPIAUCSL": "cpi_yoy",
+            "CPILFESL": "core_cpi_yoy",
+            "UNRATE": "unemployment_rate",
+            "FEDFUNDS": "fed_funds_rate",
+            "GS10": "t10y_rate",
+            "GS2": "t2y_rate",
+            "M2SL": "m2_growth",
+            "HOUST": "housing_starts",
+            "INDPRO": "industrial_production",
+            "UMCSENT": "consumer_sentiment",
+            "VIXCLS": "vix",
         },
     },
-
     "bls": {
-        "name":      "BLS Employment & Wages",
-        "source":    "Bureau of Labor Statistics QCEW",
-        "url":       "https://www.bls.gov/cew/downloadable-data.htm",
-        "method":    "bls_api",
+        "name": "BLS Employment & Wages",
+        "source": "Bureau of Labor Statistics QCEW",
+        "url": "https://www.bls.gov/cew/downloadable-data.htm",
+        "method": "bls_api",
         "size_hint": "~200 MB",
     },
-
     "world_bank": {
-        "name":      "World Bank Development Indicators",
-        "source":    "World Bank WDI API",
-        "url":       "https://api.worldbank.org/v2/country/all/indicator",
-        "method":    "worldbank_api",
+        "name": "World Bank Development Indicators",
+        "source": "World Bank WDI API",
+        "url": "https://api.worldbank.org/v2/country/all/indicator",
+        "method": "worldbank_api",
         "size_hint": "~5 MB — fast",
         "indicators": {
             "NY.GDP.MKTP.KD.ZG": "gdp_growth",
-            "NY.GDP.PCAP.KD":    "gdp_per_capita",
-            "FP.CPI.TOTL.ZG":    "inflation",
+            "NY.GDP.PCAP.KD": "gdp_per_capita",
+            "FP.CPI.TOTL.ZG": "inflation",
             "BN.CAB.XOKA.GD.ZS": "current_account_pct_gdp",
             "BX.KLT.DINV.WD.GD.ZS": "fdi_pct_gdp",
             "GC.DOD.TOTL.GD.ZS": "govt_debt_pct_gdp",
-            "SP.POP.GROW":       "population_growth",
-            "SI.POV.GINI":       "gini",
+            "SP.POP.GROW": "population_growth",
+            "SI.POV.GINI": "gini",
         },
     },
-
     "census_acs": {
-        "name":      "Census ACS Income & Housing",
-        "source":    "US Census ACS 5-Year API",
-        "url":       "https://api.census.gov/data/2022/acs/acs5",
-        "method":    "census_api",
+        "name": "Census ACS Income & Housing",
+        "source": "US Census ACS 5-Year API",
+        "url": "https://api.census.gov/data/2022/acs/acs5",
+        "method": "census_api",
         "size_hint": "~10 MB",
     },
 }
 
 
 # ── Download implementations ──────────────────────────────────────────────────
+
 
 def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     """Download World Bank WDI via free REST API. No key needed."""
@@ -155,12 +150,11 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
         raise ImportError("urllib required (should be in stdlib)")
 
     indicators = DOWNLOADERS["world_bank"]["indicators"]
-    base_url   = DOWNLOADERS["world_bank"]["url"]
-    frames     = {}
+    base_url = DOWNLOADERS["world_bank"]["url"]
+    frames = {}
 
     for code, col_name in indicators.items():
-        url = (f"{base_url}/{code}?format=json&per_page=20000"
-               f"&mrv=25&date=2000:2023")
+        url = f"{base_url}/{code}?format=json&per_page=20000&mrv=25&date=2000:2023"
         print(f"    Fetching {col_name} ({code})...", end=" ", flush=True)
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
@@ -169,11 +163,13 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
             rows = []
             for rec in records:
                 if rec.get("value") is not None:
-                    rows.append({
-                        "country_code": rec["country"]["id"],
-                        "year":         int(rec["date"]),
-                        col_name:       float(rec["value"]),
-                    })
+                    rows.append(
+                        {
+                            "country_code": rec["country"]["id"],
+                            "year": int(rec["date"]),
+                            col_name: float(rec["value"]),
+                        }
+                    )
             frames[col_name] = pd.DataFrame(rows)
             print(f"{len(rows)} rows")
         except Exception as e:
@@ -190,7 +186,9 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
         if df is None:
             df = frame
         else:
-            df = df.merge(frame, on=["country_code","year"], how="outer")
+            df = df.merge(frame, on=["country_code", "year"], how="outer")
+    if df is None:
+        raise RuntimeError("No World Bank data merged")
 
     # Add metadata columns
     meta_url = "https://api.worldbank.org/v2/country?format=json&per_page=300"
@@ -199,11 +197,13 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
             meta_data = json.loads(r.read())
         meta_rows = []
         for c in meta_data[1]:
-            meta_rows.append({
-                "country_code":  c["id"],
-                "income_group":  c.get("incomeLevel",{}).get("value","Unknown"),
-                "region":        c.get("region",{}).get("value","Unknown"),
-            })
+            meta_rows.append(
+                {
+                    "country_code": c["id"],
+                    "income_group": c.get("incomeLevel", {}).get("value", "Unknown"),
+                    "region": c.get("region", {}).get("value", "Unknown"),
+                }
+            )
         meta_df = pd.DataFrame(meta_rows)
         df = df.merge(meta_df, on="country_code", how="left")
     except Exception:
@@ -216,7 +216,8 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
 
 def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     """Download FRED series via API. Requires FRED_API_KEY env var."""
-    import urllib.request, urllib.parse
+    import urllib.request
+    import urllib.parse
 
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
@@ -227,17 +228,19 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         )
 
     series_map = DOWNLOADERS["fred_macro"]["series"]
-    base_url   = "https://api.stlouisfed.org/fred/series/observations"
-    frames     = {}
+    base_url = "https://api.stlouisfed.org/fred/series/observations"
+    frames = {}
 
     for series_id, col_name in series_map.items():
-        params = urllib.parse.urlencode({
-            "series_id":      series_id,
-            "api_key":        api_key,
-            "file_type":      "json",
-            "observation_start": "2000-01-01",
-            "frequency":      "m",
-        })
+        params = urllib.parse.urlencode(
+            {
+                "series_id": series_id,
+                "api_key": api_key,
+                "file_type": "json",
+                "observation_start": "2000-01-01",
+                "frequency": "m",
+            }
+        )
         url = f"{base_url}?{params}"
         print(f"    Fetching {col_name} ({series_id})...", end=" ", flush=True)
         try:
@@ -263,11 +266,16 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
             df = frame
         else:
             df = df.merge(frame, on="date", how="outer")
+    if df is None:
+        raise RuntimeError("No FRED data merged")
 
     df["date"] = pd.to_datetime(df["date"])
     df["year"] = df["date"].dt.year
-    df = df.dropna(subset=["gdp_growth_yoy"] if "gdp_growth_yoy" in df.columns
-                   else [list(df.columns)[1]])
+    df = df.dropna(
+        subset=["gdp_growth_yoy"]
+        if "gdp_growth_yoy" in df.columns
+        else [list(df.columns)[1]]
+    )
 
     # Add VIX if available (it's in a different series)
     if "vix" not in df.columns:
@@ -278,7 +286,8 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
 def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     """Download Census ACS via free API. No key needed for basic variables."""
-    import urllib.request, urllib.parse
+    import urllib.request
+    import urllib.parse
 
     # ACS 5-year 2022 — household income and housing cost variables
     base = "https://api.census.gov/data/2022/acs/acs5"
@@ -290,11 +299,13 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     all_rows = []
 
     for state in states[:10]:  # sample 10 states for speed; real download would do all
-        params = urllib.parse.urlencode({
-            "get":   variables,
-            "for":   "tract:*",
-            "in":    f"state:{state:02d}",
-        })
+        params = urllib.parse.urlencode(
+            {
+                "get": variables,
+                "for": "tract:*",
+                "in": f"state:{state:02d}",
+            }
+        )
         url = f"{base}?{params}"
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
@@ -321,14 +332,21 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         "B23025_005E": "unemployed",
         "B25003_001E": "total_housing_units",
         "B25003_002E": "owner_occupied",
-        "state":       "state_fips",
-        "tract":       "tract_id",
+        "state": "state_fips",
+        "tract": "tract_id",
     }
     df = df_raw.rename(columns={k: v for k, v in rename.items() if k in df_raw.columns})
 
     # Convert to numerics
-    for col in ["household_income","total_renter_units","severe_burden_units",
-                "in_labor_force","unemployed","total_housing_units","owner_occupied"]:
+    for col in [
+        "household_income",
+        "total_renter_units",
+        "severe_burden_units",
+        "in_labor_force",
+        "unemployed",
+        "total_housing_units",
+        "owner_occupied",
+    ]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -356,15 +374,57 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         "5": "local_gov",
     }
     state_fips_to_abbr = {
-        "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO",
-        "09": "CT", "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI",
-        "16": "ID", "17": "IL", "18": "IN", "19": "IA", "20": "KS", "21": "KY",
-        "22": "LA", "23": "ME", "24": "MD", "25": "MA", "26": "MI", "27": "MN",
-        "28": "MS", "29": "MO", "30": "MT", "31": "NE", "32": "NV", "33": "NH",
-        "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND", "39": "OH",
-        "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD",
-        "47": "TN", "48": "TX", "49": "UT", "50": "VT", "51": "VA", "53": "WA",
-        "54": "WV", "55": "WI", "56": "WY",
+        "01": "AL",
+        "02": "AK",
+        "04": "AZ",
+        "05": "AR",
+        "06": "CA",
+        "08": "CO",
+        "09": "CT",
+        "10": "DE",
+        "11": "DC",
+        "12": "FL",
+        "13": "GA",
+        "15": "HI",
+        "16": "ID",
+        "17": "IL",
+        "18": "IN",
+        "19": "IA",
+        "20": "KS",
+        "21": "KY",
+        "22": "LA",
+        "23": "ME",
+        "24": "MD",
+        "25": "MA",
+        "26": "MI",
+        "27": "MN",
+        "28": "MS",
+        "29": "MO",
+        "30": "MT",
+        "31": "NE",
+        "32": "NV",
+        "33": "NH",
+        "34": "NJ",
+        "35": "NM",
+        "36": "NY",
+        "37": "NC",
+        "38": "ND",
+        "39": "OH",
+        "40": "OK",
+        "41": "OR",
+        "42": "PA",
+        "44": "RI",
+        "45": "SC",
+        "46": "SD",
+        "47": "TN",
+        "48": "TX",
+        "49": "UT",
+        "50": "VT",
+        "51": "VA",
+        "53": "WA",
+        "54": "WV",
+        "55": "WI",
+        "56": "WY",
     }
 
     frames: list[pd.DataFrame] = []
@@ -409,9 +469,7 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df["naics_sector"] = df["naics_sector"].astype(str)
     df = df[df["naics_sector"].str.fullmatch(r"\d{2}", na=False)]
 
-    df["ownership"] = (
-        df["ownership"].astype(str).map(ownership_map).fillna("other")
-    )
+    df["ownership"] = df["ownership"].astype(str).map(ownership_map).fillna("other")
 
     # Map state FIPS prefixes to postal codes; US aggregate is retained as US.
     state_raw = df["state"].astype(str)
@@ -431,7 +489,9 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     ]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["quarter"] = np.where(df["quarter"].astype(str).str.upper() == "A", 4, df["quarter"])
+    df["quarter"] = np.where(
+        df["quarter"].astype(str).str.upper() == "A", 4, df["quarter"]
+    )
     df["quarter"] = pd.to_numeric(df["quarter"], errors="coerce")
 
     df = df.dropna(
@@ -458,6 +518,7 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
 
 # ── Main download function ────────────────────────────────────────────────────
+
 
 def download(
     dataset_id: str,
@@ -548,19 +609,23 @@ def status() -> pd.DataFrame:
         p = cache_path(did)
         if p.exists():
             df = pd.read_parquet(p)
-            rows.append({
-                "dataset": did,
-                "status":  "✓ cached",
-                "rows":    f"{len(df):,}",
-                "size":    f"{p.stat().st_size // 1024:,} KB",
-                "path":    str(p),
-            })
+            rows.append(
+                {
+                    "dataset": did,
+                    "status": "✓ cached",
+                    "rows": f"{len(df):,}",
+                    "size": f"{p.stat().st_size // 1024:,} KB",
+                    "path": str(p),
+                }
+            )
         else:
-            rows.append({
-                "dataset": did,
-                "status":  "○ not downloaded",
-                "rows":    "—",
-                "size":    "—",
-                "path":    "—",
-            })
+            rows.append(
+                {
+                    "dataset": did,
+                    "status": "○ not downloaded",
+                    "rows": "—",
+                    "size": "—",
+                    "path": "—",
+                }
+            )
     return pd.DataFrame(rows)

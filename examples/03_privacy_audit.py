@@ -10,20 +10,19 @@ Demonstrates the full privacy audit workflow:
 
 Run: python examples/03_privacy_audit.py
 """
+
 import sys
 from pathlib import Path
+
+# ruff: noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import numpy as np
 from src.generators import GaussianCopulaGenerator
 from src.catalog import load_dataset
 from src.privacy import privacy_audit, format_audit
-from src.privacy.dp import PrivacyBudget, laplace_mechanism, gaussian_mechanism
-from src.privacy.singling_out import singling_out_risk
-from src.privacy.linkability import linkability_risk
-from src.privacy.disclosure import membership_inference_risk
+from src.privacy.dp import PrivacyBudget, laplace_mechanism
 
 
 def main():
@@ -50,22 +49,26 @@ def main():
 
     # Membership inference
     mi = audit["membership_inference"]
-    print(f"\n  Membership Inference:")
-    print(f"    Attack AUC     : {mi['attack_auc']}  (0.5 = random, 1.0 = perfect attack)")
+    print("\n  Membership Inference:")
+    print(
+        f"    Attack AUC     : {mi['attack_auc']}  (0.5 = random, 1.0 = perfect attack)"
+    )
     print(f"    Advantage      : {mi['advantage']}  (AUC - 0.5)")
     print(f"    Risk level     : {mi['risk_level']}")
     print(f"    Interpretation : {mi['interpretation']}")
 
     # Singling-out
     so = audit["singling_out"]
-    print(f"\n  Singling-Out:")
-    print(f"    Rate           : {so['singling_out_rate']}  (fraction of attacks that uniquely identify)")
+    print("\n  Singling-Out:")
+    print(
+        f"    Rate           : {so['singling_out_rate']}  (fraction of attacks that uniquely identify)"
+    )
     print(f"    Risk level     : {so['risk_level']}")
     print(f"    QI columns used: {so.get('quasi_id_cols', [])}")
 
     # Linkability
     lk = audit["linkability"]
-    print(f"\n  Linkability:")
+    print("\n  Linkability:")
     print(f"    Rate           : {lk['linkability_rate']}  (0.5 = random baseline)")
     print(f"    Lift           : {lk['lift_over_baseline_pct']}% over baseline")
     print(f"    Risk level     : {lk['risk_level']}")
@@ -75,21 +78,31 @@ def main():
     budget = PrivacyBudget(epsilon=1.0)
     print(f"      Budget: {budget}")
 
-    true_mean_loan  = float(seed["loan_amount"].mean())
+    true_mean_loan = float(seed["loan_amount"].mean())
     true_mean_income = float(seed["applicant_income"].mean())
 
     noisy_loan = laplace_mechanism(
-        true_mean_loan, sensitivity=2_000_000, epsilon=0.3,
-        budget=budget, label="mean_loan_amount",
+        true_mean_loan,
+        sensitivity=2_000_000,
+        epsilon=0.3,
+        budget=budget,
+        label="mean_loan_amount",
     )
     noisy_income = laplace_mechanism(
-        true_mean_income, sensitivity=1_000_000, epsilon=0.3,
-        budget=budget, label="mean_applicant_income",
+        true_mean_income,
+        sensitivity=1_000_000,
+        epsilon=0.3,
+        budget=budget,
+        label="mean_applicant_income",
     )
 
-    print(f"\n      Loan amount:   true={true_mean_loan:>12,.0f}  noisy={noisy_loan:>12,.0f}")
-    print(f"      App. income:   true={true_mean_income:>12,.0f}  noisy={noisy_income:>12,.0f}")
-    print(f"\n      Budget log:")
+    print(
+        f"\n      Loan amount:   true={true_mean_loan:>12,.0f}  noisy={noisy_loan:>12,.0f}"
+    )
+    print(
+        f"      App. income:   true={true_mean_income:>12,.0f}  noisy={noisy_income:>12,.0f}"
+    )
+    print("\n      Budget log:")
     for entry in budget.log:
         print(f"        ε={entry['epsilon']}  [{entry['label']}]")
     print(f"      Remaining ε: {budget.remaining_epsilon:.2f}")

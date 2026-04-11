@@ -2,6 +2,7 @@
 Assembles a complete fidelity report by running all available metrics.
 Returns a structured dict suitable for JSON serialisation or CLI display.
 """
+
 from __future__ import annotations
 import time
 import pandas as pd
@@ -17,8 +18,12 @@ from .stylized_facts import stylized_facts_score
 from .causality import causality_score
 
 
-def _shared_columns(real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str] | None) -> list[str]:
-    return columns or [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
+def _shared_columns(
+    real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str] | None
+) -> list[str]:
+    return columns or [
+        c for c in real.columns if c in synthetic.columns and c != "syn_id"
+    ]
 
 
 def _stylized_facts_section(
@@ -47,7 +52,11 @@ def _temporal_section(
     dataset_type: str,
     include_temporal: bool | None,
 ) -> dict | None:
-    do_temporal = include_temporal if include_temporal is not None else dataset_type in ("time_series", "panel")
+    do_temporal = (
+        include_temporal
+        if include_temporal is not None
+        else dataset_type in ("time_series", "panel")
+    )
     if not do_temporal:
         return None
 
@@ -99,7 +108,9 @@ def _logical_section(
         if not cat_cols:
             return None, logical_validity
 
-        lcv_result = lcv_score(real, synthetic, columns=cat_cols, epochs=20, verbose=False)
+        lcv_result = lcv_score(
+            real, synthetic, columns=cat_cols, epochs=20, verbose=False
+        )
         rule_result = rule_violation_score(
             real,
             synthetic,
@@ -113,11 +124,15 @@ def _logical_section(
         logical_validity = round(float(lcv_result["lcv_score"] * 100.0), 2)
         return {
             "lcv_score_pct": round(float(lcv_result["lcv_score"] * 100.0), 2),
-            "lcv_violation_rate_pct": round(float(lcv_result["violation_rate"] * 100.0), 2),
+            "lcv_violation_rate_pct": round(
+                float(lcv_result["violation_rate"] * 100.0), 2
+            ),
             "mean_penalty_pct": round(float(lcv_result["mean_penalty"] * 100.0), 2),
             "num_lcv_violations": lcv_result["num_violations"],
             "columns_used": lcv_result["columns_used"],
-            "rule_violation_rate_pct": round(float(rule_result["rule_violation_rate"] * 100.0), 2),
+            "rule_violation_rate_pct": round(
+                float(rule_result["rule_violation_rate"] * 100.0), 2
+            ),
             "num_rule_violations": rule_result["num_rule_violations"],
             "num_rules_mined": rule_result["num_rules_mined"],
             "rows_with_rule_violations": rule_result["rows_with_rule_violations"],
@@ -128,7 +143,9 @@ def _logical_section(
         }, logical_validity
     except Exception as e:
         if "torch" in str(e).lower():
-            return {"error": "PyTorch not installed. Install with: pip install torch"}, logical_validity
+            return {
+                "error": "PyTorch not installed. Install with: pip install torch"
+            }, logical_validity
         return {"error": str(e)}, logical_validity
 
 
@@ -144,7 +161,9 @@ def _summary_section(
     logical_validity: float | None,
 ) -> dict:
     summary_dict = {
-        "overall_fidelity": round(float(0.45 * mm_score + 0.30 * ks_score + 0.25 * corr_score), 2),
+        "overall_fidelity": round(
+            float(0.45 * mm_score + 0.30 * ks_score + 0.25 * corr_score), 2
+        ),
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
@@ -164,11 +183,11 @@ def _summary_section(
 def fidelity_report(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
-    dataset_type: str = "cross_sectional",   # cross_sectional | time_series | panel
-    target_col: str | None = None,            # for TSTR downstream score
-    include_temporal: bool | None = None,     # auto-detect from dataset_type
+    dataset_type: str = "cross_sectional",  # cross_sectional | time_series | panel
+    target_col: str | None = None,  # for TSTR downstream score
+    include_temporal: bool | None = None,  # auto-detect from dataset_type
     include_downstream: bool = True,
-    include_logical: bool = True,             # LCV logical validation
+    include_logical: bool = True,  # LCV logical validation
     columns: list[str] | None = None,
     rule_min_confidence: float = 0.95,
     rule_min_support: float = 0.005,
@@ -214,15 +233,17 @@ def fidelity_report(
     ks_scores = ks_distribution_scores(real, syn, num_cols)
     report["moment_matching"] = {
         "column_scores": mm_scores,
-        "mean_score":    mean_moment_matching_score(mm_scores),
+        "mean_score": mean_moment_matching_score(mm_scores),
     }
     report["distribution_fit"] = {
         "column_scores": ks_scores,
-        "mean_score":    mean_ks_score(ks_scores),
+        "mean_score": mean_ks_score(ks_scores),
     }
 
     # ── Stylized facts ────────────────────────────────────────────────────────
-    report["stylized_facts"] = _stylized_facts_section(real, syn, num_cols, dataset_type)
+    report["stylized_facts"] = _stylized_facts_section(
+        real, syn, num_cols, dataset_type
+    )
 
     # ── Temporal (time series / panel only) ───────────────────────────────────
     temporal_report = _temporal_section(real, syn, cols, dataset_type, include_temporal)
@@ -236,10 +257,12 @@ def fidelity_report(
 
     # ── Privacy (basic — full audit is in privacy/audit.py) ──────────────────
     real_hashes = set(real[cols].astype(str).apply("|".join, axis=1))
-    syn_hashes  = syn[[c for c in cols if c in syn.columns]].astype(str).apply("|".join, axis=1)
+    syn_hashes = (
+        syn[[c for c in cols if c in syn.columns]].astype(str).apply("|".join, axis=1)
+    )
     exact_copies = int(syn_hashes.isin(real_hashes).sum())
     report["privacy_basic"] = {
-        "exact_copies":  exact_copies,
+        "exact_copies": exact_copies,
         "privacy_score": round((1 - exact_copies / max(len(syn), 1)) * 100, 2),
     }
 
@@ -284,27 +307,29 @@ def format_report(report: dict, width: int = 60) -> str:
     lines.append("=" * width)
     lines.append("  FIDELITY REPORT")
     lines.append("=" * width)
-    lines.append(f"  Dataset type    : {report.get('dataset_type','—')}")
-    lines.append(f"  Rows (real/syn) : {s.get('rows_real','?')} / {s.get('rows_synthetic','?')}")
+    lines.append(f"  Dataset type    : {report.get('dataset_type', '—')}")
+    lines.append(
+        f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
+    )
     lines.append("")
-    lines.append(f"  Overall fidelity: {s.get('overall_fidelity','—')}%")
-    lines.append(f"  Moment matching : {s.get('moment_matching_score','—')}%")
-    lines.append(f"  KS distribution : {s.get('ks_score','—')}%")
-    lines.append(f"  Joint score     : {s.get('joint_score','—')}%")
-    lines.append(f"  Privacy score   : {s.get('privacy_score','—')}%")
+    lines.append(f"  Overall fidelity: {s.get('overall_fidelity', '—')}%")
+    lines.append(f"  Moment matching : {s.get('moment_matching_score', '—')}%")
+    lines.append(f"  KS distribution : {s.get('ks_score', '—')}%")
+    lines.append(f"  Joint score     : {s.get('joint_score', '—')}%")
+    lines.append(f"  Privacy score   : {s.get('privacy_score', '—')}%")
     logical_validity = s.get("logical_validity")
     if logical_validity is None:
         lines.append("  Logical validity: —")
     else:
         lines.append(f"  Logical validity: {logical_validity}%")
-    lines.append(f"  Exact copies    : {s.get('exact_copies','—')}")
+    lines.append(f"  Exact copies    : {s.get('exact_copies', '—')}")
     lines.append("")
 
     sf_summary = report.get("stylized_facts", {}).get("_summary", {})
     lines.append("  Stylized facts:")
     if sf_summary.get("applicable", True):
-        lines.append(f"    Mean score  : {sf_summary.get('mean_score','—')}%")
-        lines.append(f"    Columns     : {sf_summary.get('columns_tested','—')}")
+        lines.append(f"    Mean score  : {sf_summary.get('mean_score', '—')}%")
+        lines.append(f"    Columns     : {sf_summary.get('columns_tested', '—')}")
     else:
         lines.append(f"    {sf_summary.get('note', 'Not evaluated.')}")
     lines.append("")
@@ -330,28 +355,42 @@ def format_report(report: dict, width: int = 60) -> str:
         lines.append("")
         lines.append("  Downstream (TSTR):")
         lines.append(f"    Target  : {d.get('target_col')}")
-        lines.append(f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}")
-        lines.append(f"    Ratio   : {d.get('ratio')}  — {d.get('interpretation','')[:50]}")
+        lines.append(
+            f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}"
+        )
+        lines.append(
+            f"    Ratio   : {d.get('ratio')}  — {d.get('interpretation', '')[:50]}"
+        )
 
     if "logical" in report:
         lg = report["logical"]
         lines.append("")
         lines.append("  Logical (Rules + LCV):")
         lines.append(f"    LCV score      : {lg.get('lcv_score_pct', '—')}%")
-        lines.append(f"    LCV violation rate : {lg.get('lcv_violation_rate_pct', '—')}%")
-        lines.append(f"    Rule violation rate  : {lg.get('rule_violation_rate_pct', '—')}%")
+        lines.append(
+            f"    LCV violation rate : {lg.get('lcv_violation_rate_pct', '—')}%"
+        )
+        lines.append(
+            f"    Rule violation rate  : {lg.get('rule_violation_rate_pct', '—')}%"
+        )
         lines.append(f"    Mean penalty         : {lg.get('mean_penalty_pct', '—')}%")
-        lines.append(f"    Rule violations      : {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})")
+        lines.append(
+            f"    Rule violations      : {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+        )
 
         top_rules = lg.get("top_violated_rules", [])
         if top_rules:
             lines.append("    Top violated rules:")
             for rule in top_rules[:5]:
-                ant = rule.get('antecedent_repr')
+                ant = rule.get("antecedent_repr")
                 if not ant:
-                    ant_feat = rule.get('antecedent_feature')
-                    ant_val = rule.get('antecedent_value')
-                    ant = f"{ant_feat}={ant_val}" if ant_feat is not None else "(unknown antecedent)"
+                    ant_feat = rule.get("antecedent_feature")
+                    ant_val = rule.get("antecedent_value")
+                    ant = (
+                        f"{ant_feat}={ant_val}"
+                        if ant_feat is not None
+                        else "(unknown antecedent)"
+                    )
                 lines.append(
                     "      "
                     + f"IF {ant} "
@@ -371,6 +410,6 @@ def format_report(report: dict, width: int = 60) -> str:
                 )
 
     lines.append("")
-    lines.append(f"  Computed in {s.get('elapsed_seconds','?')}s")
+    lines.append(f"  Computed in {s.get('elapsed_seconds', '?')}s")
     lines.append("=" * width)
     return "\n".join(lines)

@@ -11,11 +11,8 @@ CSSP(x_g,i) = 1 - P(category_chosen | others) measures logical impossibility.
 LCV Score ∈ [0, 1] is the geometric mean of the per-feature chosen-category
 probabilities, averaged across synthetic rows.
 """
+
 from __future__ import annotations
-import time
-import sys
-import os
-from pathlib import Path
 import warnings
 from itertools import combinations
 import numpy as np
@@ -28,12 +25,15 @@ try:
     import torch
     import torch.nn as nn
     import torch.optim as optim
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
 
 
-def _feature_groups_from_encoded_columns(encoded_columns: list[str], separator: str = "__") -> list[list[int]]:
+def _feature_groups_from_encoded_columns(
+    encoded_columns: list[str], separator: str = "__"
+) -> list[list[int]]:
     """Group one-hot encoded columns by their original feature prefix."""
     feature_to_indices: dict[str, list[int]] = {}
     for index, column_name in enumerate(encoded_columns):
@@ -79,13 +79,16 @@ class LCVAutoencoder(nn.Module):
     Under-complete denoising autoencoder trained on categorical tabular data.
     Serves as the frozen "Laws of Physics" oracle for semantic validation.
     """
+
     def __init__(self, input_dim: int, hidden_dim: int, learning_rate: float = 0.005):
         super(LCVAutoencoder, self).__init__()
-        assert hidden_dim < input_dim, "Hidden dimension must compress input for under-complete design."
-        
+        assert hidden_dim < input_dim, (
+            "Hidden dimension must compress input for under-complete design."
+        )
+
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
-        
+
         # For categorical tabular data, dropout-denoising is more stable than Gaussian perturbation.
         self.input_dropout = nn.Dropout(p=0.1)
 
@@ -100,7 +103,7 @@ class LCVAutoencoder(nn.Module):
             nn.Linear(dim_1, dim_2),
             nn.ReLU(),
             nn.Linear(dim_2, hidden_dim),
-            nn.ReLU()
+            nn.ReLU(),
         )
         self.decoder = nn.Sequential(
             nn.Linear(hidden_dim, dim_2),
@@ -108,10 +111,12 @@ class LCVAutoencoder(nn.Module):
             nn.Linear(dim_2, dim_1),
             nn.ReLU(),
             nn.Linear(dim_1, input_dim),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
-        
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate, weight_decay=1e-5)
+
+        self.optimizer = optim.Adam(
+            self.parameters(), lr=learning_rate, weight_decay=1e-5
+        )
         self.criterion = nn.BCELoss()
         self.is_trained = False
 
@@ -122,10 +127,16 @@ class LCVAutoencoder(nn.Module):
         reconstruction = self.decoder(latent)
         return reconstruction
 
-    def fit(self, real_tensor: torch.Tensor, epochs: int = 30, batch_size: int = 128, verbose: bool = True):
+    def fit(
+        self,
+        real_tensor: torch.Tensor,
+        epochs: int = 30,
+        batch_size: int = 128,
+        verbose: bool = True,
+    ):
         """
         Phase 1: Learn structural patterns from real data in O(n) time.
-        
+
         Parameters
         ----------
         real_tensor : torch.Tensor
@@ -139,7 +150,7 @@ class LCVAutoencoder(nn.Module):
         """
         if verbose:
             print(f"[LCV] Training on {len(real_tensor)} real records...")
-        
+
         self.train()
         dataset = torch.utils.data.TensorDataset(real_tensor, real_tensor)
         dataloader = torch.utils.data.DataLoader(
@@ -149,7 +160,7 @@ class LCVAutoencoder(nn.Module):
             drop_last=True,
             num_workers=0,
         )
-        
+
         for epoch in range(epochs):
             epoch_loss = 0.0
             for batch_x, _ in dataloader:
@@ -158,26 +169,32 @@ class LCVAutoencoder(nn.Module):
                 loss = self.criterion(outputs, batch_x)
                 loss.backward()
                 self.optimizer.step()
-                
+
                 epoch_loss += loss.item()
-            
+
             if verbose and (epoch + 1) % max(1, epochs // 3) == 0:
                 avg_loss = epoch_loss / len(dataloader)
-                print(f"[LCV] Epoch [{epoch+1}/{epochs}], Reconstruction Loss: {avg_loss:.4f}")
-        
+                print(
+                    f"[LCV] Epoch [{epoch + 1}/{epochs}], Reconstruction Loss: {avg_loss:.4f}"
+                )
+
         self.is_trained = True
         if verbose:
             print("[LCV] Semantic extraction complete.")
 
-    def evaluate(self, synth_tensor: torch.Tensor) -> Tuple[float, np.ndarray]:
+    def evaluate(
+        self,
+        synth_tensor: torch.Tensor,
+        feature_groups: list[list[int]] | None = None,
+    ) -> Tuple[float, np.ndarray]:
         """
         Phase 2: Grade synthetic data using frozen oracle probabilities in O(1) per row.
-        
+
         Parameters
         ----------
         synth_tensor : torch.Tensor
             One-hot encoded synthetic data, shape (n_samples, n_features)
-        
+
         Returns
         -------
         lcv_score : float
@@ -187,16 +204,17 @@ class LCVAutoencoder(nn.Module):
         """
         if not self.is_trained:
             raise RuntimeError("LCVAutoencoder must be fitted first.")
-        
+
         self.eval()
         with torch.no_grad():
             expected_probs = self.forward(synth_tensor)
-            feature_groups = getattr(self, "feature_groups", None)
 
             if feature_groups:
                 feature_scores = []
                 for indices in feature_groups:
-                    selected_probs = (expected_probs[:, indices] * synth_tensor[:, indices]).sum(dim=1)
+                    selected_probs = (
+                        expected_probs[:, indices] * synth_tensor[:, indices]
+                    ).sum(dim=1)
                     feature_scores.append(selected_probs)
 
                 feature_matrix = torch.stack(feature_scores, dim=1).clamp_min(1e-6)
@@ -210,9 +228,9 @@ class LCVAutoencoder(nn.Module):
             masked_probs = chosen_probs.clone()
             masked_probs[synth_tensor == 0] = 1.0
             min_row_prob = masked_probs.min(dim=1).values
-            row_penalties = 1.0 - min_row_prob
-            lcv_score = 1.0 - row_penalties.mean().item()
-            return lcv_score, row_penalties.cpu().numpy()
+            row_penalties_tensor = 1.0 - min_row_prob
+            lcv_score = 1.0 - row_penalties_tensor.mean().item()
+            return lcv_score, row_penalties_tensor.cpu().numpy()
 
 
 def lcv_score(
@@ -224,10 +242,10 @@ def lcv_score(
 ) -> dict:
     """
     Compute LCV logical constraint validation score.
-    
+
     Trains an autoencoder on categorical real data and evaluates whether
     the synthetic data respects the learned semantic boundaries.
-    
+
     Parameters
     ----------
     real : pd.DataFrame
@@ -240,7 +258,7 @@ def lcv_score(
         Training epochs for autoencoder
     verbose : bool
         Print progress
-    
+
     Returns
     -------
     dict
@@ -253,26 +271,34 @@ def lcv_score(
     """
     if not TORCH_AVAILABLE:
         raise ImportError("LCV requires PyTorch. Install with: pip install torch")
-    
+
     # Determine columns to use
     if columns is None:
         # Use categorical columns present in both
-        real_cat = real.select_dtypes(include=['object', 'category']).columns.tolist()
-        syn_cat = synthetic.select_dtypes(include=['object', 'category']).columns.tolist()
+        real_cat = real.select_dtypes(include=["object", "category"]).columns.tolist()
+        syn_cat = synthetic.select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
         columns = [c for c in real_cat if c in syn_cat]
         if not columns:
-            raise ValueError("No categorical columns found in both real and synthetic data.")
-    
+            raise ValueError(
+                "No categorical columns found in both real and synthetic data."
+            )
+
     cols = [c for c in columns if c in real.columns and c in synthetic.columns]
     if not cols:
         raise ValueError("Requested columns not found in both DataFrames.")
 
     real, synthetic = _canonicalize_code_columns(real, synthetic, cols)
-    
+
     # One-hot encode
-    real_encoded = pd.get_dummies(real[cols], drop_first=False, prefix_sep="__").astype(np.float32)
-    syn_encoded = pd.get_dummies(synthetic[cols], drop_first=False, prefix_sep="__").astype(np.float32)
-    
+    real_encoded = pd.get_dummies(real[cols], drop_first=False, prefix_sep="__").astype(
+        np.float32
+    )
+    syn_encoded = pd.get_dummies(
+        synthetic[cols], drop_first=False, prefix_sep="__"
+    ).astype(np.float32)
+
     # Align feature spaces
     all_features = sorted(set(real_encoded.columns) | set(syn_encoded.columns))
     for feat in all_features:
@@ -280,32 +306,33 @@ def lcv_score(
             real_encoded[feat] = 0.0
         if feat not in syn_encoded.columns:
             syn_encoded[feat] = 0.0
-    
+
     real_encoded = real_encoded[all_features].values
     syn_encoded = syn_encoded[all_features].values
 
     feature_groups = _feature_groups_from_encoded_columns(all_features)
-    
+
     # Keep inputs in float32 to match model parameter dtype in PyTorch.
     real_tensor = torch.tensor(real_encoded, dtype=torch.float32)
     syn_tensor = torch.tensor(syn_encoded, dtype=torch.float32)
-    
+
     # Train and evaluate
     input_dim = real_tensor.shape[1]
     hidden_dim = max(1, int(input_dim * 0.5))  # Under-complete bottleneck
-    
+
     model = LCVAutoencoder(input_dim=input_dim, hidden_dim=hidden_dim)
-    model.feature_groups = feature_groups
     model.fit(real_tensor, epochs=epochs, verbose=verbose)
 
     with torch.no_grad():
-        lcv_score, row_penalties = model.evaluate(syn_tensor)
-    
+        lcv_score, row_penalties = model.evaluate(
+            syn_tensor, feature_groups=feature_groups
+        )
+
     # Compute violation metrics
     violation_threshold = 0.5
     num_violations = (row_penalties > violation_threshold).sum()
     violation_rate = float(num_violations / len(row_penalties))
-    
+
     return {
         "lcv_score": round(float(lcv_score), 4),
         "row_penalties": row_penalties,
@@ -353,18 +380,24 @@ def mine_implication_rules(
     max_k = max(1, min(max_antecedents, len(columns) - 1))
     for k in range(1, max_k + 1):
         for antecedent_cols in combinations(columns, k):
-            antecedent_cols = list(antecedent_cols)
-            antecedent_count_series = cat[antecedent_cols].value_counts()
-            valid_antecedents = antecedent_count_series[antecedent_count_series >= min_support_count]
+            antecedent_cols_list = list(antecedent_cols)
+            antecedent_count_series = cat[antecedent_cols_list].value_counts()
+            valid_antecedents = antecedent_count_series[
+                antecedent_count_series >= min_support_count
+            ]
             if valid_antecedents.empty:
                 continue
 
-            consequent_candidates = [c for c in columns if c not in antecedent_cols]
+            consequent_candidates = [
+                c for c in columns if c not in antecedent_cols_list
+            ]
             if not consequent_candidates:
                 continue
 
             for consequent_col in consequent_candidates:
-                joint_count_series = cat[antecedent_cols + [consequent_col]].value_counts()
+                joint_count_series = cat[
+                    antecedent_cols_list + [consequent_col]
+                ].value_counts()
                 if joint_count_series.empty:
                     continue
 
@@ -382,7 +415,9 @@ def mine_implication_rules(
                     if confidence < min_confidence:
                         continue
 
-                    consequent_support = int(consequent_counts[consequent_col].get(consequent_value, 0)) / max(n_rows, 1)
+                    consequent_support = int(
+                        consequent_counts[consequent_col].get(consequent_value, 0)
+                    ) / max(n_rows, 1)
                     if consequent_support <= 0:
                         continue
 
@@ -397,9 +432,11 @@ def mine_implication_rules(
 
                     antecedents = [
                         {"feature": f, "value": v}
-                        for f, v in zip(antecedent_cols, ant_values)
+                        for f, v in zip(antecedent_cols_list, ant_values)
                     ]
-                    antecedent_repr = " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)
+                    antecedent_repr = " AND ".join(
+                        f"{a['feature']}={a['value']}" for a in antecedents
+                    )
 
                     rule = {
                         "antecedents": antecedents,
@@ -417,7 +454,9 @@ def mine_implication_rules(
                         rule["antecedent_value"] = antecedents[0]["value"]
                     rules.append(rule)
 
-    rules.sort(key=lambda r: (r["lift"], r["confidence"], r["support_count"]), reverse=True)
+    rules.sort(
+        key=lambda r: (r["lift"], r["confidence"], r["support_count"]), reverse=True
+    )
     return rules[:max_rules]
 
 
@@ -506,7 +545,12 @@ def rule_violation_score(
                 {
                     "antecedent_feature": rule.get("antecedent_feature"),
                     "antecedent_value": rule.get("antecedent_value"),
-                    "antecedent_repr": rule.get("antecedent_repr", " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)),
+                    "antecedent_repr": rule.get(
+                        "antecedent_repr",
+                        " AND ".join(
+                            f"{a['feature']}={a['value']}" for a in antecedents
+                        ),
+                    ),
                     "consequent_feature": cons_col,
                     "consequent_value": cons_val,
                     "support": rule["support"],
@@ -522,8 +566,15 @@ def rule_violation_score(
                 actual_value = str(synthetic_norm.loc[row_index, cons_col])
                 violation_examples.append(
                     {
-                        "row_index": int(row_index) if isinstance(row_index, (int, np.integer)) else str(row_index),
-                        "antecedent": rule.get("antecedent_repr", " AND ".join(f"{a['feature']}={a['value']}" for a in antecedents)),
+                        "row_index": int(row_index)
+                        if isinstance(row_index, (int, np.integer))
+                        else str(row_index),
+                        "antecedent": rule.get(
+                            "antecedent_repr",
+                            " AND ".join(
+                                f"{a['feature']}={a['value']}" for a in antecedents
+                            ),
+                        ),
                         "expected": f"{cons_col}={cons_val}",
                         "actual": f"{cons_col}={actual_value}",
                     }

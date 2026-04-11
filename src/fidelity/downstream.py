@@ -8,6 +8,7 @@ TSTR score = TSTR_metric / TRR_metric  (ratio, ideally close to 1.0)
 
 Supports: classification (default_12m, action_taken) and regression tasks.
 """
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -78,7 +79,8 @@ def tstr_score(
     all_cols = [c for c in real.columns if c in synthetic.columns]
     if feature_cols is None:
         feature_cols = [
-            c for c in all_cols
+            c
+            for c in all_cols
             if c != target_col and pd.api.types.is_numeric_dtype(real[c])
         ]
 
@@ -93,13 +95,13 @@ def tstr_score(
     # Prepare data
     rng = np.random.default_rng(seed)
     real_clean = real[feature_cols + [target_col]].dropna()
-    syn_clean  = synthetic[feature_cols + [target_col]].dropna()
+    syn_clean = synthetic[feature_cols + [target_col]].dropna()
 
     # Split real into train/test
     idx = rng.permutation(len(real_clean))
     split = int(len(real_clean) * (1 - test_frac))
     real_train = real_clean.iloc[idx[:split]]
-    real_test  = real_clean.iloc[idx[split:]]
+    real_test = real_clean.iloc[idx[split:]]
 
     def to_arrays(df):
         X = df[feature_cols].values.astype(float)
@@ -118,37 +120,37 @@ def tstr_score(
 
     if task == "classification":
         y_real_tr_b = (y_real_tr > y_real_tr.mean()).astype(float)
-        y_syn_b     = (y_syn     > y_real_tr.mean()).astype(float)
-        y_test_b    = (y_test    > y_real_tr.mean()).astype(float)
+        y_syn_b = (y_syn > y_real_tr.mean()).astype(float)
+        y_test_b = (y_test > y_real_tr.mean()).astype(float)
 
-        p_tstr = _simple_logreg(X_syn,     y_syn_b,     X_test)
-        p_trr  = _simple_logreg(X_real_tr, y_real_tr_b, X_test)
+        p_tstr = _simple_logreg(X_syn, y_syn_b, X_test)
+        p_trr = _simple_logreg(X_real_tr, y_real_tr_b, X_test)
 
         tstr = _gini(y_test_b, p_tstr)
-        trr  = _gini(y_test_b, p_trr)
+        trr = _gini(y_test_b, p_trr)
         metric = "gini"
     else:
-        tstr = _simple_linreg_r2(X_syn,     y_syn,     X_test, y_test)
-        trr  = _simple_linreg_r2(X_real_tr, y_real_tr, X_test, y_test)
+        tstr = _simple_linreg_r2(X_syn, y_syn, X_test, y_test)
+        trr = _simple_linreg_r2(X_real_tr, y_real_tr, X_test, y_test)
         metric = "r2"
 
     ratio = round(tstr / max(abs(trr), 1e-6), 4)
 
     return {
-        "task":       task,
-        "metric":     metric,
+        "task": task,
+        "metric": metric,
         "tstr_score": round(tstr, 4),
-        "trr_score":  round(trr, 4),
-        "ratio":      ratio,
+        "trr_score": round(trr, 4),
+        "ratio": ratio,
         "target_col": target_col,
         "n_features": len(feature_cols),
         "n_synthetic_train": len(syn_clean),
-        "n_real_test":       len(real_test),
+        "n_real_test": len(real_test),
         "interpretation": (
             "TSTR ≈ TRR: synthetic data is a good substitute for real data"
-            if 0.8 <= ratio <= 1.2 else
-            "TSTR < TRR: synthetic data loses predictive signal — check generator quality"
-            if ratio < 0.8 else
-            "TSTR > TRR: synthetic data may be overfit to training distribution"
+            if 0.8 <= ratio <= 1.2
+            else "TSTR < TRR: synthetic data loses predictive signal — check generator quality"
+            if ratio < 0.8
+            else "TSTR > TRR: synthetic data may be overfit to training distribution"
         ),
     }

@@ -7,14 +7,15 @@ regime-switching models, and recession-probability classifiers.
 
 Run: python examples/02_macro_scenarios.py
 """
+
 import sys
 from pathlib import Path
+
+# ruff: noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import pandas as pd
-import numpy as np
 from src.generators.time_series import VARGenerator
 from src.catalog import load_dataset
 from src.calibration import apply_scenario, list_scenarios
@@ -53,8 +54,16 @@ def main():
         stressed = apply_scenario(baseline, name, intensity=1.0)
         results[name] = stressed
 
-        gdp = stressed["gdp_growth_yoy"].mean() if "gdp_growth_yoy" in stressed.columns else float("nan")
-        unemp = stressed["unemployment_rate"].mean() if "unemployment_rate" in stressed.columns else float("nan")
+        gdp = (
+            stressed["gdp_growth_yoy"].mean()
+            if "gdp_growth_yoy" in stressed.columns
+            else float("nan")
+        )
+        unemp = (
+            stressed["unemployment_rate"].mean()
+            if "unemployment_rate" in stressed.columns
+            else float("nan")
+        )
         vix = stressed["vix"].mean() if "vix" in stressed.columns else float("nan")
         print(f"\n  [{name}]")
         print(f"    GDP growth:    {gdp:.2f}%")
@@ -68,9 +77,15 @@ def main():
     s = report["summary"]
     t = report["temporal"]
     print(f"      Overall fidelity       : {s['overall_fidelity']}%")
-    print(f"      Stationarity agreement : {t['stationarity']['_summary']['agreement_rate']}%")
-    print(f"      Cointegration agreement: {t['cointegration']['_summary']['agreement_rate']}%")
-    print(f"      Causality agreement    : {t['causality']['_summary']['agreement_rate']}%")
+    print(
+        f"      Stationarity agreement : {t['stationarity']['_summary']['agreement_rate']}%"
+    )
+    print(
+        f"      Cointegration agreement: {t['cointegration']['_summary']['agreement_rate']}%"
+    )
+    print(
+        f"      Causality agreement    : {t['causality']['_summary']['agreement_rate']}%"
+    )
 
     # ── Save ──────────────────────────────────────────────────────────────────
     write(baseline, "examples/output_macro_baseline.csv")

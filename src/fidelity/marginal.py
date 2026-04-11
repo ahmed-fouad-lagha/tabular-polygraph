@@ -4,6 +4,7 @@ Per-column fidelity metrics for research reporting.
 Moment matching and KS fit are the primary marginal metrics used by the
 current fidelity report. Scores range 0–100. Higher = more faithful.
 """
+
 from __future__ import annotations
 import pandas as pd
 import numpy as np
@@ -17,14 +18,17 @@ def moment_matching_scores(
 ) -> dict[str, float]:
     """Per-column marginal moment-matching scores for numeric columns."""
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
     scores: dict[str, float] = {}
     eps = 1e-8
 
     for col in cols:
-        if not pd.api.types.is_numeric_dtype(real[col]) or not pd.api.types.is_numeric_dtype(synthetic[col]):
+        if not pd.api.types.is_numeric_dtype(
+            real[col]
+        ) or not pd.api.types.is_numeric_dtype(synthetic[col]):
             continue
 
         r = real[col].dropna().astype(float)
@@ -34,15 +38,23 @@ def moment_matching_scores(
 
         mean_r, std_r = float(r.mean()), float(r.std(ddof=0))
         mean_s, std_s = float(s.mean()), float(s.std(ddof=0))
-        skew_r, skew_s = float(stats.skew(r, nan_policy="omit")), float(stats.skew(s, nan_policy="omit"))
-        kurt_r, kurt_s = float(stats.kurtosis(r, fisher=False, nan_policy="omit")), float(stats.kurtosis(s, fisher=False, nan_policy="omit"))
+        skew_r, skew_s = (
+            float(stats.skew(r, nan_policy="omit")),
+            float(stats.skew(s, nan_policy="omit")),
+        )
+        kurt_r, kurt_s = (
+            float(stats.kurtosis(r, fisher=False, nan_policy="omit")),
+            float(stats.kurtosis(s, fisher=False, nan_policy="omit")),
+        )
 
         mean_err = abs(mean_s - mean_r) / (abs(mean_r) + eps)
         std_err = abs(std_s - std_r) / (std_r + eps)
         skew_err = abs(skew_s - skew_r) / (abs(skew_r) + 0.5)
         kurt_err = abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0)
 
-        score = 100.0 * (1.0 - 0.40 * mean_err - 0.35 * std_err - 0.15 * skew_err - 0.10 * kurt_err)
+        score = 100.0 * (
+            1.0 - 0.40 * mean_err - 0.35 * std_err - 0.15 * skew_err - 0.10 * kurt_err
+        )
         scores[col] = round(float(max(0.0, min(100.0, score))), 2)
 
     return scores
@@ -60,13 +72,16 @@ def ks_distribution_scores(
 ) -> dict[str, float]:
     """Per-column KS distributional fit scores for numeric columns."""
     cols = columns or [
-        c for c in real.columns
+        c
+        for c in real.columns
         if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
     ]
     scores: dict[str, float] = {}
 
     for col in cols:
-        if not pd.api.types.is_numeric_dtype(real[col]) or not pd.api.types.is_numeric_dtype(synthetic[col]):
+        if not pd.api.types.is_numeric_dtype(
+            real[col]
+        ) or not pd.api.types.is_numeric_dtype(synthetic[col]):
             continue
 
         r = real[col].dropna().astype(float)

@@ -31,13 +31,14 @@ Usage
     gen.fit(real_macro_df)
     syn = gen.sample(500)
 """
+
 from __future__ import annotations
+from typing import Any
 import warnings
 import numpy as np
 import pandas as pd
 
 from ..base import BaseGenerator
-from ..cross_sectional.gaussian_copula import GaussianCopulaGenerator
 
 warnings.filterwarnings("ignore")
 
@@ -86,28 +87,30 @@ class VECMGARCHGenerator(BaseGenerator):
         use_garch: bool = True,
         **kwargs,
     ):
-        self._lags       = lags
-        self._time_col   = time_col
-        self._det_order  = det_order
-        self._use_garch  = use_garch
+        self._lags = lags
+        self._time_col = time_col
+        self._det_order = det_order
+        self._use_garch = use_garch
         self._numeric_cols: list[str] = []
-        self._cat_cols:     list[str] = []
-        self._cat_modes:    dict      = {}
+        self._cat_cols: list[str] = []
+        self._cat_modes: dict = {}
         # Model components
-        self._vecm_model  = None       # fitted VECM (statsmodels)
-        self._var_model   = None       # fitted VAR for stationary part
-        self._garch_models = {}        # col -> fitted GARCH
-        self._garch_vols   = {}        # col -> conditional volatility series
-        self._means:  np.ndarray | None = None
-        self._stds:   np.ndarray | None = None
-        self._Y_raw:  np.ndarray | None = None
+        self._vecm_model = None  # fitted VECM (statsmodels)
+        self._var_model = None  # fitted VAR for stationary part
+        self._garch_models: dict[str, Any] = {}  # col -> fitted GARCH
+        self._garch_vols: dict[
+            str, np.ndarray
+        ] = {}  # col -> conditional volatility series
+        self._means: np.ndarray | None = None
+        self._stds: np.ndarray | None = None
+        self._Y_raw: np.ndarray | None = None
         self._coint_cols: list[str] = []
-        self._stat_cols:  list[str] = []
-        self._marginals:  dict = {}
+        self._stat_cols: list[str] = []
+        self._marginals: dict = {}
 
     def fit(self, data: pd.DataFrame) -> "VECMGARCHGenerator":
         _require_statsmodels()
-        from statsmodels.tsa.vector_ar.vecm import VECM, coint_johansen
+        from statsmodels.tsa.vector_ar.vecm import VECM
         from statsmodels.tsa.stattools import adfuller
 
         self._record_schema(data)
@@ -115,21 +118,30 @@ class VECMGARCHGenerator(BaseGenerator):
         if self._time_col and self._time_col in df.columns:
             df = df.sort_values(self._time_col).reset_index(drop=True)
 
-        self._numeric_cols = [c for c in self._columns
-                               if pd.api.types.is_numeric_dtype(df[c])
-                               and c != self._time_col]
-        self._cat_cols  = [c for c in self._columns
-                           if not pd.api.types.is_numeric_dtype(df[c])]
+        self._numeric_cols = [
+            c
+            for c in self._columns
+            if pd.api.types.is_numeric_dtype(df[c]) and c != self._time_col
+        ]
+        self._cat_cols = [
+            c for c in self._columns if not pd.api.types.is_numeric_dtype(df[c])
+        ]
         self._cat_modes = {c: df[c].mode()[0] for c in self._cat_cols}
 
         # Store raw numeric data
-        Y = df[self._numeric_cols].fillna(method="ffill").fillna(method="bfill").values.astype(float)
-        self._Y_raw  = Y
-        self._means  = Y.mean(0)
-        self._stds   = Y.std(0) + 1e-9
+        Y = (
+            df[self._numeric_cols]
+            .fillna(method="ffill")
+            .fillna(method="bfill")
+            .values.astype(float)
+        )
+        self._Y_raw = Y
+        self._means = Y.mean(0)
+        self._stds = Y.std(0) + 1e-9
 
         # Fit per-column marginals for back-transformation
         from ..cross_sectional.gaussian_copula import _NumericMarginal
+
         for col in self._numeric_cols:
             self._marginals[col] = _NumericMarginal().fit(df[col])
 
@@ -148,7 +160,9 @@ class VECMGARCHGenerator(BaseGenerator):
 
         # Step 2: Johansen cointegration on integrated series
         self._coint_cols = integrated
-        self._stat_cols  = stationary + [c for c in self._numeric_cols if c not in integrated + stationary]
+        self._stat_cols = stationary + [
+            c for c in self._numeric_cols if c not in integrated + stationary
+        ]
 
         if len(integrated) >= 2:
             Y_int = Y[:, [self._numeric_cols.index(c) for c in integrated]]
@@ -159,11 +173,12 @@ class VECMGARCHGenerator(BaseGenerator):
             except Exception as e:
                 print(f"    VECM failed ({e}), falling back to VAR")
                 self._coint_cols = []
-                self._stat_cols  = self._numeric_cols
+                self._stat_cols = self._numeric_cols
 
         # Step 3: VAR on stationary + differenced integrated (if VECM failed)
         if self._stat_cols and not self._vecm_model:
             from statsmodels.tsa.vector_ar.var_model import VAR
+
             Y_stat = Y[:, [self._numeric_cols.index(c) for c in self._stat_cols]]
             if Y_stat.shape[1] >= 1 and len(Y_stat) > self._lags + 5:
                 try:
@@ -176,17 +191,18 @@ class VECMGARCHGenerator(BaseGenerator):
         if self._use_garch:
             try:
                 from arch import arch_model
+
                 for col in self._numeric_cols[:6]:  # limit to 6 cols for speed
                     col_idx = self._numeric_cols.index(col)
-                    series  = Y[:, col_idx]
-                    ret     = np.diff(series)
+                    series = Y[:, col_idx]
+                    ret = np.diff(series)
                     if len(ret) < 20:
                         continue
                     try:
                         garch = arch_model(ret, vol="Garch", p=1, q=1, dist="normal")
-                        res   = garch.fit(disp="off", show_warning=False)
+                        res = garch.fit(disp="off", show_warning=False)
                         self._garch_models[col] = res
-                        self._garch_vols[col]   = res.conditional_volatility
+                        self._garch_vols[col] = np.asarray(res.conditional_volatility)
                     except Exception:
                         pass
                 if self._garch_models:
@@ -205,13 +221,17 @@ class VECMGARCHGenerator(BaseGenerator):
     ) -> pd.DataFrame:
         self._require_fitted()
         rng = np.random.default_rng(seed)
+        if self._Y_raw is None or self._means is None or self._stds is None:
+            raise RuntimeError(
+                "VECM-GARCH model state is incomplete. Call fit() first."
+            )
         K = len(self._numeric_cols)
 
         series = np.zeros((n, K))
 
         # Start from a random slice of the real data
         start = int(rng.integers(0, max(len(self._Y_raw) - self._lags, 1)))
-        history = self._Y_raw[start:start + self._lags].tolist()
+        history = self._Y_raw[start : start + self._lags].tolist()
 
         for t in range(n):
             # VECM forecast for cointegrated series
@@ -220,7 +240,7 @@ class VECMGARCHGenerator(BaseGenerator):
                 try:
                     ci = [self._numeric_cols.index(c) for c in self._coint_cols]
                     prev = np.array([history[-1][i] for i in ci]).reshape(1, -1)
-                    fc   = self._vecm_model.predict(steps=1)
+                    fc = self._vecm_model.predict(steps=1)
                     for j, idx in enumerate(ci):
                         row[idx] = float(fc[0, j]) if fc.size > j else prev[0, j]
                 except Exception:
@@ -230,10 +250,14 @@ class VECMGARCHGenerator(BaseGenerator):
             # VAR forecast for stationary series
             if self._var_model and self._stat_cols:
                 try:
-                    si  = [self._numeric_cols.index(c) for c in self._stat_cols]
-                    lag_data = np.array([[history[-l-1][i] for i in si]
-                                          for l in range(self._lags)])
-                    fc  = self._var_model.forecast(lag_data, steps=1)
+                    si = [self._numeric_cols.index(c) for c in self._stat_cols]
+                    lag_data = np.array(
+                        [
+                            [history[-lag_idx - 1][i] for i in si]
+                            for lag_idx in range(self._lags)
+                        ]
+                    )
+                    fc = self._var_model.forecast(lag_data, steps=1)
                     for j, idx in enumerate(si):
                         row[idx] = float(fc[0, j])
                 except Exception:
@@ -246,30 +270,35 @@ class VECMGARCHGenerator(BaseGenerator):
                 try:
                     # Simulate one step from GARCH
                     params = garch_res.params
-                    omega  = params.get("omega", 0.0001)
-                    alpha  = params.get("alpha[1]", 0.05)
-                    beta   = params.get("beta[1]",  0.90)
-                    last_vol = self._garch_vols[col][-1] if len(self._garch_vols[col]) > 0 else 0.01
+                    omega = params.get("omega", 0.0001)
+                    alpha = params.get("alpha[1]", 0.05)
+                    beta = params.get("beta[1]", 0.90)
+                    last_vol = (
+                        self._garch_vols[col][-1]
+                        if len(self._garch_vols[col]) > 0
+                        else 0.01
+                    )
                     last_eps = rng.standard_normal() * last_vol
-                    new_var  = omega + alpha * last_eps**2 + beta * last_vol**2
-                    new_vol  = float(np.sqrt(max(new_var, 1e-8)))
+                    new_var = omega + alpha * last_eps**2 + beta * last_vol**2
+                    new_vol = float(np.sqrt(max(new_var, 1e-8)))
                     row[idx] += rng.standard_normal() * new_vol
                 except Exception:
                     pass
 
             # Add general noise scaled to data std
             noise = rng.standard_normal(K) * self._stds * 0.05
-            row  += noise
+            row += noise
 
             # Clip to realistic range
-            row = np.clip(row,
-                          self._means - 5 * self._stds,
-                          self._means + 5 * self._stds)
+            row = np.clip(
+                row, self._means - 5 * self._stds, self._means + 5 * self._stds
+            )
             series[t] = row
             history.append(row.tolist())
 
         # Back-transform through marginals
         from scipy import stats as scipy_stats
+
         records = {}
         for i, col in enumerate(self._numeric_cols):
             m = self._marginals[col]
@@ -293,11 +322,15 @@ class VECMGARCHGenerator(BaseGenerator):
         for key, val in filters.items():
             if key.endswith("_min"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] >= val]
+                if col in df.columns:
+                    df = df[df[col] >= val]
             elif key.endswith("_max"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] <= val]
+                if col in df.columns:
+                    df = df[df[col] <= val]
             elif key in df.columns:
-                if isinstance(val, list): df = df[df[key].isin([str(v) for v in val])]
-                else: df = df[df[key] == val]
+                if isinstance(val, list):
+                    df = df[df[key].isin([str(v) for v in val])]
+                else:
+                    df = df[df[key] == val]
         return df

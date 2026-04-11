@@ -35,13 +35,14 @@ Usage
         "debt_to_income":   Prior("normal",    mu=38.0, sigma=10.0),
     })
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any
 import numpy as np
 
 
 # ── Prior distribution ────────────────────────────────────────────────────────
+
 
 @dataclass
 class Prior:
@@ -74,26 +75,29 @@ class Prior:
         Prior("beta",      alpha=2.0, beta=5.0)         # default rates
         Prior("fixed",     value=0.0)                   # pin a parameter
     """
+
     distribution: str
     strength: float = 1.0
     params: dict[str, float] = field(default_factory=dict)
 
     def __init__(self, distribution: str, strength: float = 1.0, **params):
         self.distribution = distribution.lower()
-        self.strength      = strength
-        self.params        = params
+        self.strength = strength
+        self.params = params
         self._validate()
 
     def _validate(self):
         valid = {"normal", "lognormal", "beta", "gamma", "fixed"}
         if self.distribution not in valid:
-            raise ValueError(f"Unknown distribution '{self.distribution}'. Valid: {valid}")
+            raise ValueError(
+                f"Unknown distribution '{self.distribution}'. Valid: {valid}"
+            )
         required = {
-            "normal":    {"mu", "sigma"},
+            "normal": {"mu", "sigma"},
             "lognormal": {"mu", "sigma"},
-            "beta":      {"alpha", "beta"},
-            "gamma":     {"alpha", "beta"},
-            "fixed":     {"value"},
+            "beta": {"alpha", "beta"},
+            "gamma": {"alpha", "beta"},
+            "fixed": {"value"},
         }
         missing = required[self.distribution] - set(self.params)
         if missing:
@@ -128,7 +132,7 @@ class Prior:
               / (prior_weight + n_obs)
         """
         prior_weight = self.strength * max(n_obs, 1) ** 0.5
-        prior_mean   = self._prior_mean()
+        prior_mean = self._prior_mean()
         if prior_mean is None:
             return data_mean
         return (prior_weight * prior_mean + n_obs * data_mean) / (prior_weight + n_obs)
@@ -139,28 +143,41 @@ class Prior:
         Blends prior std with observed std weighted by prior strength.
         """
         prior_weight = self.strength * max(n_obs, 1) ** 0.5
-        prior_std    = self._prior_std()
+        prior_std = self._prior_std()
         if prior_std is None:
             return data_std
         return (prior_weight * prior_std + n_obs * data_std) / (prior_weight + n_obs)
 
     def _prior_mean(self) -> float | None:
         d, p = self.distribution, self.params
-        if d == "normal":    return p["mu"]
-        if d == "lognormal": return float(np.exp(p["mu"] + p["sigma"]**2 / 2))
-        if d == "beta":      return p["alpha"] / (p["alpha"] + p["beta"])
-        if d == "gamma":     return p["alpha"] / p["beta"]
-        if d == "fixed":     return p["value"]
+        if d == "normal":
+            return p["mu"]
+        if d == "lognormal":
+            return float(np.exp(p["mu"] + p["sigma"] ** 2 / 2))
+        if d == "beta":
+            return p["alpha"] / (p["alpha"] + p["beta"])
+        if d == "gamma":
+            return p["alpha"] / p["beta"]
+        if d == "fixed":
+            return p["value"]
         return None
 
     def _prior_std(self) -> float | None:
         d, p = self.distribution, self.params
-        if d == "normal":    return p["sigma"]
-        if d == "lognormal": return float(np.sqrt((np.exp(p["sigma"]**2) - 1) * np.exp(2*p["mu"] + p["sigma"]**2)))
+        if d == "normal":
+            return p["sigma"]
+        if d == "lognormal":
+            return float(
+                np.sqrt(
+                    (np.exp(p["sigma"] ** 2) - 1)
+                    * np.exp(2 * p["mu"] + p["sigma"] ** 2)
+                )
+            )
         if d == "beta":
             a, b = p["alpha"], p["beta"]
-            return float(np.sqrt(a*b / ((a+b)**2 * (a+b+1))))
-        if d == "gamma":     return float(np.sqrt(p["alpha"])) / p["beta"]
+            return float(np.sqrt(a * b / ((a + b) ** 2 * (a + b + 1))))
+        if d == "gamma":
+            return float(np.sqrt(p["alpha"])) / p["beta"]
         return None
 
     def __repr__(self) -> str:
@@ -169,6 +186,7 @@ class Prior:
 
 
 # ── Prior set ─────────────────────────────────────────────────────────────────
+
 
 class PriorSet:
     """
@@ -224,7 +242,9 @@ class PriorSet:
             out["scale"] = max(prior.map_std(out["scale"], n_obs), 1e-6)
         return out
 
-    def sample_prior_data(self, n: int = 100, seed: int = 42) -> "dict[str, np.ndarray]":
+    def sample_prior_data(
+        self, n: int = 100, seed: int = 42
+    ) -> "dict[str, np.ndarray]":
         """
         Generate pseudo-observations from all priors.
         Useful for inspecting what the prior encodes before fitting.
@@ -239,14 +259,18 @@ class PriorSet:
         """Return a summary list of all priors."""
         rows = []
         for col, prior in self._priors.items():
-            rows.append({
-                "column":       col,
-                "distribution": prior.distribution,
-                "strength":     prior.strength,
-                "prior_mean":   round(prior._prior_mean() or 0, 4),
-                "prior_std":    round(prior._prior_std() or 0, 4) if prior._prior_std() else None,
-                **{f"param_{k}": v for k, v in prior.params.items()},
-            })
+            rows.append(
+                {
+                    "column": col,
+                    "distribution": prior.distribution,
+                    "strength": prior.strength,
+                    "prior_mean": round(prior._prior_mean() or 0, 4),
+                    "prior_std": round(prior._prior_std() or 0, 4)
+                    if prior._prior_std()
+                    else None,
+                    **{f"param_{k}": v for k, v in prior.params.items()},
+                }
+            )
         return rows
 
     def __repr__(self) -> str:
@@ -257,93 +281,104 @@ class PriorSet:
 # Derived from published statistics for each data source.
 
 DATASET_PRIORS: dict[str, PriorSet] = {
-
-    "hmda": PriorSet({
-        # CFPB HMDA 2022: median loan $280K, 5th–95th pct $80K–$650K
-        "loan_amount":      Prior("lognormal", mu=12.1, sigma=0.72, strength=2.0),
-        # CFPB HMDA 2022: median income $95K
-        "applicant_income": Prior("lognormal", mu=11.2, sigma=0.62, strength=2.0),
-        # Industry standard DTI distribution
-        "debt_to_income":   Prior("normal",    mu=38.0, sigma=11.0, strength=1.5),
-    }),
-
-    "fdic": PriorSet({
-        # FDIC 2023 Q4: industry avg tier1=14.7%, NIM=3.3%, ROA=1.1%
-        "tier1_capital_ratio":  Prior("normal",    mu=14.7, sigma=2.5,  strength=2.0),
-        "net_interest_margin":  Prior("normal",    mu=3.30, sigma=0.55, strength=2.0),
-        "roa":                  Prior("normal",    mu=1.10, sigma=0.40, strength=1.5),
-        "roe":                  Prior("normal",    mu=10.5, sigma=3.5,  strength=1.5),
-        "npl_ratio":            Prior("lognormal", mu=-2.4, sigma=0.7,  strength=1.5),
-        "loan_to_deposit":      Prior("normal",    mu=71.0, sigma=11.0, strength=1.0),
-    }),
-
-    "credit_risk": PriorSet({
-        # Federal Reserve SCB 2023: base default rate ~3%, stressed ~12%
-        "default_12m":       Prior("beta",      alpha=1.5, beta=30.0, strength=3.0),
-        "credit_utilisation":Prior("beta",      alpha=2.0, beta=5.5,  strength=1.5),
-        "debt_to_income":    Prior("normal",    mu=38.0, sigma=12.0,  strength=1.5),
-        "employment_years":  Prior("gamma",     alpha=2.5, beta=0.5,  strength=1.0),
-    }),
-
-    "edgar": PriorSet({
-        # S&P 500 median EBITDA margin ~18%, median net debt/EBITDA ~2.0x
-        "ebitda_margin":    Prior("normal",    mu=18.0, sigma=9.0,  strength=1.5),
-        "net_debt_ebitda":  Prior("normal",    mu=2.05, sigma=1.8,  strength=1.5),
-        "roa":              Prior("normal",    mu=6.0,  sigma=4.0,  strength=1.0),
-        "roe":              Prior("normal",    mu=14.0, sigma=9.0,  strength=1.0),
-        "current_ratio":    Prior("lognormal", mu=0.45, sigma=0.38, strength=1.0),
-    }),
-
-    "cftc": PriorSet({
-        # CFTC COT historical: open interest distribution is right-skewed
-        "open_interest":     Prior("lognormal", mu=11.8, sigma=1.3, strength=1.5),
-        "net_commercial":    Prior("normal",    mu=-18000, sigma=42000, strength=1.0),
-        "net_noncommercial": Prior("normal",    mu=18000,  sigma=38000, strength=1.0),
-    }),
-
-    "fred_macro": PriorSet({
-        # Fed long-run projections: GDP 2%, CPI 2%, unemployment 4%
-        "gdp_growth_yoy":    Prior("normal",    mu=2.3,  sigma=1.5, strength=1.5),
-        "cpi_yoy":           Prior("normal",    mu=2.8,  sigma=1.8, strength=1.5),
-        "core_cpi_yoy":      Prior("normal",    mu=2.5,  sigma=1.4, strength=1.5),
-        "unemployment_rate": Prior("normal",    mu=5.5,  sigma=2.0, strength=1.5),
-        "fed_funds_rate":    Prior("lognormal", mu=0.85, sigma=1.0, strength=1.0),
-        "vix":               Prior("lognormal", mu=3.10, sigma=0.40, strength=1.5),
-        "yield_curve_spread":Prior("normal",    mu=0.90, sigma=0.90, strength=1.0),
-    }),
-
-    "bls": PriorSet({
-        # BLS Q3 2023: avg weekly wage $1,168, YoY wage growth 4.3%
-        "avg_weekly_wage":      Prior("lognormal", mu=6.95, sigma=0.38, strength=2.0),
-        "yoy_wage_change":      Prior("normal",    mu=3.8,  sigma=2.2,  strength=1.5),
-        "yoy_employment_change":Prior("normal",    mu=1.5,  sigma=4.0,  strength=1.0),
-    }),
-
-    "world_bank": PriorSet({
-        # World Bank WDI 2022 global medians
-        "gdp_per_capita":       Prior("lognormal", mu=8.5,  sigma=1.6, strength=1.5),
-        "gdp_growth":           Prior("normal",    mu=3.0,  sigma=3.5, strength=1.5),
-        "inflation":            Prior("lognormal", mu=1.6,  sigma=0.9, strength=1.5),
-        "govt_debt_pct_gdp":    Prior("normal",    mu=56.0, sigma=30.0,strength=1.0),
-        "gini":                 Prior("normal",    mu=37.5, sigma=8.0, strength=1.5),
-    }),
-
-    "irs_soi": PriorSet({
-        # IRS SOI 2021: avg effective rate 13.3%
-        "effective_rate": Prior("normal",    mu=13.3, sigma=6.0, strength=2.0),
-        "total_agi":      Prior("lognormal", mu=10.9, sigma=1.0, strength=1.5),
-    }),
-
-    "census_acs": PriorSet({
-        # Census ACS 2022: median HH income $74K, median rent $1,062/mo
-        "household_income": Prior("lognormal", mu=10.9, sigma=0.72, strength=2.0),
-        "housing_cost":     Prior("lognormal", mu=7.45, sigma=0.52, strength=2.0),
-        "cost_burden_pct":  Prior("beta",      alpha=2.5, beta=5.0, strength=1.5),
-    }),
+    "hmda": PriorSet(
+        {
+            # CFPB HMDA 2022: median loan $280K, 5th–95th pct $80K–$650K
+            "loan_amount": Prior("lognormal", mu=12.1, sigma=0.72, strength=2.0),
+            # CFPB HMDA 2022: median income $95K
+            "applicant_income": Prior("lognormal", mu=11.2, sigma=0.62, strength=2.0),
+            # Industry standard DTI distribution
+            "debt_to_income": Prior("normal", mu=38.0, sigma=11.0, strength=1.5),
+        }
+    ),
+    "fdic": PriorSet(
+        {
+            # FDIC 2023 Q4: industry avg tier1=14.7%, NIM=3.3%, ROA=1.1%
+            "tier1_capital_ratio": Prior("normal", mu=14.7, sigma=2.5, strength=2.0),
+            "net_interest_margin": Prior("normal", mu=3.30, sigma=0.55, strength=2.0),
+            "roa": Prior("normal", mu=1.10, sigma=0.40, strength=1.5),
+            "roe": Prior("normal", mu=10.5, sigma=3.5, strength=1.5),
+            "npl_ratio": Prior("lognormal", mu=-2.4, sigma=0.7, strength=1.5),
+            "loan_to_deposit": Prior("normal", mu=71.0, sigma=11.0, strength=1.0),
+        }
+    ),
+    "credit_risk": PriorSet(
+        {
+            # Federal Reserve SCB 2023: base default rate ~3%, stressed ~12%
+            "default_12m": Prior("beta", alpha=1.5, beta=30.0, strength=3.0),
+            "credit_utilisation": Prior("beta", alpha=2.0, beta=5.5, strength=1.5),
+            "debt_to_income": Prior("normal", mu=38.0, sigma=12.0, strength=1.5),
+            "employment_years": Prior("gamma", alpha=2.5, beta=0.5, strength=1.0),
+        }
+    ),
+    "edgar": PriorSet(
+        {
+            # S&P 500 median EBITDA margin ~18%, median net debt/EBITDA ~2.0x
+            "ebitda_margin": Prior("normal", mu=18.0, sigma=9.0, strength=1.5),
+            "net_debt_ebitda": Prior("normal", mu=2.05, sigma=1.8, strength=1.5),
+            "roa": Prior("normal", mu=6.0, sigma=4.0, strength=1.0),
+            "roe": Prior("normal", mu=14.0, sigma=9.0, strength=1.0),
+            "current_ratio": Prior("lognormal", mu=0.45, sigma=0.38, strength=1.0),
+        }
+    ),
+    "cftc": PriorSet(
+        {
+            # CFTC COT historical: open interest distribution is right-skewed
+            "open_interest": Prior("lognormal", mu=11.8, sigma=1.3, strength=1.5),
+            "net_commercial": Prior("normal", mu=-18000, sigma=42000, strength=1.0),
+            "net_noncommercial": Prior("normal", mu=18000, sigma=38000, strength=1.0),
+        }
+    ),
+    "fred_macro": PriorSet(
+        {
+            # Fed long-run projections: GDP 2%, CPI 2%, unemployment 4%
+            "gdp_growth_yoy": Prior("normal", mu=2.3, sigma=1.5, strength=1.5),
+            "cpi_yoy": Prior("normal", mu=2.8, sigma=1.8, strength=1.5),
+            "core_cpi_yoy": Prior("normal", mu=2.5, sigma=1.4, strength=1.5),
+            "unemployment_rate": Prior("normal", mu=5.5, sigma=2.0, strength=1.5),
+            "fed_funds_rate": Prior("lognormal", mu=0.85, sigma=1.0, strength=1.0),
+            "vix": Prior("lognormal", mu=3.10, sigma=0.40, strength=1.5),
+            "yield_curve_spread": Prior("normal", mu=0.90, sigma=0.90, strength=1.0),
+        }
+    ),
+    "bls": PriorSet(
+        {
+            # BLS Q3 2023: avg weekly wage $1,168, YoY wage growth 4.3%
+            "avg_weekly_wage": Prior("lognormal", mu=6.95, sigma=0.38, strength=2.0),
+            "yoy_wage_change": Prior("normal", mu=3.8, sigma=2.2, strength=1.5),
+            "yoy_employment_change": Prior("normal", mu=1.5, sigma=4.0, strength=1.0),
+        }
+    ),
+    "world_bank": PriorSet(
+        {
+            # World Bank WDI 2022 global medians
+            "gdp_per_capita": Prior("lognormal", mu=8.5, sigma=1.6, strength=1.5),
+            "gdp_growth": Prior("normal", mu=3.0, sigma=3.5, strength=1.5),
+            "inflation": Prior("lognormal", mu=1.6, sigma=0.9, strength=1.5),
+            "govt_debt_pct_gdp": Prior("normal", mu=56.0, sigma=30.0, strength=1.0),
+            "gini": Prior("normal", mu=37.5, sigma=8.0, strength=1.5),
+        }
+    ),
+    "irs_soi": PriorSet(
+        {
+            # IRS SOI 2021: avg effective rate 13.3%
+            "effective_rate": Prior("normal", mu=13.3, sigma=6.0, strength=2.0),
+            "total_agi": Prior("lognormal", mu=10.9, sigma=1.0, strength=1.5),
+        }
+    ),
+    "census_acs": PriorSet(
+        {
+            # Census ACS 2022: median HH income $74K, median rent $1,062/mo
+            "household_income": Prior("lognormal", mu=10.9, sigma=0.72, strength=2.0),
+            "housing_cost": Prior("lognormal", mu=7.45, sigma=0.52, strength=2.0),
+            "cost_burden_pct": Prior("beta", alpha=2.5, beta=5.0, strength=1.5),
+        }
+    ),
 }
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
+
 
 def get_priors(dataset_id: str) -> PriorSet:
     """

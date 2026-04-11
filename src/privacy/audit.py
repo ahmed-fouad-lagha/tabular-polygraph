@@ -13,14 +13,15 @@ Tests run
 Each test returns a risk_level: very_low | low | medium | high | very_high
 The overall verdict is the maximum risk level across all tests.
 """
+
 from __future__ import annotations
 import time
 import pandas as pd
 import numpy as np
 
 from .singling_out import singling_out_risk
-from .linkability  import linkability_risk
-from .disclosure   import membership_inference_risk
+from .linkability import linkability_risk
+from .disclosure import membership_inference_risk
 
 
 _RISK_ORDER = {"very_low": 0, "low": 1, "medium": 2, "high": 3, "very_high": 4}
@@ -53,7 +54,7 @@ def privacy_audit(
     -------
     Nested dict with per-test results and an overall verdict.
     """
-    t0  = time.time()
+    t0 = time.time()
     rng = np.random.default_rng(seed)
 
     report: dict = {}
@@ -61,20 +62,20 @@ def privacy_audit(
     # ── Exact copy check ──────────────────────────────────────────────────────
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
     real_hashes = set(real[shared].astype(str).apply("|".join, axis=1))
-    syn_cols    = synthetic[[c for c in shared if c in synthetic.columns]]
-    syn_hashes  = syn_cols.astype(str).apply("|".join, axis=1)
-    n_exact     = int(syn_hashes.isin(real_hashes).sum())
+    syn_cols = synthetic[[c for c in shared if c in synthetic.columns]]
+    syn_hashes = syn_cols.astype(str).apply("|".join, axis=1)
+    n_exact = int(syn_hashes.isin(real_hashes).sum())
 
     report["exact_copies"] = {
-        "count":      n_exact,
-        "rate":       round(n_exact / max(len(synthetic), 1), 6),
+        "count": n_exact,
+        "rate": round(n_exact / max(len(synthetic), 1), 6),
         "risk_level": "very_low" if n_exact == 0 else "very_high",
     }
 
     # ── Membership inference ──────────────────────────────────────────────────
-    idx     = rng.permutation(len(real))
-    split   = int(len(real) * (1 - holdout_frac))
-    train   = real.iloc[idx[:split]].reset_index(drop=True)
+    idx = rng.permutation(len(real))
+    split = int(len(real) * (1 - holdout_frac))
+    train = real.iloc[idx[:split]].reset_index(drop=True)
     holdout = real.iloc[idx[split:]].reset_index(drop=True)
 
     report["membership_inference"] = membership_inference_risk(
@@ -114,12 +115,12 @@ def privacy_audit(
     max_risk = max(_RISK_ORDER.get(r, 0) for r in risk_levels)
 
     report["verdict"] = {
-        "overall_risk":   _RISK_LABEL[max_risk],
-        "exact_copies":   n_exact,
-        "mi_auc":         report["membership_inference"].get("attack_auc", 0.5),
+        "overall_risk": _RISK_LABEL[max_risk],
+        "exact_copies": n_exact,
+        "mi_auc": report["membership_inference"].get("attack_auc", 0.5),
         "singling_out_rate": report["singling_out"].get("singling_out_rate", 0.0),
-        "linkability_rate":  report["linkability"].get("linkability_rate", 0.5),
-        "elapsed_seconds":   round(time.time() - t0, 3),
+        "linkability_rate": report["linkability"].get("linkability_rate", 0.5),
+        "elapsed_seconds": round(time.time() - t0, 3),
         "recommendation": _recommendation(max_risk, n_exact),
     }
 
@@ -151,21 +152,29 @@ def format_audit(report: dict, width: int = 60) -> str:
     lines.append("")
 
     ec = report.get("exact_copies", {})
-    lines.append(f"  Exact copies      : {ec.get('count', '—')}  [{ec.get('risk_level','—')}]")
+    lines.append(
+        f"  Exact copies      : {ec.get('count', '—')}  [{ec.get('risk_level', '—')}]"
+    )
 
     mi = report.get("membership_inference", {})
-    lines.append(f"  Membership inf.   : AUC={mi.get('attack_auc','—')}  [{mi.get('risk_level','—')}]")
-    lines.append(f"    {mi.get('interpretation','')}")
+    lines.append(
+        f"  Membership inf.   : AUC={mi.get('attack_auc', '—')}  [{mi.get('risk_level', '—')}]"
+    )
+    lines.append(f"    {mi.get('interpretation', '')}")
 
     so = report.get("singling_out", {})
-    lines.append(f"  Singling-out      : rate={so.get('singling_out_rate','—')}  [{so.get('risk_level','—')}]")
+    lines.append(
+        f"  Singling-out      : rate={so.get('singling_out_rate', '—')}  [{so.get('risk_level', '—')}]"
+    )
 
     lk = report.get("linkability", {})
-    lines.append(f"  Linkability       : rate={lk.get('linkability_rate','—')}  [{lk.get('risk_level','—')}]")
-    lines.append(f"    lift={lk.get('lift_over_baseline_pct','—')}% over baseline")
+    lines.append(
+        f"  Linkability       : rate={lk.get('linkability_rate', '—')}  [{lk.get('risk_level', '—')}]"
+    )
+    lines.append(f"    lift={lk.get('lift_over_baseline_pct', '—')}% over baseline")
 
     lines.append("")
-    lines.append(f"  Recommendation: {v.get('recommendation','—')}")
-    lines.append(f"  Elapsed: {v.get('elapsed_seconds','—')}s")
+    lines.append(f"  Recommendation: {v.get('recommendation', '—')}")
+    lines.append(f"  Elapsed: {v.get('elapsed_seconds', '—')}s")
     lines.append("=" * width)
     return "\n".join(lines)

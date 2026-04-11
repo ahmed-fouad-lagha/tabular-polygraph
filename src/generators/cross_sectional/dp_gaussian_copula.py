@@ -31,7 +31,9 @@ Usage
     syn = gen.sample(10_000)
     print(f"Privacy guarantee: ε={gen.epsilon_used:.3f}, δ={gen.delta}")
 """
+
 from __future__ import annotations
+from typing import TypeAlias
 import warnings
 import numpy as np
 import pandas as pd
@@ -41,6 +43,8 @@ from ..base import BaseGenerator
 from .gaussian_copula import _NumericMarginal, _CategoricalMarginal
 
 warnings.filterwarnings("ignore")
+
+MarginalType: TypeAlias = _NumericMarginal | _CategoricalMarginal
 
 
 class DPGaussianCopulaGenerator(BaseGenerator):
@@ -58,27 +62,27 @@ class DPGaussianCopulaGenerator(BaseGenerator):
     supported_types = ["cross_sectional"]
 
     _ALIASES = {
-        "dti":    "debt_to_income",
+        "dti": "debt_to_income",
         "income": "applicant_income",
-        "loan":   "loan_amount",
-        "gdp":    "gdp_growth_yoy",
-        "ffr":    "fed_funds_rate",
+        "loan": "loan_amount",
+        "gdp": "gdp_growth_yoy",
+        "ffr": "fed_funds_rate",
         "assets": "total_assets",
     }
 
     def _init(
         self,
-        epsilon: float   = 1.0,
-        delta:   float   = 1e-5,
+        epsilon: float = 1.0,
+        delta: float = 1e-5,
         clip_norm: float = 1.0,
         **kwargs,
     ):
         if epsilon <= 0:
             raise ValueError("epsilon must be positive")
-        self._epsilon    = epsilon
-        self._delta      = delta
-        self._clip_norm  = clip_norm
-        self._marginals: dict = {}
+        self._epsilon = epsilon
+        self._delta = delta
+        self._clip_norm = clip_norm
+        self._marginals: dict[str, MarginalType] = {}
         self._corr: np.ndarray | None = None
         self._epsilon_used = 0.0
 
@@ -102,7 +106,7 @@ class DPGaussianCopulaGenerator(BaseGenerator):
         #   50% for marginals (mean + std per column)
         #   50% for correlation matrix
         eps_marginals = self._epsilon * 0.50
-        eps_corr      = self._epsilon * 0.50
+        eps_corr = self._epsilon * 0.50
         K = len(self._columns)
 
         # ── Step 1: Fit private marginals ─────────────────────────────────────
@@ -113,10 +117,10 @@ class DPGaussianCopulaGenerator(BaseGenerator):
                 arr = data[col].dropna().astype(float).values
 
                 # Clip each value to [median ± clip_norm * std] for bounded sensitivity
-                med  = float(np.median(arr))
-                sig  = float(arr.std()) + 1e-9
-                lo   = med - self._clip_norm * sig
-                hi   = med + self._clip_norm * sig
+                med = float(np.median(arr))
+                sig = float(arr.std()) + 1e-9
+                lo = med - self._clip_norm * sig
+                hi = med + self._clip_norm * sig
                 arr_clipped = np.clip(arr, lo, hi)
 
                 # Private mean: sensitivity = (hi - lo) / n
@@ -130,41 +134,49 @@ class DPGaussianCopulaGenerator(BaseGenerator):
                 private_std = max(float(arr_clipped.std()) + noise_std, 1e-6)
 
                 # Build marginal with privatised parameters
-                m = _NumericMarginal()
+                numeric_m = _NumericMarginal()
                 skewness = float(stats.skew(arr_clipped))
                 if skewness > 1.0 and arr_clipped.min() > 0:
                     # Approximate lognormal parameters from private moments
-                    private_var = private_std ** 2
+                    private_var = private_std**2
                     sigma2 = np.log(1 + private_var / max(private_mean**2, 1e-9))
                     sigma2 = max(sigma2, 1e-6)
-                    mu     = np.log(max(private_mean, 1e-9)) - sigma2 / 2
-                    m._params = dict(kind="lognorm", s=float(np.sqrt(sigma2)),
-                                     loc=0.0, scale=float(np.exp(mu)))
+                    mu = np.log(max(private_mean, 1e-9)) - sigma2 / 2
+                    numeric_m._params = dict(
+                        kind="lognorm",
+                        s=float(np.sqrt(sigma2)),
+                        loc=0.0,
+                        scale=float(np.exp(mu)),
+                    )
                 else:
-                    m._params = dict(kind="norm", loc=private_mean, scale=private_std)
+                    numeric_m._params = dict(
+                        kind="norm", loc=private_mean, scale=private_std
+                    )
 
-                m._min = float(arr.min())
-                m._max = float(arr.max())
-                self._marginals[col] = m
+                numeric_m._min = float(arr.min())
+                numeric_m._max = float(arr.max())
+                self._marginals[col] = numeric_m
             else:
                 # Categorical: add Laplace noise to category counts
-                m = _CategoricalMarginal()
+                categorical_m = _CategoricalMarginal()
                 vc = data[col].dropna().value_counts()
                 noisy_counts = {
                     cat: max(int(count) + self._laplace_int(1.0 / n, eps_per_col), 0)
                     for cat, count in vc.items()
                 }
                 total = max(sum(noisy_counts.values()), 1)
-                m._cats  = list(noisy_counts.keys())
-                m._probs = np.array([v / total for v in noisy_counts.values()])
-                self._marginals[col] = m
+                categorical_m._cats = list(noisy_counts.keys())
+                categorical_m._probs = np.array(
+                    [v / total for v in noisy_counts.values()]
+                )
+                self._marginals[col] = categorical_m
 
         self._epsilon_used += eps_marginals
 
         # ── Step 2: Private correlation matrix via Wishart mechanism ──────────
-        uniform = np.column_stack([
-            self._marginals[c].to_uniform(data[c]) for c in self._columns
-        ])
+        uniform = np.column_stack(
+            [self._marginals[c].to_uniform(data[c]) for c in self._columns]
+        )
         normal = stats.norm.ppf(np.clip(uniform, 1e-6, 1 - 1e-6))
 
         # Sample covariance
@@ -204,6 +216,8 @@ class DPGaussianCopulaGenerator(BaseGenerator):
             np.random.seed(seed)
 
         n_gen = n * (6 if filters else 1)
+        if self._corr is None:
+            raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")
 
         try:
             L = np.linalg.cholesky(self._corr)
@@ -238,16 +252,22 @@ class DPGaussianCopulaGenerator(BaseGenerator):
         for key, val in filters.items():
             if key.endswith("_min"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] >= val]
+                if col in df.columns:
+                    df = df[df[col] >= val]
             elif key.endswith("_max"):
                 col = key[:-4]
-                if col in df.columns: df = df[df[col] <= val]
+                if col in df.columns:
+                    df = df[df[col] <= val]
             elif key in df.columns:
-                if isinstance(val, list): df = df[df[key].isin([str(v) for v in val])]
-                else: df = df[df[key] == val]
+                if isinstance(val, list):
+                    df = df[df[key].isin([str(v) for v in val])]
+                else:
+                    df = df[df[key] == val]
         return df
 
     def __repr__(self) -> str:
         status = f"fitted on {self._n_fit:,} rows" if self._fitted else "not fitted"
-        return (f"DPGaussianCopulaGenerator(ε={self._epsilon}, δ={self._delta}, "
-                f"ε_used={self._epsilon_used:.3f}, {status})")
+        return (
+            f"DPGaussianCopulaGenerator(ε={self._epsilon}, δ={self._delta}, "
+            f"ε_used={self._epsilon_used:.3f}, {status})"
+        )

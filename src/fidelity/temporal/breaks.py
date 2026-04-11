@@ -6,6 +6,7 @@ Structural break detection using a Chow-test inspired scan.
 Checks whether synthetic series exhibit regime changes at roughly the same
 points as the real series — important for macro data with recessions/crises.
 """
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ def _chow_statistic(arr: np.ndarray, bp: int) -> float:
     def ssr(x):
         return float(np.sum((x - x.mean()) ** 2))
 
-    s_full  = ssr(arr)
+    s_full = ssr(arr)
     s_split = ssr(arr[:bp]) + ssr(arr[bp:])
     k = 2  # intercept-only model
     f = ((s_full - s_split) / k) / max(s_split / max(n - 2 * k, 1), 1e-12)
@@ -35,7 +36,7 @@ def detect_breaks(series: np.ndarray, n_candidates: int = 5) -> list[int]:
         return []
     # Return top-n break points by F-statistic
     ranked = sorted(range(len(scores)), key=lambda i: -scores[i])
-    breaks = []
+    breaks: list[int] = []
     for idx in ranked:
         bp = idx + 3
         if not any(abs(bp - b) < 5 for b in breaks):
@@ -58,13 +59,16 @@ def breaks_score(
     """
     if columns is None:
         cols = [
-            c for c in real.columns
+            c
+            for c in real.columns
             if c in synthetic.columns and pd.api.types.is_numeric_dtype(real[c])
         ]
     else:
         cols = [
-            c for c in columns
-            if c in real.columns and c in synthetic.columns
+            c
+            for c in columns
+            if c in real.columns
+            and c in synthetic.columns
             and pd.api.types.is_numeric_dtype(real[c])
             and pd.api.types.is_numeric_dtype(synthetic[c])
         ]
@@ -81,23 +85,22 @@ def breaks_score(
         s_breaks = detect_breaks(s_arr)
 
         matched = sum(
-            1 for rb in r_breaks
-            if any(abs(rb - sb) <= tolerance for sb in s_breaks)
+            1 for rb in r_breaks if any(abs(rb - sb) <= tolerance for sb in s_breaks)
         )
-        total_real    += len(r_breaks)
+        total_real += len(r_breaks)
         total_matched += matched
 
         results[col] = {
-            "real_breaks":      r_breaks,
+            "real_breaks": r_breaks,
             "synthetic_breaks": s_breaks,
-            "matched":          matched,
-            "total_real":       len(r_breaks),
+            "matched": matched,
+            "total_real": len(r_breaks),
         }
 
     match_rate = round(total_matched / max(total_real, 1) * 100, 1)
     results["_summary"] = {
         "break_match_rate": match_rate,
-        "total_real_breaks":    total_real,
+        "total_real_breaks": total_real,
         "total_matched_breaks": total_matched,
     }
     return results

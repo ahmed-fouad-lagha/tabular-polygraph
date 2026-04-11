@@ -11,6 +11,7 @@ Catches common problems early:
   - Extreme cardinality in categorical columns
   - Duplicate rows above threshold
 """
+
 from __future__ import annotations
 import pandas as pd
 import numpy as np
@@ -20,9 +21,9 @@ from dataclasses import dataclass, field
 @dataclass
 class ValidationResult:
     passed: bool
-    errors:   list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    stats:    dict      = field(default_factory=dict)
+    stats: dict = field(default_factory=dict)
 
     def __str__(self) -> str:
         lines = ["ValidationResult:"]
@@ -64,9 +65,9 @@ def validate(
     -------
     ValidationResult with passed flag, errors, warnings, and summary stats.
     """
-    errors:   list[str] = []
+    errors: list[str] = []
     warnings: list[str] = []
-    stats:    dict      = {}
+    stats: dict = {}
 
     # ── Basic shape ───────────────────────────────────────────────────────────
     n_rows, n_cols = df.shape
@@ -95,7 +96,9 @@ def validate(
             if expected == "numeric" and not is_numeric:
                 errors.append(f"Column '{col}' expected numeric, got {df[col].dtype}")
             elif expected == "categorical" and is_numeric:
-                warnings.append(f"Column '{col}' expected categorical but appears numeric")
+                warnings.append(
+                    f"Column '{col}' expected categorical but appears numeric"
+                )
 
     # ── Per-column checks ─────────────────────────────────────────────────────
     col_stats: dict[str, dict] = {}
@@ -103,13 +106,13 @@ def validate(
     for col in df.columns:
         s = df[col]
         null_frac = float(s.isna().mean())
-        n_unique  = int(s.nunique())
-        is_const  = n_unique <= 1
+        n_unique = int(s.nunique())
+        is_const = n_unique <= 1
 
         col_stats[col] = {
             "null_frac": round(null_frac, 4),
-            "n_unique":  n_unique,
-            "dtype":     str(s.dtype),
+            "n_unique": n_unique,
+            "dtype": str(s.dtype),
         }
 
         if null_frac > null_threshold:
@@ -118,7 +121,9 @@ def validate(
             )
 
         if is_const:
-            warnings.append(f"Column '{col}' is constant (all values = {s.dropna().iloc[0] if len(s.dropna()) else 'NA'})")
+            warnings.append(
+                f"Column '{col}' is constant (all values = {s.dropna().iloc[0] if len(s.dropna()) else 'NA'})"
+            )
 
         if not pd.api.types.is_numeric_dtype(s) and n_unique > max_cardinality:
             warnings.append(
