@@ -8,7 +8,10 @@ regime-switching models, and recession-probability classifiers.
 Run: python examples/02_macro_scenarios.py
 """
 import sys
-sys.path.insert(0, ".")
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 import numpy as np

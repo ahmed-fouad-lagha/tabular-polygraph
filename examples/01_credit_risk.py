@@ -7,7 +7,10 @@ model on it, evaluate on real-world-like holdout, and audit privacy.
 Run: python examples/01_credit_risk.py
 """
 import sys
-sys.path.insert(0, ".")
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 import numpy as np
@@ -52,7 +55,8 @@ def main():
     report = fidelity_report(seed, syn_body, target_col="default_12m", include_downstream=True)
     s = report["summary"]
     print(f"      Overall fidelity : {s['overall_fidelity']}%")
-    print(f"      Marginal score   : {s['marginal_score']}%")
+    print(f"      Moment matching  : {s['moment_matching_score']}%")
+    print(f"      KS distribution  : {s['ks_score']}%")
     print(f"      Joint score      : {s['joint_score']}%")
     if "downstream" in report:
         d = report["downstream"]

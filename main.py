@@ -567,9 +567,6 @@ def cmd_download(args):
 # Arg parser
 
 def main():
-    print()
-    print(_c("  LCV", C.BOLD) + _c(" v1.0.0", C.GRAY))
-    print(_c("  synthetic data · Logical Constraint Validator", C.GRAY))
 
     parser = argparse.ArgumentParser(prog="python3 main.py", add_help=False)
     parser.add_argument("--help", "-h", action="help")

@@ -11,7 +11,10 @@ Demonstrates the full privacy audit workflow:
 Run: python examples/03_privacy_audit.py
 """
 import sys
-sys.path.insert(0, ".")
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 from src.generators import GaussianCopulaGenerator
