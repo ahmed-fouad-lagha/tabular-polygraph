@@ -31,6 +31,9 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 
+_ANTE_JOIN = " AND "
+
+
 def _feature_groups_from_encoded_columns(
     encoded_columns: list[str], separator: str = "__"
 ) -> list[list[int]]:
@@ -215,7 +218,12 @@ class LCVAutoencoder(nn.Module):
                     selected_probs = (
                         expected_probs[:, indices] * synth_tensor[:, indices]
                     ).sum(dim=1)
-                    feature_scores.append(selected_probs)
+                    # Normalize by the model's top category probability for the feature.
+                    # This makes scores comparable across high/low-cardinality features.
+                    top_probs = (
+                        expected_probs[:, indices].max(dim=1).values.clamp_min(1e-6)
+                    )
+                    feature_scores.append((selected_probs / top_probs).clamp(1e-6, 1.0))
 
                 feature_matrix = torch.stack(feature_scores, dim=1).clamp_min(1e-6)
                 per_row_score = torch.exp(torch.log(feature_matrix).mean(dim=1))
@@ -238,6 +246,7 @@ def lcv_score(
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
     epochs: int = 30,
+    random_state: int = 42,
     verbose: bool = True,
 ) -> dict:
     """
@@ -256,6 +265,8 @@ def lcv_score(
         Columns to evaluate. If None, uses all categorical columns present in both.
     epochs : int
         Training epochs for autoencoder
+    random_state : int
+        Random seed for deterministic LCV training/evaluation
     verbose : bool
         Print progress
 
@@ -271,6 +282,10 @@ def lcv_score(
     """
     if not TORCH_AVAILABLE:
         raise ImportError("LCV requires PyTorch. Install with: pip install torch")
+
+    # Keep LCV reproducible across repeated evaluations.
+    np.random.seed(int(random_state))
+    torch.manual_seed(int(random_state))
 
     # Determine columns to use
     if columns is None:
@@ -434,7 +449,7 @@ def mine_implication_rules(
                         {"feature": f, "value": v}
                         for f, v in zip(antecedent_cols_list, ant_values)
                     ]
-                    antecedent_repr = " AND ".join(
+                    antecedent_repr = _ANTE_JOIN.join(
                         f"{a['feature']}={a['value']}" for a in antecedents
                     )
 
@@ -547,7 +562,7 @@ def rule_violation_score(
                     "antecedent_value": rule.get("antecedent_value"),
                     "antecedent_repr": rule.get(
                         "antecedent_repr",
-                        " AND ".join(
+                        _ANTE_JOIN.join(
                             f"{a['feature']}={a['value']}" for a in antecedents
                         ),
                     ),
@@ -571,7 +586,7 @@ def rule_violation_score(
                         else str(row_index),
                         "antecedent": rule.get(
                             "antecedent_repr",
-                            " AND ".join(
+                            _ANTE_JOIN.join(
                                 f"{a['feature']}={a['value']}" for a in antecedents
                             ),
                         ),

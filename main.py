@@ -8,7 +8,6 @@ Commands:
     scenario list               List built-in scenarios
     scenario apply <scenario>   Apply scenario to a CSV
     validate <file>             Validate a real data file
-    benchmark                   Run ground-truth fidelity simulations
     download                    Fetch real-world datasets
 """
 
@@ -73,7 +72,12 @@ def section(title):
 def bar(score, width=22):
     score = float(score)
     filled = int(score / 100 * width)
-    col = C.GREEN if score >= 90 else C.YELLOW if score >= 75 else C.RED
+    if score >= 90:
+        col = C.GREEN
+    elif score >= 75:
+        col = C.YELLOW
+    else:
+        col = C.RED
     return _c("█" * filled, col) + _c("░" * (width - filled), C.GRAY)
 
 
@@ -124,6 +128,61 @@ def _parse_drop_cols(drop_cols_arg: str | None) -> list[str]:
     return ordered
 
 
+def _critical_drop_cols(dataset_id: str | None, drop_cols: list[str]) -> list[str]:
+    """Return the subset of requested drops that are structural for the dataset."""
+    if not dataset_id or not drop_cols:
+        return []
+
+    critical_by_dataset = {
+        "world_bank": {"country_code", "year", "region", "income_group"},
+    }
+    critical = critical_by_dataset.get(dataset_id, set())
+    return [c for c in drop_cols if c in critical]
+
+
+def _resolve_generator_type(dataset_id: str, generator_type: str) -> str:
+    if generator_type != "auto":
+        return generator_type
+
+    time_series_datasets = {"fred_macro", "bls"}
+    panel_datasets = {"world_bank"}
+    if dataset_id in time_series_datasets:
+        return "var"
+    if dataset_id in panel_datasets:
+        return "panel"
+    return "copula"
+
+
+def _fit_sample_size(dataset_id: str, generator_type: str) -> int:
+    if generator_type == "panel" and dataset_id == "world_bank":
+        # Panel generators benefit from more entity/time coverage.
+        return 10000
+    return 2000
+
+
+def _drop_existing_columns(df, drop_cols: list[str] | None):
+    if not drop_cols:
+        return df
+    drop_present = [c for c in drop_cols if c in df.columns]
+    if not drop_present:
+        return df
+    return df.drop(columns=drop_present)
+
+
+def _infer_panel_columns(df):
+    entity_col = next(
+        (c for c in ["country_code", "bank_id", "entity"] if c in df.columns),
+        df.columns[0],
+    )
+    if "year" in df.columns:
+        time_col = "year"
+    elif "quarter" in df.columns:
+        time_col = "quarter"
+    else:
+        time_col = None
+    return entity_col, time_col
+
+
 def _load_generator(
     dataset_id, generator_type="auto", drop_cols: list[str] | None = None
 ):
@@ -133,39 +192,17 @@ def _load_generator(
     from src.generators.time_series import VARGenerator
     from src.generators.panel import FixedEffectsGenerator
 
-    seed_df = load_dataset(dataset_id)
+    generator_type = _resolve_generator_type(dataset_id, generator_type)
+    fit_n = _fit_sample_size(dataset_id, generator_type)
 
-    if drop_cols:
-        drop_present = [c for c in drop_cols if c in seed_df.columns]
-        if drop_present:
-            seed_df = seed_df.drop(columns=drop_present)
-
-    # Auto-detect generator type from dataset metadata
-    if generator_type == "auto":
-        time_series_datasets = {"fred_macro", "bls"}
-        panel_datasets = {"world_bank", "fdic"}
-        if dataset_id in time_series_datasets:
-            generator_type = "var"
-        elif dataset_id in panel_datasets:
-            generator_type = "panel"
-        else:
-            generator_type = "copula"
+    seed_df = load_dataset(dataset_id, n=fit_n)
+    seed_df = _drop_existing_columns(seed_df, drop_cols)
 
     if generator_type == "var":
         time_col = "year" if "year" in seed_df.columns else None
         gen = VARGenerator(lags=2, time_col=time_col)
     elif generator_type == "panel":
-        entity_col = next(
-            (c for c in ["country_code", "bank_id", "entity"] if c in seed_df.columns),
-            seed_df.columns[0],
-        )
-        time_col = (
-            "year"
-            if "year" in seed_df.columns
-            else "quarter"
-            if "quarter" in seed_df.columns
-            else None
-        )
+        entity_col, time_col = _infer_panel_columns(seed_df)
         gen = FixedEffectsGenerator(entity_col=entity_col, time_col=time_col)
     else:
         gen = GaussianCopulaGenerator()
@@ -174,21 +211,327 @@ def _load_generator(
     return gen, seed_df, generator_type
 
 
+def _load_eval_frames(real_path: str, syn_path: str):
+    for p in [Path(real_path), Path(syn_path)]:
+        if not p.exists():
+            raise FileNotFoundError(str(p))
+
+    from src.io import read
+
+    info(f"Loading real:      {real_path}")
+    real = read(real_path)
+    info(f"Loading synthetic: {syn_path}")
+    syn = read(syn_path)
+    return real, syn
+
+
+def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
+    drop_cols = _parse_drop_cols(drop_cols_arg)
+    if not drop_cols:
+        return real, syn
+
+    real_drop = [c for c in drop_cols if c in real.columns]
+    syn_drop = [c for c in drop_cols if c in syn.columns]
+    if real_drop:
+        real = real.drop(columns=real_drop)
+    if syn_drop:
+        syn = syn.drop(columns=syn_drop)
+    info(f"Dropped columns before evaluation: {drop_cols}")
+    return real, syn
+
+
+def _rule_params_from_args(args) -> dict:
+    params = {
+        "rule_min_confidence": float(getattr(args, "rule_min_confidence", 0.95)),
+        "rule_min_support": float(getattr(args, "rule_min_support", 0.005)),
+        "rule_max_rules": int(getattr(args, "rule_max_rules", 25)),
+        "rule_min_lift": float(getattr(args, "rule_min_lift", 1.0)),
+        "rule_max_antecedents": int(getattr(args, "rule_max_antecedents", 1)),
+    }
+
+    if not (0.0 <= params["rule_min_confidence"] <= 1.0):
+        raise ValueError("--rule-min-confidence must be between 0 and 1")
+    if not (0.0 <= params["rule_min_support"] <= 1.0):
+        raise ValueError("--rule-min-support must be between 0 and 1")
+    if params["rule_max_rules"] < 1:
+        raise ValueError("--rule-max-rules must be >= 1")
+    if params["rule_min_lift"] < 0.0:
+        raise ValueError("--rule-min-lift must be >= 0")
+    if params["rule_max_antecedents"] < 1:
+        raise ValueError("--rule-max-antecedents must be >= 1")
+
+    return params
+
+
+def _json_clean(obj):
+    if isinstance(obj, dict):
+        return {k: _json_clean(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_clean(v) for v in obj]
+    if isinstance(obj, float):
+        return round(obj, 6)
+    return obj
+
+
+def _prepare_generate_request(args):
+    input_file = getattr(args, "input", None)
+    dataset_id = getattr(args, "dataset", None)
+
+    if not input_file and not dataset_id:
+        err("Provide a dataset ID (e.g. python3 main.py generate fred_macro)")
+        err("or your own file (e.g. python3 main.py generate --input data.csv)")
+        sys.exit(1)
+
+    if input_file:
+        header(f"Generating from: {input_file}", f"rows={args.rows:,}")
+    else:
+        header(
+            f"Generating: {dataset_id}",
+            f"generator={args.generator}  rows={args.rows:,}",
+        )
+
+    filters = _parse_filters(getattr(args, "filter", None))
+    drop_cols = _parse_drop_cols(getattr(args, "drop_cols", None))
+    if filters:
+        info(f"Filters: {filters}")
+    if drop_cols:
+        info(f"Dropping columns before fit/eval: {drop_cols}")
+        dropped_critical = _critical_drop_cols(dataset_id, drop_cols)
+        if dropped_critical:
+            err(
+                "Refusing to drop structural world_bank columns: "
+                f"{', '.join(dropped_critical)}"
+            )
+            err(
+                "Keep country_code, year, region, and income_group to preserve panel structure."
+            )
+            sys.exit(1)
+
+    return input_file, dataset_id, filters, drop_cols
+
+
+def _fit_custom_input_generator(input_file: str, drop_cols: list[str]):
+    if not Path(input_file).exists():
+        raise FileNotFoundError(input_file)
+
+    from src.io import read, validate as validate_df
+    from src.generators import GaussianCopulaGenerator
+
+    seed_df = read(input_file)
+    seed_df = _drop_existing_columns(seed_df, drop_cols)
+    result = validate_df(seed_df, min_rows=10)
+    if not result.passed:
+        raise ValueError("\n".join(result.errors))
+    if result.warnings:
+        for w_msg in result.warnings:
+            warn(w_msg)
+
+    gen = GaussianCopulaGenerator()
+    gen.fit(seed_df)
+    info(
+        f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}"
+    )
+    return gen, seed_df, "copula"
+
+
+def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
+    t0 = time.time()
+    print()
+    info("Fitting generator...")
+    try:
+        if input_file:
+            gen, seed_df, gen_type = _fit_custom_input_generator(input_file, drop_cols)
+        else:
+            gen, seed_df, gen_type = _load_generator(
+                dataset_id, args.generator, drop_cols=drop_cols
+            )
+    except FileNotFoundError as e:
+        err(f"File not found: {e}")
+        sys.exit(1)
+    except (ValueError, RuntimeError) as e:
+        err(str(e))
+        sys.exit(1)
+
+    ok(f"{gen}  [{gen_type}]  ({time.time() - t0:.1f}s)")
+    return gen, seed_df, gen_type
+
+
+def _run_scenario_if_requested(syn, args):
+    if not getattr(args, "scenario", None):
+        return syn
+
+    from src.calibration import apply_scenario
+
+    info(f"Applying scenario: {args.scenario}  (intensity={args.intensity})")
+    syn = apply_scenario(syn, args.scenario, intensity=args.intensity)
+    ok("Scenario applied")
+    return syn
+
+
+def _run_calibration_if_requested(syn, seed_df, args):
+    if not getattr(args, "calibrate", False):
+        return syn
+
+    from src.calibration import match_moments
+
+    info("Running moment calibration...")
+    syn_body = syn.drop(columns=["syn_id"], errors="ignore")
+    syn_body = match_moments(seed_df, syn_body)
+    syn_body.insert(0, "syn_id", syn["syn_id"])
+    ok("Moments calibrated")
+    return syn_body
+
+
+def _compute_generate_report(seed_df, syn, gen_type, no_eval: bool):
+    if no_eval:
+        return None
+
+    from src.fidelity import fidelity_report
+
+    info("Running fidelity report...")
+    dataset_type = {"var": "time_series", "panel": "panel"}.get(
+        gen_type, "cross_sectional"
+    )
+    syn_body = syn.drop(columns=["syn_id"], errors="ignore")
+    try:
+        return fidelity_report(seed_df, syn_body, dataset_type=dataset_type)
+    except Exception as fe:
+        warn(f"Fidelity report skipped: {fe}")
+        return None
+
+
+def _print_generate_main_scores(report):
+    s = report["summary"]
+
+    section("Fidelity report")
+    mm_cols = report.get("moment_matching", {}).get("column_scores", {})
+    if mm_cols:
+        print("    Moment matching")
+        for col, score in mm_cols.items():
+            print(
+                f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
+            )
+        print()
+
+    ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
+    if ks_cols:
+        print("    KS distribution")
+        for col, score in ks_cols.items():
+            print(
+                f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
+            )
+        print()
+    print(
+        f"    {_c('Overall fidelity:', C.GRAY):<34}{_c(str(s['overall_fidelity']) + '%', C.GREEN)}"
+    )
+    print(
+        f"    {_c('Moment matching:', C.GRAY):<34}{_c(str(s['moment_matching_score']) + '%', C.GREEN)}"
+    )
+    print(
+        f"    {_c('KS distribution:', C.GRAY):<34}{_c(str(s['ks_score']) + '%', C.GREEN)}"
+    )
+    print(
+        f"    {_c('Joint score:', C.GRAY):<34}{_c(str(s['joint_score']) + '%', C.GREEN)}"
+    )
+    print(
+        f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
+    )
+    print(f"    {_c('Exact copies:', C.GRAY):<34}{s['exact_copies']}")
+
+
+def _print_generate_stylized(report):
+    sf_summary = report.get("stylized_facts", {}).get("_summary", {})
+    print()
+    section("Stylized facts")
+    if sf_summary.get("applicable", True):
+        print(
+            f"    {_c('Mean score:', C.GRAY):<34}{_c(str(sf_summary.get('mean_score')) + '%', C.GREEN)}"
+        )
+        print(
+            f"    {_c('Columns tested:', C.GRAY):<34}{sf_summary.get('columns_tested', 0)}"
+        )
+        for col, item in report.get("stylized_facts", {}).items():
+            if col == "_summary":
+                continue
+            print(f"    {col:<26}{item.get('score', '—')}%")
+    else:
+        print(f"    {sf_summary.get('note', 'Not evaluated.')}")
+
+
+def _print_generate_temporal(report):
+    if "temporal" not in report:
+        return
+
+    t = report["temporal"]
+    section("Temporal fidelity")
+    print(
+        f"    Stationarity agreement  {t['stationarity']['_summary']['agreement_rate']}%"
+    )
+    print(
+        f"    Cointegration agreement {t['cointegration']['_summary']['agreement_rate']}%"
+    )
+    print(f"    Break match rate        {t['breaks']['_summary']['break_match_rate']}%")
+    print(
+        f"    Causality agreement     {t['causality']['_summary']['agreement_rate']}%"
+    )
+
+
+def _print_generate_logical(report):
+    if "logical" not in report:
+        return
+
+    lg = report["logical"]
+    section("Logical (Rules + LCV)")
+    if "error" in lg:
+        print(f"    {_c('Error:', C.RED)} {lg['error']}")
+        return
+
+    print(f"    LCV score               {lg.get('lcv_score_pct', '—')}%")
+    print(f"    LCV violation rate      {lg.get('lcv_violation_rate_pct', '—')}%")
+    print(f"    Rule violation rate     {lg.get('rule_violation_rate_pct', '—')}%")
+    print(f"    Mean penalty            {lg.get('mean_penalty_pct', '—')}%")
+    print(
+        f"    Rule violations         {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+    )
+
+
+def _print_generate_report(report):
+    if report is None:
+        return
+
+    _print_generate_main_scores(report)
+    _print_generate_stylized(report)
+    _print_generate_temporal(report)
+    _print_generate_logical(report)
+
+
+def _save_generated_output(syn, output_path: str):
+    from src.io import write
+
+    output = Path(output_path)
+    write(syn, output)
+    print()
+    ok(f"Saved → {_c(str(output), C.CYAN)}  ({output.stat().st_size // 1024} KB)")
+    print()
+
+
 # Commands
 
 
 def cmd_list(args):
     from src.catalog import list_datasets
 
-    header("Available datasets", "10 datasets · 4 verticals")
     df = list_datasets(vertical=args.vertical if hasattr(args, "vertical") else None)
+    header(
+        "Available datasets",
+        f"{len(df)} datasets · {df['vertical'].nunique()} verticals",
+    )
 
     for vertical in df["vertical"].unique():
         sub = df[df["vertical"] == vertical]
         print(f"\n  {_c(vertical.upper(), C.CYAN)}")
         for _, row in sub.iterrows():
-            fid = _c(row["fidelity"], C.GREEN)
-            print(f"    {_c(row['id'], C.BOLD):<28} {row['name']:<40} {fid}")
+            print(f"    {_c(row['id'], C.BOLD):<28} {row['name']:<40}")
 
     print()
     dim("  python3 main.py info <id>    full metadata + columns")
@@ -211,8 +554,6 @@ def cmd_info(args):
         ("Vertical", meta["vertical"]),
         ("Source", meta["source"]),
         ("Columns", str(meta["col_count"])),
-        ("Fidelity", f"{meta['fidelity']}%"),
-        ("Status", meta["status"]),
         ("Tags", ", ".join(meta["tags"])),
     ]
     for label, value in pairs:
@@ -233,70 +574,10 @@ def cmd_info(args):
 
 
 def cmd_generate(args):
-    # ── Custom input file OR built-in dataset ─────────────────────────────────
-    input_file = getattr(args, "input", None)
-    dataset_id = getattr(args, "dataset", None)
-
-    if not input_file and not dataset_id:
-        err("Provide a dataset ID (e.g. python3 main.py generate hmda) ")
-        err("or your own file (e.g. python3 main.py generate --input data.csv)")
-        sys.exit(1)
-
-    if input_file:
-        header(f"Generating from: {input_file}", f"rows={args.rows:,}")
-    else:
-        header(
-            f"Generating: {dataset_id}",
-            f"generator={args.generator}  rows={args.rows:,}",
-        )
-
-    filters = _parse_filters(getattr(args, "filter", None))
-    drop_cols = _parse_drop_cols(getattr(args, "drop_cols", None))
-    if filters:
-        info(f"Filters: {filters}")
-    if drop_cols:
-        info(f"Dropping columns before fit/eval: {drop_cols}")
-
-    # Load + fit generator
-    t0 = time.time()
-    print()
-    info("Fitting generator...")
-    try:
-        if input_file:
-            # Custom file — validate, load, fit GaussianCopula
-            if not Path(input_file).exists():
-                err(f"File not found: {input_file}")
-                sys.exit(1)
-            from src.io import read, validate as validate_df
-            from src.generators import GaussianCopulaGenerator
-
-            seed_df = read(input_file)
-            if drop_cols:
-                drop_present = [c for c in drop_cols if c in seed_df.columns]
-                if drop_present:
-                    seed_df = seed_df.drop(columns=drop_present)
-            result = validate_df(seed_df, min_rows=10)
-            if not result.passed:
-                for e_msg in result.errors:
-                    err(e_msg)
-                sys.exit(1)
-            if result.warnings:
-                for w_msg in result.warnings:
-                    warn(w_msg)
-            gen = GaussianCopulaGenerator()
-            gen.fit(seed_df)
-            gen_type = "copula"
-            info(
-                f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}"
-            )
-        else:
-            gen, seed_df, gen_type = _load_generator(
-                dataset_id, args.generator, drop_cols=drop_cols
-            )
-    except ValueError as e:
-        err(str(e))
-        sys.exit(1)
-    ok(f"{gen}  [{gen_type}]  ({time.time() - t0:.1f}s)")
+    input_file, dataset_id, filters, drop_cols = _prepare_generate_request(args)
+    gen, seed_df, gen_type = _fit_generate_generator(
+        input_file, dataset_id, args, drop_cols
+    )
 
     # Generate
     info(f"Sampling {args.rows:,} rows...")
@@ -304,118 +585,15 @@ def cmd_generate(args):
     syn = gen.generate(args.rows, filters=filters or None, seed=args.seed)
     ok(f"{len(syn):,} rows generated  ({time.time() - t1:.1f}s)")
 
-    # Apply scenario if requested
-    if getattr(args, "scenario", None):
-        from src.calibration import apply_scenario
+    syn = _run_scenario_if_requested(syn, args)
+    syn = _run_calibration_if_requested(syn, seed_df, args)
 
-        info(f"Applying scenario: {args.scenario}  (intensity={args.intensity})")
-        syn = apply_scenario(syn, args.scenario, intensity=args.intensity)
-        ok("Scenario applied")
+    report = _compute_generate_report(
+        seed_df, syn, gen_type, no_eval=getattr(args, "no_eval", False)
+    )
+    _print_generate_report(report)
 
-    # Moment calibration
-    if getattr(args, "calibrate", False):
-        from src.calibration import match_moments
-
-        info("Running moment calibration...")
-        syn_body = syn.drop(columns=["syn_id"], errors="ignore")
-        syn_body = match_moments(seed_df, syn_body)
-        syn_body.insert(0, "syn_id", syn["syn_id"])
-        syn = syn_body
-        ok("Moments calibrated")
-
-    # Fidelity evaluation
-    if not getattr(args, "no_eval", False):
-        from src.fidelity import fidelity_report
-
-        info("Running fidelity report...")
-        dataset_type = {"var": "time_series", "panel": "panel"}.get(
-            gen_type, "cross_sectional"
-        )
-        syn_body = syn.drop(columns=["syn_id"], errors="ignore")
-        try:
-            report = fidelity_report(seed_df, syn_body, dataset_type=dataset_type)
-        except Exception as fe:
-            warn(f"Fidelity report skipped: {fe}")
-            report = None
-    if not getattr(args, "no_eval", False) and report is not None:
-        s = report["summary"]
-
-        section("Fidelity report")
-        mm_cols = report.get("moment_matching", {}).get("column_scores", {})
-        if mm_cols:
-            print("    Moment matching")
-            for col, score in mm_cols.items():
-                print(
-                    f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
-                )
-            print()
-
-        ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
-        if ks_cols:
-            print("    KS distribution")
-            for col, score in ks_cols.items():
-                print(
-                    f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
-                )
-            print()
-        print(
-            f"    {_c('Overall fidelity:', C.GRAY):<34}{_c(str(s['overall_fidelity']) + '%', C.GREEN)}"
-        )
-        print(
-            f"    {_c('Moment matching:', C.GRAY):<34}{_c(str(s['moment_matching_score']) + '%', C.GREEN)}"
-        )
-        print(
-            f"    {_c('KS distribution:', C.GRAY):<34}{_c(str(s['ks_score']) + '%', C.GREEN)}"
-        )
-        print(
-            f"    {_c('Joint score:', C.GRAY):<34}{_c(str(s['joint_score']) + '%', C.GREEN)}"
-        )
-        print(
-            f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
-        )
-        print(f"    {_c('Exact copies:', C.GRAY):<34}{s['exact_copies']}")
-
-        sf_summary = report.get("stylized_facts", {}).get("_summary", {})
-        print()
-        section("Stylized facts")
-        if sf_summary.get("applicable", True):
-            print(
-                f"    {_c('Mean score:', C.GRAY):<34}{_c(str(sf_summary.get('mean_score')) + '%', C.GREEN)}"
-            )
-            print(
-                f"    {_c('Columns tested:', C.GRAY):<34}{sf_summary.get('columns_tested', 0)}"
-            )
-            for col, item in report.get("stylized_facts", {}).items():
-                if col == "_summary":
-                    continue
-                print(f"    {col:<26}{item.get('score', '—')}%")
-        else:
-            print(f"    {sf_summary.get('note', 'Not evaluated.')}")
-
-        if "temporal" in report:
-            t = report["temporal"]
-            section("Temporal fidelity")
-            print(
-                f"    Stationarity agreement  {t['stationarity']['_summary']['agreement_rate']}%"
-            )
-            print(
-                f"    Cointegration agreement {t['cointegration']['_summary']['agreement_rate']}%"
-            )
-            print(
-                f"    Break match rate        {t['breaks']['_summary']['break_match_rate']}%"
-            )
-            print(
-                f"    Causality agreement     {t['causality']['_summary']['agreement_rate']}%"
-            )
-
-    # Save output
-    from src.io import write
-
-    output = Path(args.output)
-    write(syn, output)
-    print()
-    ok(f"Saved → {_c(str(output), C.CYAN)}  ({output.stat().st_size // 1024} KB)")
-    print()
+    _save_generated_output(syn, args.output)
 
 
 def cmd_evaluate(args):
@@ -423,53 +601,23 @@ def cmd_evaluate(args):
 
     header("Fidelity evaluation", f"{args.real}  vs  {args.synthetic}")
 
-    for p in [Path(args.real), Path(args.synthetic)]:
-        if not p.exists():
-            err(f"File not found: {p}")
-            sys.exit(1)
+    try:
+        real, syn = _load_eval_frames(args.real, args.synthetic)
+    except FileNotFoundError as e:
+        err(f"File not found: {e}")
+        sys.exit(1)
 
-    from src.io import read
-
-    info(f"Loading real:      {args.real}")
-    real = read(args.real)
-    info(f"Loading synthetic: {args.synthetic}")
-    syn = read(args.synthetic)
-
-    drop_cols = _parse_drop_cols(getattr(args, "drop_cols", None))
-    if drop_cols:
-        real_drop = [c for c in drop_cols if c in real.columns]
-        syn_drop = [c for c in drop_cols if c in syn.columns]
-        if real_drop:
-            real = real.drop(columns=real_drop)
-        if syn_drop:
-            syn = syn.drop(columns=syn_drop)
-        info(f"Dropped columns before evaluation: {drop_cols}")
+    real, syn = _apply_eval_drop_cols(real, syn, getattr(args, "drop_cols", None))
 
     info(f"Rows — real: {len(real):,}  synthetic: {len(syn):,}")
 
     dataset_type = getattr(args, "type", "cross_sectional") or "cross_sectional"
     target_col = getattr(args, "target", None)
 
-    rule_min_confidence = float(getattr(args, "rule_min_confidence", 0.95))
-    rule_min_support = float(getattr(args, "rule_min_support", 0.005))
-    rule_max_rules = int(getattr(args, "rule_max_rules", 25))
-    rule_min_lift = float(getattr(args, "rule_min_lift", 1.0))
-    rule_max_antecedents = int(getattr(args, "rule_max_antecedents", 1))
-
-    if not (0.0 <= rule_min_confidence <= 1.0):
-        err("--rule-min-confidence must be between 0 and 1")
-        sys.exit(1)
-    if not (0.0 <= rule_min_support <= 1.0):
-        err("--rule-min-support must be between 0 and 1")
-        sys.exit(1)
-    if rule_max_rules < 1:
-        err("--rule-max-rules must be >= 1")
-        sys.exit(1)
-    if rule_min_lift < 0.0:
-        err("--rule-min-lift must be >= 0")
-        sys.exit(1)
-    if rule_max_antecedents < 1:
-        err("--rule-max-antecedents must be >= 1")
+    try:
+        rule_params = _rule_params_from_args(args)
+    except ValueError as e:
+        err(str(e))
         sys.exit(1)
 
     info("Running full fidelity report...")
@@ -479,11 +627,7 @@ def cmd_evaluate(args):
         dataset_type=dataset_type,
         target_col=target_col,
         include_downstream=bool(target_col),
-        rule_min_confidence=rule_min_confidence,
-        rule_min_support=rule_min_support,
-        rule_max_rules=rule_max_rules,
-        rule_min_lift=rule_min_lift,
-        rule_max_antecedents=rule_max_antecedents,
+        **rule_params,
     )
 
     print(format_report(report))
@@ -491,17 +635,7 @@ def cmd_evaluate(args):
     if getattr(args, "json", False):
         import json as _json
 
-        # Make report JSON-serialisable
-        def _clean(obj):
-            if isinstance(obj, dict):
-                return {k: _clean(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [_clean(v) for v in obj]
-            if isinstance(obj, float):
-                return round(obj, 6)
-            return obj
-
-        print(_json.dumps(_clean(report), indent=2))
+        print(_json.dumps(_json_clean(report), indent=2))
 
     if getattr(args, "output", None):
         import json as _json
@@ -683,13 +817,6 @@ def cmd_validate(args):
     print()
 
 
-def cmd_benchmark(args):
-    """Run all profiles and print the summary table."""
-    from src.fidelity.engine import run_benchmark
-
-    run_benchmark()
-
-
 def cmd_download(args):
     from src.catalog.downloader import download, status, DOWNLOADERS, is_cached
 
@@ -713,7 +840,7 @@ def cmd_download(args):
         info("For other datasets, use gen.fit(your_csv) to bring your own data.")
         sys.exit(1)
 
-    header(f"Downloading: {dataset_id}", "real data from public sources")
+    header(f"Downloading: {dataset_id}", "from public sources")
 
     if dataset_id != "all" and is_cached(dataset_id) and not args.force:
         warn("Already cached. Use --force to re-download.")
@@ -768,7 +895,7 @@ def main():
         "dataset",
         nargs="?",
         default=None,
-        help="Built-in dataset ID (e.g. hmda). Omit if using --input.",
+        help="Built-in dataset ID (e.g. fred_macro). Omit if using --input.",
     )
     p.add_argument(
         "--input",
@@ -928,7 +1055,11 @@ def main():
     p_sca.add_argument("--intensity", type=float, default=1.0, metavar="F")
     p_sca.set_defaults(func=cmd_scenario_apply)
 
-    p_sc.set_defaults(func=lambda a: (sc_sub.print_help(), print()))
+    def _scenario_help(_args):
+        p_sc.print_help()
+        print()
+
+    p_sc.set_defaults(func=_scenario_help)
 
     # validate
     p = sub.add_parser("validate", help="Validate a real data file before fitting.")
@@ -938,12 +1069,6 @@ def main():
     p.add_argument("--max-cardinality", type=int, default=500, metavar="N")
     p.add_argument("--min-rows", type=int, default=50, metavar="N")
     p.set_defaults(func=cmd_validate)
-
-    # benchmark
-    sub_bench = sub.add_parser(
-        "benchmark", help="Run ground-truth fidelity simulations."
-    )
-    sub_bench.set_defaults(func=cmd_benchmark)
 
     # download
     p = sub.add_parser("download", help="Download real bulk data from public sources.")
@@ -966,9 +1091,7 @@ def main():
         dim("  Examples:")
         dim("    python3 main.py list")
         dim("    python3 main.py generate fred_macro --rows 5000 --scenario recession")
-        dim(
-            "    python3 main.py generate credit_risk --filter fico_band:300-579 --filter default_12m:1"
-        )
+        dim("    python3 main.py generate world_bank --rows 3000 --generator panel")
         dim(
             "    python3 main.py evaluate real.csv synthetic.csv --type time_series --target gdp_growth_yoy"
         )

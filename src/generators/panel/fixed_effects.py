@@ -8,8 +8,8 @@ Models each observation as:
            + β_t (time fixed effect)
            + ε_it (idiosyncratic shock, drawn from Gaussian Copula)
 
-Suitable for: world_bank (country × year), fdic (bank × quarter),
-              bls (industry × state × quarter).
+Suitable for: world_bank (country × year) and other
+              panel-style datasets with entity/time columns.
 """
 
 from __future__ import annotations
@@ -42,10 +42,14 @@ class FixedEffectsGenerator(BaseGenerator):
         self,
         entity_col: str = "entity",
         time_col: str = "year",
+        time_effect_weight: float = 1.0,
+        entity_effect_jitter: float = 1.0,
         **kwargs,
     ):
         self._entity_col = entity_col
         self._time_col = time_col
+        self._time_effect_weight = float(time_effect_weight)
+        self._entity_effect_jitter = float(entity_effect_jitter)
         self._entity_effects: dict = {}  # α_i per entity
         self._time_effects: dict = {}  # β_t per time period
         self._entity_dist: dict = {}  # distribution of entity-level means
@@ -55,6 +59,8 @@ class FixedEffectsGenerator(BaseGenerator):
         self._cat_freqs: dict = {}
         self._n_entities: int = 0
         self._n_periods: int = 0
+        self._entity_values: list = []
+        self._time_values: list = []
 
     # ── fit ───────────────────────────────────────────────────────────────────
 
@@ -86,22 +92,37 @@ class FixedEffectsGenerator(BaseGenerator):
             entity_means = df.groupby(self._entity_col)[self._numeric_cols].mean()
             self._entity_effects = entity_means.to_dict(orient="index")
             self._n_entities = len(entity_means)
+            self._entity_values = list(entity_means.index)
             # Distribution of entity effects
             for col in self._numeric_cols:
                 vals = entity_means[col].dropna().values
-                self._entity_dist[col] = dict(
-                    mean=float(vals.mean()), std=float(vals.std() or 1)
-                )
+                self._entity_dist[col] = {
+                    "mean": float(vals.mean()),
+                    "std": float(vals.std() or 1),
+                }
         else:
             self._n_entities = 100
+            self._entity_values = []
+
+        # Ensure fallback distributions exist even when entity_col is absent.
+        for col in self._numeric_cols:
+            if col in self._entity_dist:
+                continue
+            vals = df[col].dropna().values
+            self._entity_dist[col] = {
+                "mean": float(vals.mean()) if len(vals) else 0.0,
+                "std": float(vals.std() or 1.0) if len(vals) else 1.0,
+            }
 
         # Time fixed effects: mean of each numeric col per period
         if self._time_col in df.columns:
             time_means = df.groupby(self._time_col)[self._numeric_cols].mean()
             self._time_effects = time_means.to_dict(orient="index")
             self._n_periods = len(time_means)
+            self._time_values = list(time_means.index)
         else:
             self._n_periods = 10
+            self._time_values = []
 
         # Fit a Gaussian Copula on the within-entity residuals
         residuals = df[self._numeric_cols].copy()
@@ -137,7 +158,12 @@ class FixedEffectsGenerator(BaseGenerator):
 
         # Generate synthetic entity IDs
         n_entities = max(self._n_entities, n // max(self._n_periods, 1))
-        entity_ids = [f"ENT-{i:05d}" for i in range(n_entities)]
+        if self._entity_values:
+            entity_ids = list(
+                rng.choice(self._entity_values, size=n_entities, replace=True)
+            )
+        else:
+            entity_ids = [f"ENT-{i:05d}" for i in range(n_entities)]
 
         # Sample entity-level means from their distribution
         entity_means: dict[str, dict] = {}
@@ -149,7 +175,7 @@ class FixedEffectsGenerator(BaseGenerator):
                     col: float(
                         rng.normal(
                             self._entity_dist[col]["mean"],
-                            self._entity_dist[col]["std"] * 0.5,
+                            self._entity_dist[col]["std"] * self._entity_effect_jitter,
                         )
                     )
                     for col in self._numeric_cols
@@ -160,13 +186,14 @@ class FixedEffectsGenerator(BaseGenerator):
 
         # Assign entity + time, add fixed effects back
         rows = []
+        sampled_periods = (
+            list(rng.choice(self._time_values, size=n, replace=True))
+            if self._time_values
+            else [i % max(self._n_periods, 1) for i in range(n)]
+        )
         for i in range(n):
             eid = entity_ids[i % len(entity_ids)]
-            period = (
-                list(self._time_effects.keys())[i % max(self._n_periods, 1)]
-                if self._time_effects
-                else i % max(self._n_periods, 1)
-            )
+            period = sampled_periods[i]
 
             row = {self._entity_col: eid, self._time_col: period}
 
@@ -178,7 +205,7 @@ class FixedEffectsGenerator(BaseGenerator):
                     if col in resid_df.columns
                     else 0.0
                 )
-                row[col] = alpha_i + beta_t * 0.3 + eps
+                row[col] = alpha_i + beta_t * self._time_effect_weight + eps
 
             for col in self._cat_cols:
                 cats = list(self._cat_freqs[col].keys())

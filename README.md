@@ -56,13 +56,30 @@ Expected output files are written under `examples/`:
 - `output_credit_stressed.csv`
 - `output_macro_baseline.csv`
 - `output_macro_*.csv`
-```
 
 ## CLI Usage
 
 ```bash
-# Generate synthetic data from a built-in profile
-python main.py generate hmda --rows 10000 --output syn.csv
+# Download a specific dataset
+python main.py download fred_macro
+python main.py download bls
+python main.py download world_bank
+python main.py download census_acs
+
+# Download all 4 real datasets
+python main.py download all
+
+# Check what's cached
+python main.py download status
+
+# Force re-download (ignore cache)
+python main.py download fred_macro --force
+
+# Limit cache size (e.g., first 1000 rows only)
+python main.py download bls --sample 1000
+
+# Generate synthetic data: python main.py generate <id>
+python main.py generate fred_macro --rows 10000 --output syn.csv
 
 # Evaluate fidelity
 python main.py evaluate real.csv syn.csv --type cross_sectional

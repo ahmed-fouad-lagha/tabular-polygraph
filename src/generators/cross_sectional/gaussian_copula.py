@@ -90,6 +90,8 @@ class _CategoricalMarginal:
         return np.array([mapping.get(v, 0.5) for v in series.fillna(self._cats[0])])
 
     def from_uniform(self, u: np.ndarray) -> list:
+        if not self._cats:
+            return ["unknown"] * len(u)
         cum = np.cumsum(self._probs)
         idx = np.clip(
             np.searchsorted(cum, np.clip(u, 1e-6, 1 - 1e-6)), 0, len(self._cats) - 1

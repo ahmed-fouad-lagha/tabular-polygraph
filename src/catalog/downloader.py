@@ -8,7 +8,7 @@ Usage
 -----
     # Download one dataset
     from src.catalog.downloader import download, status
-    download("hmda")
+    download("fred_macro")
 
     # Download all
     download("all")
@@ -18,7 +18,7 @@ Usage
 
 CLI
 ---
-    src download hmda
+    src download fred_macro
     src download all
     src download status
 
@@ -60,29 +60,6 @@ def is_cached(dataset_id: str) -> bool:
 # ── Download registry ─────────────────────────────────────────────────────────
 
 DOWNLOADERS: dict[str, dict] = {
-    "hmda": {
-        "name": "HMDA Mortgage Applications",
-        "source": "CFPB HMDA 2022",
-        "url": "https://ffiec.cfpb.gov/data-download",
-        "method": "cfpb_api",
-        "size_hint": "~3 GB (14M rows) — may take 5–10 minutes",
-        "columns_map": {
-            "loan_amount": "loan_amount",
-            "income": "applicant_income",
-            "action_taken": "action_taken",
-            "loan_purpose": "loan_purpose",
-            "derived_dwelling_category": "property_type",
-            "debt_to_income_ratio": "debt_to_income",
-            "state_code": "state",
-        },
-    },
-    "fdic": {
-        "name": "FDIC Bank Call Reports",
-        "source": "FDIC Statistics on Depository Institutions",
-        "url": "https://banks.data.fdic.gov/api/financials",
-        "method": "fdic_api",
-        "size_hint": "~50 MB (5,000 banks × 20 quarters)",
-    },
     "fred_macro": {
         "name": "FRED Macroeconomic Indicators",
         "source": "Federal Reserve FRED",
@@ -517,9 +494,6 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-# ── Main download function ────────────────────────────────────────────────────
-
-
 def download(
     dataset_id: str,
     force: bool = False,
@@ -582,7 +556,7 @@ def download(
     else:
         raise NotImplementedError(
             f"Downloader for '{dataset_id}' (method: {method}) requires manual download.\n"
-            f"See DOWNLOAD.md for step-by-step instructions."
+            f"Please download the data from {info['url']} and save it as a CSV, then load it with gen.fit(your_csv)."
         )
 
     # Cache it
