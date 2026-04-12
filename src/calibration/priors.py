@@ -23,9 +23,9 @@ Usage
     from src.catalog import load_dataset
 
     # Use a built-in prior set
-    priors = DATASET_PRIORS["hmda"]
+    priors = DATASET_PRIORS["fred_macro"]
     gen = GaussianCopulaGenerator(priors=priors)
-    gen.fit(load_dataset("hmda").sample(100))   # only 100 rows — priors stabilise estimates
+    gen.fit(load_dataset("fred_macro").sample(100))   # only 100 rows — priors stabilise estimates
 
     # Define a custom prior set
     from src.calibration.priors import Prior, PriorSet
@@ -281,54 +281,6 @@ class PriorSet:
 # Derived from published statistics for each data source.
 
 DATASET_PRIORS: dict[str, PriorSet] = {
-    "hmda": PriorSet(
-        {
-            # CFPB HMDA 2022: median loan $280K, 5th–95th pct $80K–$650K
-            "loan_amount": Prior("lognormal", mu=12.1, sigma=0.72, strength=2.0),
-            # CFPB HMDA 2022: median income $95K
-            "applicant_income": Prior("lognormal", mu=11.2, sigma=0.62, strength=2.0),
-            # Industry standard DTI distribution
-            "debt_to_income": Prior("normal", mu=38.0, sigma=11.0, strength=1.5),
-        }
-    ),
-    "fdic": PriorSet(
-        {
-            # FDIC 2023 Q4: industry avg tier1=14.7%, NIM=3.3%, ROA=1.1%
-            "tier1_capital_ratio": Prior("normal", mu=14.7, sigma=2.5, strength=2.0),
-            "net_interest_margin": Prior("normal", mu=3.30, sigma=0.55, strength=2.0),
-            "roa": Prior("normal", mu=1.10, sigma=0.40, strength=1.5),
-            "roe": Prior("normal", mu=10.5, sigma=3.5, strength=1.5),
-            "npl_ratio": Prior("lognormal", mu=-2.4, sigma=0.7, strength=1.5),
-            "loan_to_deposit": Prior("normal", mu=71.0, sigma=11.0, strength=1.0),
-        }
-    ),
-    "credit_risk": PriorSet(
-        {
-            # Federal Reserve SCB 2023: base default rate ~3%, stressed ~12%
-            "default_12m": Prior("beta", alpha=1.5, beta=30.0, strength=3.0),
-            "credit_utilisation": Prior("beta", alpha=2.0, beta=5.5, strength=1.5),
-            "debt_to_income": Prior("normal", mu=38.0, sigma=12.0, strength=1.5),
-            "employment_years": Prior("gamma", alpha=2.5, beta=0.5, strength=1.0),
-        }
-    ),
-    "edgar": PriorSet(
-        {
-            # S&P 500 median EBITDA margin ~18%, median net debt/EBITDA ~2.0x
-            "ebitda_margin": Prior("normal", mu=18.0, sigma=9.0, strength=1.5),
-            "net_debt_ebitda": Prior("normal", mu=2.05, sigma=1.8, strength=1.5),
-            "roa": Prior("normal", mu=6.0, sigma=4.0, strength=1.0),
-            "roe": Prior("normal", mu=14.0, sigma=9.0, strength=1.0),
-            "current_ratio": Prior("lognormal", mu=0.45, sigma=0.38, strength=1.0),
-        }
-    ),
-    "cftc": PriorSet(
-        {
-            # CFTC COT historical: open interest distribution is right-skewed
-            "open_interest": Prior("lognormal", mu=11.8, sigma=1.3, strength=1.5),
-            "net_commercial": Prior("normal", mu=-18000, sigma=42000, strength=1.0),
-            "net_noncommercial": Prior("normal", mu=18000, sigma=38000, strength=1.0),
-        }
-    ),
     "fred_macro": PriorSet(
         {
             # Fed long-run projections: GDP 2%, CPI 2%, unemployment 4%
@@ -357,13 +309,6 @@ DATASET_PRIORS: dict[str, PriorSet] = {
             "inflation": Prior("lognormal", mu=1.6, sigma=0.9, strength=1.5),
             "govt_debt_pct_gdp": Prior("normal", mu=56.0, sigma=30.0, strength=1.0),
             "gini": Prior("normal", mu=37.5, sigma=8.0, strength=1.5),
-        }
-    ),
-    "irs_soi": PriorSet(
-        {
-            # IRS SOI 2021: avg effective rate 13.3%
-            "effective_rate": Prior("normal", mu=13.3, sigma=6.0, strength=2.0),
-            "total_agi": Prior("lognormal", mu=10.9, sigma=1.0, strength=1.5),
         }
     ),
     "census_acs": PriorSet(

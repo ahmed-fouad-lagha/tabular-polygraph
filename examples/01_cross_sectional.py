@@ -4,7 +4,7 @@ Example 1: Cross-Sectional Model Training
 Generate synthetic census-like tabular data, run downstream evaluation,
 and audit privacy.
 
-Run: python examples/01_credit_risk.py
+Run: python examples/01_cross_sectional.py
 """
 
 import sys

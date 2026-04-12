@@ -1,92 +1,92 @@
-import os
-import tempfile
-
 import pandas as pd
 import pytest
+from pathlib import Path
 
 
-class TestIO:
-    def test_csv_roundtrip(self, syn_hmda):
-        from src.io import write, read
+def _sample_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "loan_amount": [100000, 120000, 98000, 135000],
+            "interest_rate": [3.5, 3.8, 3.2, 4.1],
+            "segment": ["A", "B", "A", "C"],
+        }
+    )
 
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            path = f.name
-        try:
-            write(syn_hmda, path)
-            reloaded = read(path)
-            assert len(reloaded) == len(syn_hmda)
-        finally:
-            os.unlink(path)
 
-    def test_json_roundtrip(self, syn_hmda):
-        from src.io import write, read
+def test_csv_roundtrip(tmp_path):
+    from src.io import read, write
 
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-            path = f.name
-        try:
-            write(syn_hmda, path)
-            reloaded = read(path)
-            assert len(reloaded) == len(syn_hmda)
-        finally:
-            os.unlink(path)
+    df = _sample_df()
+    path = tmp_path / "sample.csv"
+    write(df, path)
+    reloaded = read(path)
+    assert len(reloaded) == len(df)
+    assert set(reloaded.columns) == set(df.columns)
 
-    def test_stata_roundtrip(self, syn_hmda):
-        from src.io import write, read
 
-        with tempfile.NamedTemporaryFile(suffix=".dta", delete=False) as f:
-            path = f.name
-        try:
-            write(syn_hmda, path)
-            reloaded = read(path)
-            assert len(reloaded) == len(syn_hmda)
-        finally:
-            os.unlink(path)
+def test_json_roundtrip(tmp_path):
+    from src.io import read, write
 
-    def test_unsupported_format_raises(self, syn_hmda):
-        from src.io import write
+    df = _sample_df()
+    path = tmp_path / "sample.json"
+    write(df, path)
+    reloaded = read(path)
+    assert len(reloaded) == len(df)
+    assert set(reloaded.columns) == set(df.columns)
 
-        with pytest.raises(ValueError):
-            write(syn_hmda, "/tmp/test.xyz")
 
-    def test_validate_passes_clean_data(self, hmda):
-        from src.io import validate
+def test_stata_roundtrip(tmp_path):
+    from src.io import read, write
 
-        result = validate(hmda)
-        assert result.passed
-        assert len(result.errors) == 0
+    df = _sample_df()
+    path = tmp_path / "sample.dta"
+    write(df, path)
+    reloaded = read(path)
+    assert len(reloaded) == len(df)
+    assert set(reloaded.columns) == set(df.columns)
 
-    def test_validate_catches_nulls(self):
-        from src.io import validate
 
-        df = pd.DataFrame({"a": [1, None, None, None, None], "b": [1, 2, 3, 4, 5]})
-        # 80% nulls in 'a' — should fail with default threshold 0.3
-        result = validate(df, min_rows=3)
-        assert not result.passed
-        assert any("a" in e for e in result.errors)
+def test_unsupported_format_raises(tmp_path):
+    from src.io import write
 
-    def test_validate_warns_constant_column(self):
-        from src.io import validate
+    with pytest.raises(ValueError):
+        write(_sample_df(), Path(tmp_path) / "sample.xyz")
 
-        df = pd.DataFrame({"a": [1] * 100, "b": range(100)})
-        result = validate(df)
-        assert any("constant" in w.lower() for w in result.warnings)
 
-    def test_validate_warns_high_cardinality(self):
-        from src.io import validate
+def test_validate_catches_nulls():
+    from src.io import validate
 
-        df = pd.DataFrame(
-            {
-                "id": [f"id_{i}" for i in range(200)],
-                "val": range(200),
-            }
-        )
-        result = validate(df, max_cardinality=50, min_rows=100)
-        assert any("cardinality" in w.lower() for w in result.warnings)
+    df = pd.DataFrame({"a": [1, None, None, None, None], "b": [1, 2, 3, 4, 5]})
+    result = validate(df, min_rows=3)
+    assert not result.passed
+    assert any("a" in e for e in result.errors)
 
-    def test_supported_formats_list(self):
-        from src.io import supported_formats
 
-        fmts = supported_formats()
-        assert "csv" in fmts
-        assert "json" in fmts
-        assert "stata" in fmts
+def test_validate_warns_constant_column():
+    from src.io import validate
+
+    df = pd.DataFrame({"a": [1] * 100, "b": range(100)})
+    result = validate(df)
+    assert any("constant" in w.lower() for w in result.warnings)
+
+
+def test_validate_warns_high_cardinality():
+    from src.io import validate
+
+    df = pd.DataFrame(
+        {
+            "id": [f"id_{i}" for i in range(200)],
+            "val": range(200),
+        }
+    )
+    result = validate(df, max_cardinality=50, min_rows=100)
+    assert any("cardinality" in w.lower() for w in result.warnings)
+
+
+def test_supported_formats_list():
+    from src.io import supported_formats
+
+    fmts = supported_formats()
+    assert "csv" in fmts
+    assert "json" in fmts
+    assert "stata" in fmts

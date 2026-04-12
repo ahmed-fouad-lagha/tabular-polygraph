@@ -27,12 +27,12 @@ from src.privacy.dp import PrivacyBudget, laplace_mechanism
 
 def main():
     print("=" * 60)
-    print("  Privacy Audit — HMDA Mortgage Data")
+    print("  Privacy Audit — Census ACS Data")
     print("=" * 60)
 
     # ── 1. Generate synthetic data ────────────────────────────────────────────
-    print("\n[1/4] Generating synthetic HMDA data...")
-    seed = load_dataset("hmda")
+    print("\n[1/4] Generating synthetic census_acs data...")
+    seed = load_dataset("census_acs")
     gen = GaussianCopulaGenerator()
     gen.fit(seed)
     syn = gen.generate(1000, seed=42)
@@ -78,29 +78,29 @@ def main():
     budget = PrivacyBudget(epsilon=1.0)
     print(f"      Budget: {budget}")
 
-    true_mean_loan = float(seed["loan_amount"].mean())
-    true_mean_income = float(seed["applicant_income"].mean())
+    true_mean_hh_income = float(seed["household_income"].mean())
+    true_mean_housing_units = float(seed["total_housing_units"].mean())
 
-    noisy_loan = laplace_mechanism(
-        true_mean_loan,
-        sensitivity=2_000_000,
+    noisy_hh_income = laplace_mechanism(
+        true_mean_hh_income,
+        sensitivity=500_000,
         epsilon=0.3,
         budget=budget,
-        label="mean_loan_amount",
+        label="mean_household_income",
     )
-    noisy_income = laplace_mechanism(
-        true_mean_income,
-        sensitivity=1_000_000,
+    noisy_housing_units = laplace_mechanism(
+        true_mean_housing_units,
+        sensitivity=200_000,
         epsilon=0.3,
         budget=budget,
-        label="mean_applicant_income",
+        label="mean_total_housing_units",
     )
 
     print(
-        f"\n      Loan amount:   true={true_mean_loan:>12,.0f}  noisy={noisy_loan:>12,.0f}"
+        f"\n      Household income:  true={true_mean_hh_income:>12,.0f}  noisy={noisy_hh_income:>12,.0f}"
     )
     print(
-        f"      App. income:   true={true_mean_income:>12,.0f}  noisy={noisy_income:>12,.0f}"
+        f"      Housing units:    true={true_mean_housing_units:>12,.0f}  noisy={noisy_housing_units:>12,.0f}"
     )
     print("\n      Budget log:")
     for entry in budget.log:

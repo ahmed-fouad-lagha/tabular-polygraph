@@ -316,11 +316,8 @@ def lcv_score(
 
     # Align feature spaces
     all_features = sorted(set(real_encoded.columns) | set(syn_encoded.columns))
-    for feat in all_features:
-        if feat not in real_encoded.columns:
-            real_encoded[feat] = 0.0
-        if feat not in syn_encoded.columns:
-            syn_encoded[feat] = 0.0
+    real_encoded = real_encoded.reindex(columns=all_features, fill_value=0.0)
+    syn_encoded = syn_encoded.reindex(columns=all_features, fill_value=0.0)
 
     real_encoded = real_encoded[all_features].values
     syn_encoded = syn_encoded[all_features].values

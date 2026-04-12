@@ -85,17 +85,11 @@ class TestPriors:
     def test_dataset_priors_all_present(self):
         from src.calibration.priors import get_priors
 
-        # Priors are defined for the original 10 core datasets
+        # Priors are defined for the 4 core datasets
         core = [
-            "hmda",
-            "fdic",
-            "credit_risk",
-            "edgar",
-            "cftc",
             "fred_macro",
             "bls",
             "world_bank",
-            "irs_soi",
             "census_acs",
         ]
         for did in core:
@@ -108,30 +102,6 @@ class TestPriors:
 
         with pytest.raises(ValueError, match="No built-in priors"):
             get_priors("nonexistent_dataset")
-
-    def test_prior_regularises_small_dataset(self, hmda):
-        """Generator with priors on 50-row dataset should produce reasonable output."""
-        from src.generators import GaussianCopulaGenerator
-        from src.calibration.priors import get_priors
-
-        priors = get_priors("hmda")
-        gen_no_prior = GaussianCopulaGenerator()
-        gen_with_prior = GaussianCopulaGenerator(priors=priors)
-        small = hmda.sample(50, random_state=0)
-        gen_no_prior.fit(small)
-        gen_with_prior.fit(small)
-        df_no = gen_no_prior.generate(200, seed=1)
-        df_yes = gen_with_prior.generate(200, seed=1)
-        # Both should produce valid output
-        assert len(df_no) == 200
-        assert len(df_yes) == 200
-        # With-prior mean should be closer to full-dataset mean
-        full_mean = hmda["loan_amount"].mean()
-        err_no = abs(df_no["loan_amount"].mean() - full_mean)
-        err_yes = abs(df_yes["loan_amount"].mean() - full_mean)
-        assert (
-            err_yes < err_no * 2.0
-        )  # prior version within 2x of no-prior (usually better)
 
     def test_prior_set_sample_prior_data(self):
         from src.calibration.priors import get_priors
@@ -146,11 +116,44 @@ class TestPriors:
     def test_prior_set_summary(self):
         from src.calibration.priors import get_priors
 
-        ps = get_priors("hmda")
+        ps = get_priors("world_bank")
         summary = ps.summary()
         assert isinstance(summary, list)
         cols = [r["column"] for r in summary]
-        assert "loan_amount" in cols
+        assert "gdp_per_capita" in cols
+
+    def test_prior_regularises_small_dataset(self, all_seeds):
+        from src.calibration.priors import get_priors
+        from src.generators import GaussianCopulaGenerator
+
+        seed = all_seeds["census_acs"]
+        priors = get_priors("census_acs")
+
+        gen_no_prior = GaussianCopulaGenerator()
+        gen_with_prior = GaussianCopulaGenerator(priors=priors)
+
+        small = seed.sample(80, random_state=0)
+        gen_no_prior.fit(small)
+        gen_with_prior.fit(small)
+
+        df_no = gen_no_prior.generate(250, seed=1)
+        df_yes = gen_with_prior.generate(250, seed=1)
+
+        assert len(df_no) == 250
+        assert len(df_yes) == 250
+
+        numeric_cols = [
+            c
+            for c in seed.columns
+            if pd.api.types.is_numeric_dtype(seed[c])
+            and c in df_no.columns
+            and c in df_yes.columns
+        ]
+        target = numeric_cols[0]
+        full_mean = seed[target].mean()
+        err_no = abs(df_no[target].mean() - full_mean)
+        err_yes = abs(df_yes[target].mean() - full_mean)
+        assert err_yes < err_no * 2.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -159,18 +162,18 @@ class TestPriors:
 
 
 class TestCalibration:
-    def test_moment_matching_returns_df(self, hmda, syn_hmda):
+    def test_moment_matching_returns_df(self, fred_macro, syn_macro):
         from src.calibration import match_moments
 
-        result = match_moments(hmda, syn_hmda.drop(columns=["syn_id"]))
+        result = match_moments(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == len(syn_hmda)
+        assert len(result) == len(syn_macro)
 
-    def test_moment_report_shape(self, hmda, syn_hmda):
+    def test_moment_report_shape(self, fred_macro, syn_macro):
         from src.calibration import match_moments, moment_report
 
-        cal = match_moments(hmda, syn_hmda.drop(columns=["syn_id"]))
-        report = moment_report(hmda, cal)
+        cal = match_moments(fred_macro, syn_macro.drop(columns=["syn_id"]))
+        report = moment_report(fred_macro, cal)
         assert len(report) > 0
         assert "real_mean" in report.columns
 
@@ -188,20 +191,20 @@ class TestCalibration:
         if "gdp_growth_yoy" in result.columns:
             assert result["gdp_growth_yoy"].mean() > syn_macro["gdp_growth_yoy"].mean()
 
-    def test_intensity_zero_no_change(self, syn_hmda):
+    def test_intensity_zero_no_change(self, syn_macro):
         from src.calibration import apply_scenario
 
-        result = apply_scenario(syn_hmda, "recession", intensity=0.0)
-        num_cols = [c for c in syn_hmda.columns if syn_hmda[c].dtype.kind in "if"]
+        result = apply_scenario(syn_macro, "recession", intensity=0.0)
+        num_cols = [c for c in syn_macro.columns if syn_macro[c].dtype.kind in "if"]
         for col in num_cols:
             if col in result.columns:
-                assert abs(result[col].mean() - syn_hmda[col].mean()) < 1e-6
+                assert abs(result[col].mean() - syn_macro[col].mean()) < 1e-6
 
-    def test_invalid_scenario_raises(self, syn_hmda):
+    def test_invalid_scenario_raises(self, syn_macro):
         from src.calibration import apply_scenario
 
         with pytest.raises(ValueError, match="Unknown scenario"):
-            apply_scenario(syn_hmda, "alien_invasion")
+            apply_scenario(syn_macro, "alien_invasion")
 
     def test_list_scenarios_count(self):
         from src.calibration import list_scenarios

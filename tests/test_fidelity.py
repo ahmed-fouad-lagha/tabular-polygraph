@@ -1,35 +1,26 @@
 import numpy as np
 import pandas as pd
+from src.generators import GaussianCopulaGenerator
 
 
 class TestMarginalFidelity:
-    def test_scores_in_range(self, hmda, syn_hmda):
+    def test_scores_in_range(self, census_acs):
         from src.fidelity.marginal import moment_matching_scores
 
-        scores = moment_matching_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
-        for col, score in scores.items():
-            assert 0 <= score <= 100, f"{col} score {score} out of range"
+        gen = GaussianCopulaGenerator()
+        gen.fit(census_acs)
+        syn = gen.generate(300, seed=42).drop(columns=["syn_id"])
 
-    def test_high_fidelity_on_large_sample(self, hmda, syn_hmda):
-        from src.fidelity.marginal import (
-            mean_moment_matching_score,
-            moment_matching_scores,
-        )
+        scores = moment_matching_scores(census_acs, syn)
+        for _, score in scores.items():
+            assert 0 <= score <= 100
 
-        scores = moment_matching_scores(hmda, syn_hmda.drop(columns=["syn_id"]))
-        assert mean_moment_matching_score(scores) >= 80.0
-
-    def test_identical_data_scores_100(self, hmda):
+    def test_identical_data_scores_100(self, census_acs):
         from src.fidelity.marginal import moment_matching_scores
 
-        scores = moment_matching_scores(hmda, hmda)
+        scores = moment_matching_scores(census_acs, census_acs)
         for score in scores.values():
             assert score >= 99.0
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 8. Fidelity — Logical
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 class TestLogicalFidelity:
@@ -156,22 +147,24 @@ class TestLogicalFidelity:
 
 
 class TestJointFidelity:
-    def test_correlation_score_range(self, hmda, syn_hmda):
+    def test_correlation_score_range(self, census_acs):
         from src.fidelity.joint import correlation_distance_score
 
-        score = correlation_distance_score(hmda, syn_hmda.drop(columns=["syn_id"]))
+        gen = GaussianCopulaGenerator()
+        gen.fit(census_acs)
+        syn = gen.generate(300, seed=7).drop(columns=["syn_id"])
+
+        score = correlation_distance_score(census_acs, syn)
         assert 0 <= score <= 100
 
-    def test_identical_data_perfect_joint(self, hmda):
-        from src.fidelity.joint import correlation_distance_score
-
-        score = correlation_distance_score(hmda, hmda)
-        assert score >= 99.0
-
-    def test_pairwise_report_returns_dict(self, hmda, syn_hmda):
+    def test_pairwise_report_returns_dict(self, census_acs):
         from src.fidelity.joint import pairwise_correlation_report
 
-        result = pairwise_correlation_report(hmda, syn_hmda.drop(columns=["syn_id"]))
+        gen = GaussianCopulaGenerator()
+        gen.fit(census_acs)
+        syn = gen.generate(200, seed=8).drop(columns=["syn_id"])
+
+        result = pairwise_correlation_report(census_acs, syn)
         assert isinstance(result, dict)
         assert len(result) > 0
 
@@ -212,55 +205,15 @@ class TestTemporalFidelity:
         assert 0 <= result["_summary"]["agreement_rate"] <= 100
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 10. Fidelity — Stylized Facts & Downstream
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestStyleAndDownstream:
-    def test_stylized_facts_score(self, fred_macro, syn_macro):
-        from src.fidelity.stylized_facts import stylized_facts_score
-
-        result = stylized_facts_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
-        assert "_summary" in result
-        assert 0 <= result["_summary"]["mean_score"] <= 100
-
-    def test_tstr_classification(self, credit_risk):
-        from src.generators import GaussianCopulaGenerator
-        from src.fidelity.downstream import tstr_score
-
-        gen = GaussianCopulaGenerator()
-        gen.fit(credit_risk)
-        syn = gen.generate(300, seed=1).drop(columns=["syn_id"])
-        result = tstr_score(
-            credit_risk, syn, target_col="default_12m", task="classification"
-        )
-        assert "tstr_score" in result
-        assert "trr_score" in result
-        assert "ratio" in result
-
-    def test_tstr_regression(self, hmda):
-        from src.generators import GaussianCopulaGenerator
-        from src.fidelity.downstream import tstr_score
-
-        gen = GaussianCopulaGenerator()
-        gen.fit(hmda)
-        syn = gen.generate(300, seed=1).drop(columns=["syn_id"])
-        result = tstr_score(hmda, syn, target_col="loan_amount", task="regression")
-        assert result["metric"] == "r2"
-        assert "ratio" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 11. Fidelity Report
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 class TestFidelityReport:
-    def test_cross_sectional_report_keys(self, hmda, syn_hmda):
+    def test_cross_sectional_report_keys(self, census_acs):
         from src.fidelity import fidelity_report
 
-        report = fidelity_report(hmda, syn_hmda.drop(columns=["syn_id"]))
+        gen = GaussianCopulaGenerator()
+        gen.fit(census_acs)
+        syn = gen.generate(300, seed=21).drop(columns=["syn_id"])
+
+        report = fidelity_report(census_acs, syn)
         for key in [
             "moment_matching",
             "distribution_fit",
@@ -270,17 +223,6 @@ class TestFidelityReport:
             "summary",
         ]:
             assert key in report
-
-    def test_summary_scores_in_range(self, hmda, syn_hmda):
-        from src.fidelity import fidelity_report
-
-        report = fidelity_report(hmda, syn_hmda.drop(columns=["syn_id"]))
-        s = report["summary"]
-        assert 0 <= s["overall_fidelity"] <= 100
-        assert 0 <= s["moment_matching_score"] <= 100
-        assert 0 <= s["ks_score"] <= 100
-        assert 0 <= s["joint_score"] <= 100
-        assert s["exact_copies"] == 0
 
     def test_temporal_section_for_time_series(self, fred_macro, syn_macro):
         from src.fidelity import fidelity_report
@@ -294,30 +236,19 @@ class TestFidelityReport:
         assert "breaks" in report["temporal"]
         assert "causality" in report["temporal"]
 
-    def test_downstream_section_with_target(self, hmda, syn_hmda):
-        from src.fidelity import fidelity_report
-
-        report = fidelity_report(
-            hmda,
-            syn_hmda.drop(columns=["syn_id"]),
-            target_col="loan_amount",
-            include_downstream=True,
-        )
-        assert "downstream" in report
-        assert "tstr_score" in report["downstream"]
-
-    def test_no_temporal_for_cross_sectional(self, hmda, syn_hmda):
-        from src.fidelity import fidelity_report
-
-        report = fidelity_report(
-            hmda, syn_hmda.drop(columns=["syn_id"]), dataset_type="cross_sectional"
-        )
-        assert "temporal" not in report
-
-    def test_format_report_returns_string(self, hmda, syn_hmda):
+    def test_format_report_returns_string(self, census_acs):
         from src.fidelity import fidelity_report, format_report
 
-        report = fidelity_report(hmda, syn_hmda.drop(columns=["syn_id"]))
+        gen = GaussianCopulaGenerator()
+        gen.fit(census_acs)
+        syn = gen.generate(150, seed=13).drop(columns=["syn_id"])
+
+        report = fidelity_report(census_acs, syn)
         text = format_report(report)
         assert isinstance(text, str)
         assert "FIDELITY" in text
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════

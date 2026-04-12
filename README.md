@@ -41,8 +41,8 @@ pip install -r requirements.txt
 python main.py list
 pytest tests -q
 
-# Credit-risk experiment (fidelity + downstream + privacy)
-python examples/01_credit_risk.py
+# Cross-sectional experiment (fidelity + downstream + privacy)
+python examples/01_cross_sectional.py
 
 # Macro scenarios experiment (baseline + stressed scenarios + temporal fidelity)
 python examples/02_macro_scenarios.py
@@ -52,8 +52,8 @@ python examples/03_privacy_audit.py
 ```
 
 Expected output files are written under `examples/`:
-- `output_credit_train.csv`
-- `output_credit_stressed.csv`
+- `output_census_train.csv`
+- `output_census_eval.csv`
 - `output_macro_baseline.csv`
 - `output_macro_*.csv`
 
@@ -104,7 +104,7 @@ from src.generators import GaussianCopulaGenerator
 from src.catalog import load_dataset
 from src.fidelity import fidelity_report
 
-real = load_dataset("hmda")
+real = load_dataset("census_acs")
 
 gen = GaussianCopulaGenerator()
 gen.fit(real)
