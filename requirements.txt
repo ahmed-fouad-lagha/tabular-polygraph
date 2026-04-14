@@ -12,3 +12,5 @@ twine
 xgboost
 scikit-learn
 torch
+seaborn
+matplotlib

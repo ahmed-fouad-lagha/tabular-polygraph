@@ -50,7 +50,7 @@ privacy_audit.json
 manuscript/
 
 # results
-results/
+outputs/
 
 # data
 *.csv

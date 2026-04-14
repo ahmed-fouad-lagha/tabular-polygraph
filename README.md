@@ -97,6 +97,17 @@ python main.py evaluate real.csv syn.csv \
 python main.py audit real.csv syn.csv --attacks 300
 ```
 
+## Quick start
+
+```bash
+python main.py download census_acs
+
+python main.py generate census_acs --rows 200 --drop-cols tract_id --output census_acs_synth.csv
+
+python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional
+
+```
+
 ## Python API
 
 ```python
