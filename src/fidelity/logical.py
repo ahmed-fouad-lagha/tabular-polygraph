@@ -6,9 +6,11 @@ and evaluates synthetic data using a Continuous Semantic Severity Penalty (CSSP)
 
 Mathematical Foundation
 -----------------------
-The frozen autoencoder approximates P(x_i = c | x_{-i}) for each feature.
-CSSP(x_g,i) = 1 - P(category_chosen | others) measures logical impossibility.
-LCV Score ∈ [0, 1] is the geometric mean of the per-feature chosen-category
+The frozen autoencoder defines a masked conditional semantic score by hiding one
+feature group at a time and measuring how much probability mass it assigns to the
+observed category given the remaining features.
+CSSP(x_g,i) = 1 - P(category_chosen | x_{-g}) measures logical impossibility.
+LCV Score ∈ [0, 1] is the geometric mean of the per-feature conditional
 probabilities, averaged across synthetic rows.
 """
 
@@ -210,20 +212,18 @@ class LCVAutoencoder(nn.Module):
 
         self.eval()
         with torch.no_grad():
-            expected_probs = self.forward(synth_tensor)
-
             if feature_groups:
                 feature_scores = []
                 for indices in feature_groups:
-                    selected_probs = (
-                        expected_probs[:, indices] * synth_tensor[:, indices]
-                    ).sum(dim=1)
-                    # Normalize by the model's top category probability for the feature.
-                    # This makes scores comparable across high/low-cardinality features.
-                    top_probs = (
-                        expected_probs[:, indices].max(dim=1).values.clamp_min(1e-6)
+                    masked_tensor = synth_tensor.clone()
+                    masked_tensor[:, indices] = 0.0
+                    expected_probs = self.forward(masked_tensor)
+                    group_probs = expected_probs[:, indices]
+                    group_mass = group_probs.sum(dim=1).clamp_min(1e-6)
+                    selected_probs = (group_probs * synth_tensor[:, indices]).sum(dim=1)
+                    feature_scores.append(
+                        (selected_probs / group_mass).clamp(1e-6, 1.0)
                     )
-                    feature_scores.append((selected_probs / top_probs).clamp(1e-6, 1.0))
 
                 feature_matrix = torch.stack(feature_scores, dim=1).clamp_min(1e-6)
                 per_row_score = torch.exp(torch.log(feature_matrix).mean(dim=1))
@@ -323,6 +323,17 @@ def lcv_score(
     syn_encoded = syn_encoded[all_features].values
 
     feature_groups = _feature_groups_from_encoded_columns(all_features)
+
+    if len(all_features) <= 1:
+        row_penalties = np.zeros(len(syn_encoded), dtype=float)
+        return {
+            "lcv_score": 1.0,
+            "row_penalties": row_penalties,
+            "violation_rate": 0.0,
+            "mean_penalty": 0.0,
+            "num_violations": 0,
+            "columns_used": cols,
+        }
 
     # Keep inputs in float32 to match model parameter dtype in PyTorch.
     real_tensor = torch.tensor(real_encoded, dtype=torch.float32)

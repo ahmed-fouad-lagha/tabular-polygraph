@@ -24,6 +24,18 @@ class TestMarginalFidelity:
 
 
 class TestLogicalFidelity:
+    def test_neuro_lcv_handles_single_category_feature(self):
+        from src.fidelity.logical import lcv_score
+
+        real = pd.DataFrame({"cat": ["A"] * 20})
+        syn = pd.DataFrame({"cat": ["A"] * 20})
+
+        result = lcv_score(real, syn, verbose=False)
+
+        assert result["lcv_score"] == 1.0
+        assert result["violation_rate"] == 0.0
+        assert result["mean_penalty"] == 0.0
+
     def test_neuro_lcv_penalizes_unseen_categories(self):
         import torch
         from src.fidelity.logical import lcv_score
