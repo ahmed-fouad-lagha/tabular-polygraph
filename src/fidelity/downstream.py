@@ -12,7 +12,7 @@ Supports: classification (default_12m, action_taken) and regression tasks.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from src.utils import numeric_columns, normalize
+from src.utils import numeric_columns
 
 
 def _gini(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -51,6 +51,19 @@ def _simple_linreg_r2(X_train, y_train, X_test, y_test) -> float:
         return float(1 - ss_res / max(ss_tot, 1e-9))
     except Exception:
         return 0.0
+
+
+def _standardize_with_train_stats(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    feature_cols: list[str],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Standardize train and test features with train-set statistics."""
+    X_train = train_df[feature_cols].values.astype(float)
+    mu = X_train.mean(axis=0)
+    sd = X_train.std(axis=0) + 1e-9
+    X_test = test_df[feature_cols].values.astype(float)
+    return (X_train - mu) / sd, (X_test - mu) / sd
 
 
 def tstr_score(
@@ -102,19 +115,15 @@ def tstr_score(
     real_train = real_clean.iloc[idx[:split]]
     real_test = real_clean.iloc[idx[split:]]
 
-    def to_arrays(df):
-        X = df[feature_cols].values.astype(float)
-        y = df[target_col].values.astype(float)
-        # Normalise features
-        X_norm, mu, sd = normalize(X, return_params=True)
-        return X_norm, y, mu, sd
-
-    X_real_tr, y_real_tr, mu, sd = to_arrays(real_train)
-    X_test_raw = real_test[feature_cols].values.astype(float)
-    X_test = (X_test_raw - mu) / sd
+    X_real_tr, X_test_real = _standardize_with_train_stats(
+        real_train, real_test, feature_cols
+    )
+    X_syn, X_test_syn = _standardize_with_train_stats(
+        syn_clean, real_test, feature_cols
+    )
+    y_real_tr = real_train[target_col].values.astype(float)
     y_test = real_test[target_col].values.astype(float)
 
-    X_syn = (syn_clean[feature_cols].values.astype(float) - mu) / sd
     y_syn = syn_clean[target_col].values.astype(float)
 
     if task == "classification":
@@ -122,15 +131,15 @@ def tstr_score(
         y_syn_b = (y_syn > y_real_tr.mean()).astype(float)
         y_test_b = (y_test > y_real_tr.mean()).astype(float)
 
-        p_tstr = _simple_logreg(X_syn, y_syn_b, X_test)
-        p_trr = _simple_logreg(X_real_tr, y_real_tr_b, X_test)
+        p_tstr = _simple_logreg(X_syn, y_syn_b, X_test_syn)
+        p_trr = _simple_logreg(X_real_tr, y_real_tr_b, X_test_real)
 
         tstr = _gini(y_test_b, p_tstr)
         trr = _gini(y_test_b, p_trr)
         metric = "gini"
     else:
-        tstr = _simple_linreg_r2(X_syn, y_syn, X_test, y_test)
-        trr = _simple_linreg_r2(X_real_tr, y_real_tr, X_test, y_test)
+        tstr = _simple_linreg_r2(X_syn, y_syn, X_test_syn, y_test)
+        trr = _simple_linreg_r2(X_real_tr, y_real_tr, X_test_real, y_test)
         metric = "r2"
 
     ratio = round(tstr / max(abs(trr), 1e-6), 4)

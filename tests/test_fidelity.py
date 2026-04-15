@@ -169,6 +169,35 @@ class TestJointFidelity:
         assert len(result) > 0
 
 
+class TestDownstreamFidelity:
+    def test_tstr_scales_each_training_split_independently(self, monkeypatch):
+        from src.fidelity import downstream
+
+        real = pd.DataFrame(
+            {
+                "feature": np.arange(100, dtype=float),
+                "target": (np.arange(100) > 49).astype(int),
+            }
+        )
+        synthetic = real.copy()
+        synthetic["feature"] = synthetic["feature"] + 1000.0
+
+        captured_means: list[np.ndarray] = []
+
+        def fake_logreg(X_train, y_train, X_test):
+            captured_means.append(X_train.mean(axis=0))
+            return np.zeros(len(X_test), dtype=float)
+
+        monkeypatch.setattr(downstream, "_simple_logreg", fake_logreg)
+
+        result = downstream.tstr_score(real, synthetic, target_col="target")
+
+        assert result["task"] == "classification"
+        assert len(captured_means) == 2
+        for mean_vector in captured_means:
+            assert np.allclose(mean_vector, 0.0, atol=1e-6)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 9. Fidelity — Temporal
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -102,9 +102,12 @@ python main.py audit real.csv syn.csv --attacks 300
 ```bash
 python main.py download census_acs
 
-python main.py generate census_acs --rows 200 --drop-cols tract_id --output census_acs_synth.csv
+python main.py generate census_acs --rows 5000 --seed 42 --drop-cols tract_id --output census_acs_synth.csv
 
 python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional
+
+python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional --target household_income
+# Other numeric columns you can use as targets: total_renter_units, severe_burden_units, in_labor_force, unemployed, total_housing_units, owner_occupied.
 
 ```
 

@@ -153,13 +153,6 @@ def _resolve_generator_type(dataset_id: str, generator_type: str) -> str:
     return "copula"
 
 
-def _fit_sample_size(dataset_id: str, generator_type: str) -> int:
-    if generator_type == "panel" and dataset_id == "world_bank":
-        # Panel generators benefit from more entity/time coverage.
-        return 10000
-    return 2000
-
-
 def _drop_existing_columns(df, drop_cols: list[str] | None):
     if not drop_cols:
         return df
@@ -184,18 +177,32 @@ def _infer_panel_columns(df):
 
 
 def _load_generator(
-    dataset_id, generator_type="auto", drop_cols: list[str] | None = None
+    dataset_id,
+    generator_type="auto",
+    drop_cols: list[str] | None = None,
+    fit_rows: int | None = None,
 ):
     """Load and fit a generator for the given dataset."""
     from src.catalog import load_dataset
+    from src.catalog.downloader import load_cached
     from src.generators import GaussianCopulaGenerator
     from src.generators.time_series import VARGenerator
     from src.generators.panel import FixedEffectsGenerator
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
-    fit_n = _fit_sample_size(dataset_id, generator_type)
+    fit_n = fit_rows
+    if fit_n is not None and fit_n < 1:
+        raise ValueError("--fit-rows must be >= 1")
 
-    seed_df = load_dataset(dataset_id, n=fit_n)
+    if fit_n is None:
+        seed_df = load_cached(dataset_id)
+        if seed_df is None or len(seed_df) < 100:
+            raise ValueError(
+                f"Dataset '{dataset_id}' not cached. Download real data first: python main.py download {dataset_id}"
+            )
+        seed_df = seed_df.reset_index(drop=True)
+    else:
+        seed_df = load_dataset(dataset_id, n=fit_n)
     seed_df = _drop_existing_columns(seed_df, drop_cols)
 
     if generator_type == "var":
@@ -343,7 +350,10 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
             gen, seed_df, gen_type = _fit_custom_input_generator(input_file, drop_cols)
         else:
             gen, seed_df, gen_type = _load_generator(
-                dataset_id, args.generator, drop_cols=drop_cols
+                dataset_id,
+                args.generator,
+                drop_cols=drop_cols,
+                fit_rows=getattr(args, "fit_rows", None),
             )
     except FileNotFoundError as e:
         err(f"File not found: {e}")
@@ -918,6 +928,13 @@ def main():
         default="auto",
         metavar="TYPE",
         help="auto | copula | var | panel",
+    )
+    p.add_argument(
+        "--fit-rows",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Rows to use for fitting (default: all cached rows)",
     )
     p.add_argument(
         "--filter",
