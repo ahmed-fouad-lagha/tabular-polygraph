@@ -392,10 +392,7 @@ def _run_calibration_if_requested(syn, seed_df, args):
     return syn_body
 
 
-def _compute_generate_report(seed_df, syn, gen_type, no_eval: bool):
-    if no_eval:
-        return None
-
+def _compute_generate_report(seed_df, syn, gen_type):
     from src.fidelity import fidelity_report
 
     info("Running fidelity report...")
@@ -404,7 +401,11 @@ def _compute_generate_report(seed_df, syn, gen_type, no_eval: bool):
     )
     syn_body = syn.drop(columns=["syn_id"], errors="ignore")
     try:
-        return fidelity_report(seed_df, syn_body, dataset_type=dataset_type)
+        return fidelity_report(
+            seed_df,
+            syn_body,
+            dataset_type=dataset_type,
+        )
     except Exception as fe:
         warn(f"Fidelity report skipped: {fe}")
         return None
@@ -413,7 +414,8 @@ def _compute_generate_report(seed_df, syn, gen_type, no_eval: bool):
 def _print_generate_main_scores(report):
     s = report["summary"]
 
-    section("Fidelity report")
+    section("Holistic Integrity report")
+
     mm_cols = report.get("moment_matching", {}).get("column_scores", {})
     if mm_cols:
         print("    Moment matching")
@@ -431,8 +433,10 @@ def _print_generate_main_scores(report):
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
             )
         print()
+
+    # Primary aggregate score
     print(
-        f"    {_c('Overall fidelity:', C.GRAY):<34}{_c(str(s['overall_fidelity']) + '%', C.GREEN)}"
+        f"    {_c('Holistic Integrity:', C.CYAN):<34}{_c(str(s['holistic_integrity']) + '%', C.GREEN)}"
     )
     print(
         f"    {_c('Moment matching:', C.GRAY):<34}{_c(str(s['moment_matching_score']) + '%', C.GREEN)}"
@@ -446,6 +450,11 @@ def _print_generate_main_scores(report):
     print(
         f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
     )
+
+    print(
+        f"    {_c('Logical validity:', C.GRAY):<34}{_c(str(s['logical_validity']) + '%', C.GREEN)}"
+    )
+
     print(f"    {_c('Exact copies:', C.GRAY):<34}{s['exact_copies']}")
 
 
@@ -491,12 +500,11 @@ def _print_generate_logical(report):
         return
 
     lg = report["logical"]
-    section("Logical (Rules + LCV)")
+    section("Logical")
     if "error" in lg:
         print(f"    {_c('Error:', C.RED)} {lg['error']}")
         return
 
-    print(f"    LCV score               {lg.get('lcv_score_pct', '—')}%")
     print(f"    LCV violation rate      {lg.get('lcv_violation_rate_pct', '—')}%")
     print(f"    Rule violation rate     {lg.get('rule_violation_rate_pct', '—')}%")
     print(f"    Mean penalty            {lg.get('mean_penalty_pct', '—')}%")
@@ -599,7 +607,9 @@ def cmd_generate(args):
     syn = _run_calibration_if_requested(syn, seed_df, args)
 
     report = _compute_generate_report(
-        seed_df, syn, gen_type, no_eval=getattr(args, "no_eval", False)
+        seed_df,
+        syn,
+        gen_type,
     )
     _print_generate_report(report)
 
@@ -963,7 +973,6 @@ def main():
         help="Run moment calibration after generation",
     )
     p.add_argument("--seed", type=int, default=None, metavar="INT")
-    p.add_argument("--no-eval", action="store_true", help="Skip fidelity evaluation")
     p.add_argument(
         "--drop-cols",
         type=str,

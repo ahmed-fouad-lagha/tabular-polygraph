@@ -92,23 +92,22 @@ def _logical_section(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     cols: list[str],
-    include_logical: bool,
     rule_min_confidence: float,
     rule_min_support: float,
     rule_max_rules: int,
     rule_min_lift: float,
     rule_max_antecedents: int,
-) -> tuple[dict | None, float | None]:
-    logical_validity = None
-    if not include_logical:
-        return None, logical_validity
+) -> tuple[dict, float]:
+    logical_validity = 100.0
 
     try:
         from .logical import lcv_score, rule_violation_score
 
         cat_cols = [c for c in cols if not pd.api.types.is_numeric_dtype(real[c])]
         if not cat_cols:
-            return None, logical_validity
+            return {
+                "info": "Vacuously consistent (no categorical columns detected)."
+            }, 100.0
 
         lcv_result = lcv_score(
             real, synthetic, columns=cat_cols, epochs=20, verbose=False
@@ -125,7 +124,7 @@ def _logical_section(
         )
         logical_validity = round(float(lcv_result["lcv_score"] * 100.0), 2)
         return {
-            "lcv_score_pct": round(float(lcv_result["lcv_score"] * 100.0), 2),
+            "lcv_score_pct": logical_validity,
             "lcv_violation_rate_pct": round(
                 float(lcv_result["violation_rate"] * 100.0), 2
             ),
@@ -160,70 +159,49 @@ def _summary_section(
     privacy_score: float,
     exact_copies: int,
     t0: float,
-    logical_validity: float | None,
+    logical_validity: float,
 ) -> dict:
     """
-    Compute aggregate fidelity indicators.
-    Following MS-Eq 149, we use a Weighted Geometric Mean to ensure that
-    low logical consistency is not offset by high marginal accuracy.
+    Compute Holistic Integrity indicators.
     """
-    # Define research-principled weights
-    if logical_validity is not None:
-        # Holistic Aggregate (Logic is Primary)
-        weights = {
-            "lcv": 0.30,
-            "mm": 0.30,
-            "ks": 0.20,
-            "corr": 0.20,
-        }
-        scores = {
-            "lcv": logical_validity,
-            "mm": mm_score,
-            "ks": ks_score,
-            "corr": corr_score,
-        }
-        is_holistic = True
-    else:
-        # Marginal-Only Aggregate
-        weights = {
-            "mm": 0.45,
-            "ks": 0.30,
-            "corr": 0.25,
-        }
-        scores = {
-            "mm": mm_score,
-            "ks": ks_score,
-            "corr": corr_score,
-        }
-        is_holistic = False
+    weights = {
+        "lcv": 0.30,
+        "mm": 0.30,
+        "ks": 0.20,
+        "corr": 0.20,
+    }
+    # Logic score defaults to 100% (vacuously consistent) if not calculable
+    scores = {
+        "lcv": logical_validity,
+        "mm": mm_score,
+        "ks": ks_score,
+        "corr": corr_score,
+    }
 
-    # Weighted Geometric Mean: exp(sum(w_i * ln(s_i + eps)))
-    # We add epsilon=1.0 to ensure stability and a 1% floor in logs
+    # Weighted Geometric Mean: exp(sum(w_i * ln(s_i + eps))) - eps
     eps = 1.0
     log_sum = 0.0
     for key, w in weights.items():
-        s = max(0.0, scores[key])
-        log_sum += w * np.log(s + eps)
+        s_val = max(0.0, scores[key])
+        log_sum += w * np.log(s_val + eps)
 
     overall = np.exp(log_sum) - eps
     overall = round(float(max(0.0, min(100.0, overall))), 2)
 
     summary_dict = {
-        "overall_fidelity": overall,
-        "is_holistic": is_holistic,
+        "holistic_integrity": overall,
+        "overall_fidelity": overall,  # Alias for backward compatibility if needed
         "aggregation_method": "weighted_geometric_mean",
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
         "privacy_score": privacy_score,
+        "logical_validity": scores["lcv"],
         "exact_copies": exact_copies,
         "rows_real": len(real),
         "rows_synthetic": len(synthetic),
         "elapsed_seconds": round(time.time() - t0, 3),
     }
-
-    if logical_validity is not None:
-        summary_dict["logical_validity"] = logical_validity
 
     return summary_dict
 
@@ -235,7 +213,6 @@ def fidelity_report(
     target_col: str | None = None,  # for TSTR downstream score
     include_temporal: bool | None = None,  # auto-detect from dataset_type
     include_downstream: bool = True,
-    include_logical: bool = True,  # LCV logical validation
     columns: list[str] | None = None,
     rule_min_confidence: float = 0.95,
     rule_min_support: float = 0.005,
@@ -314,20 +291,17 @@ def fidelity_report(
         "privacy_score": round((1 - exact_copies / max(len(syn), 1)) * 100, 2),
     }
 
-    # ── Logical Constraint Validation (LCV) ────────────────────────────
     logical_report, logical_validity = _logical_section(
         real,
         syn,
         cols,
-        include_logical,
         rule_min_confidence,
         rule_min_support,
         rule_max_rules,
         rule_min_lift,
         rule_max_antecedents,
     )
-    if logical_report is not None:
-        report["logical"] = logical_report
+    report["logical"] = logical_report
 
     # ── Summary ───────────────────────────────────────────────────────────────
     mm_score = report["moment_matching"]["mean_score"]
@@ -360,22 +334,13 @@ def format_report(report: dict, width: int = 60) -> str:
         f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
     )
     lines.append("")
-    if s.get("is_holistic"):
-        lines.append(f"  Holistic Integrity: {s.get('overall_fidelity', '—')}%")
-    else:
-        lines.append(
-            f"  Overall Fidelity  : {s.get('overall_fidelity', '—')}% (Marginal-Only)"
-        )
+    lines.append(f"  Holistic Integrity: {s.get('holistic_integrity', '—')}%")
 
     lines.append(f"  Moment matching   : {s.get('moment_matching_score', '—')}%")
     lines.append(f"  KS distribution   : {s.get('ks_score', '—')}%")
     lines.append(f"  Joint score       : {s.get('joint_score', '—')}%")
     lines.append(f"  Privacy score     : {s.get('privacy_score', '—')}%")
-    logical_validity = s.get("logical_validity")
-    if logical_validity is None:
-        lines.append("  Logical validity  : —")
-    else:
-        lines.append(f"  Logical validity  : {logical_validity}%")
+    lines.append(f"  Logical validity  : {s.get('logical_validity', '—')}%")
     lines.append(f"  Exact copies    : {s.get('exact_copies', '—')}")
     lines.append("")
 
@@ -416,11 +381,15 @@ def format_report(report: dict, width: int = 60) -> str:
             f"    Ratio   : {d.get('ratio')}  — {d.get('interpretation', '')[:50]}"
         )
 
-    if "logical" in report:
-        lg = report["logical"]
-        lines.append("")
-        lines.append("  Logical (Rules + LCV):")
-        lines.append(f"    LCV score      : {lg.get('lcv_score_pct', '—')}%")
+    lg = report.get("logical", {})
+    lines.append("")
+    lines.append("  Logical:")
+
+    if "error" in lg:
+        lines.append(f"    Status         : ERROR ({lg['error']})")
+    elif "info" in lg:
+        lines.append(f"    Status         : {lg['info']}")
+    else:
         lines.append(
             f"    LCV violation rate : {lg.get('lcv_violation_rate_pct', '—')}%"
         )

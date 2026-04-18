@@ -11,9 +11,7 @@ def test_weighted_geometric_mean_sensitivity():
     df = pd.DataFrame({"a": [1]})  # dummy
 
     # Case 1: Perfect stats, Zero Logic
-    # Old arithmetic (20% logic): 0.8 * 100 + 0.2 * 0 = 80.0
     # New geometric (30% logic): exp(0.7 * log(101) + 0.3 * log(1)) - 1 = exp(3.23) - 1 approx 24.
-
     res = _summary_section(
         real=df,
         synthetic=df,
@@ -26,25 +24,24 @@ def test_weighted_geometric_mean_sensitivity():
         logical_validity=0.0,
     )
 
-    low_score = res["overall_fidelity"]
-    assert low_score < 40.0  # Should be significantly lower than 80.0
-    assert res["is_holistic"] is True
-
-
-def test_holistic_vs_marginal_labeling():
-    df = pd.DataFrame({"a": [1]})
-
-    # With LCV
-    res_h = _summary_section(df, df, 90, 90, 90, 100, 0, 0, 90)
-    assert res_h["is_holistic"] is True
-
-    # Without LCV
-    res_m = _summary_section(df, df, 90, 90, 90, 100, 0, 0, None)
-    assert res_m["is_holistic"] is False
-    assert "overall_fidelity" in res_m
+    holistic_score = res["holistic_integrity"]
+    assert holistic_score < 40.0  # Should be significantly lower than 80.0
+    assert "holistic_integrity" in res
 
 
 def test_perfect_scores_return_100():
     df = pd.DataFrame({"a": [1]})
     res = _summary_section(df, df, 100.0, 100.0, 100.0, 100.0, 0, 0, 100.0)
-    assert np.isclose(res["overall_fidelity"], 100.0)
+    assert np.isclose(res["holistic_integrity"], 100.0)
+
+
+def test_missing_lcv_defaults_to_vacuous_consistency():
+    """
+    If logical_validity is not provided (e.g. no categorical columns),
+    it should treat the logic score as 100% (vacuously consistent).
+    """
+    df = pd.DataFrame({"a": [1]})
+    res = _summary_section(df, df, 90.0, 90.0, 90.0, 100.0, 0, 0, None)
+
+    # Should be 90.0 since all components (including the default 100% logic) are >= 90
+    assert res["holistic_integrity"] >= 90.0

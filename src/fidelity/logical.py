@@ -37,6 +37,27 @@ except ImportError:
 _ANTE_JOIN = " AND "
 
 
+def _adaptive_binning(
+    df: pd.DataFrame, columns: list[str], n_bins: int = 5
+) -> pd.DataFrame:
+    """Discretize continuous numeric columns into quantile-based bins for logical analysis."""
+    df_binned = df.copy()
+    for col in columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            try:
+                # Use qcut for equal-frequency bins (more robust to outliers)
+                # We use labels=False to get integers, then map to ranges for readability.
+                bins = pd.qcut(df[col], q=n_bins, labels=False, duplicates="drop")
+                # Create descriptive labels like "Income(bin_0)"
+                df_binned[col] = bins.apply(
+                    lambda x: f"bin_{val}" if not pd.isna(val := x) else x
+                )
+            except Exception:
+                # Fallback: if qcut fails (e.g. all same values), treat as a single bin or drop
+                df_binned[col] = df[col].astype(str)
+    return df_binned
+
+
 def _feature_groups_from_encoded_columns(
     encoded_columns: list[str], separator: str = "__"
 ) -> list[list[int]]:
@@ -427,22 +448,18 @@ def lcv_score(
 
     # Determine columns to use
     if columns is None:
-        # Use categorical columns present in both
-        real_cat = real.select_dtypes(include=["object", "category"]).columns.tolist()
-        syn_cat = synthetic.select_dtypes(
-            include=["object", "category"]
-        ).columns.tolist()
-        columns = [c for c in real_cat if c in syn_cat]
-        if not columns:
-            raise ValueError(
-                "No categorical columns found in both real and synthetic data."
-            )
+        columns = real.columns.intersection(synthetic.columns).tolist()
+
+    if not columns:
+        raise ValueError("No overlapping columns found for LCV.")
 
     cols = [c for c in columns if c in real.columns and c in synthetic.columns]
-    if not cols:
-        raise ValueError("Requested columns not found in both DataFrames.")
 
-    real, synthetic = _canonicalize_code_columns(real, synthetic, cols)
+    # Pre-process: Discretize numerics so the autoencoder can extract semantic boundaries
+    real_logic = _adaptive_binning(real[cols], cols)
+    syn_logic = _adaptive_binning(synthetic[cols], cols)
+
+    real, synthetic = _canonicalize_code_columns(real_logic, syn_logic, cols)
 
     # One-hot encode
     real_encoded = pd.get_dummies(real[cols], drop_first=False, prefix_sep="__").astype(
@@ -668,8 +685,13 @@ def rule_violation_score(
         }
 
     real_norm, synthetic_norm = _canonicalize_code_columns(real, synthetic, columns)
+
+    # Discretize numerics for rule mining
+    real_logic = _adaptive_binning(real_norm, columns)
+    synthetic_logic = _adaptive_binning(synthetic_norm, columns)
+
     rules = mine_implication_rules(
-        real_norm,
+        real_logic,
         columns=columns,
         min_confidence=min_confidence,
         min_support=min_support,
@@ -683,12 +705,12 @@ def rule_violation_score(
             "num_rule_violations": 0,
             "num_rules_mined": 0,
             "rows_with_rule_violations": 0,
-            "rows_evaluated": len(synthetic_norm),
+            "rows_evaluated": len(synthetic_logic),
             "top_violated_rules": [],
             "violation_examples": [],
         }
 
-    row_violation_mask = np.zeros(len(synthetic_norm), dtype=bool)
+    row_violation_mask = np.zeros(len(synthetic_logic), dtype=bool)
     total_violations = 0
     rule_diagnostics: list[dict[str, Any]] = []
     violation_examples: list[dict[str, Any]] = []
@@ -703,13 +725,15 @@ def rule_violation_score(
         cons_col = rule["consequent_feature"]
         cons_val = rule["consequent_value"]
 
-        ant_mask = pd.Series(True, index=synthetic_norm.index)
+        ant_mask = pd.Series(True, index=synthetic_logic.index)
         for ant in antecedents:
-            ant_mask &= synthetic_norm[ant["feature"]].astype(str).eq(str(ant["value"]))
+            ant_mask &= (
+                synthetic_logic[ant["feature"]].astype(str).eq(str(ant["value"]))
+            )
         if not ant_mask.any():
             continue
 
-        violates = ant_mask & (~synthetic_norm[cons_col].astype(str).eq(cons_val))
+        violates = ant_mask & (~synthetic_logic[cons_col].astype(str).eq(cons_val))
         row_violation_mask |= violates.to_numpy()
         violation_count = int(violates.sum())
         total_violations += violation_count
@@ -734,10 +758,10 @@ def rule_violation_score(
                 }
             )
 
-            for row_index in synthetic_norm.index[violates][:3]:
+            for row_index in synthetic_logic.index[violates][:3]:
                 if len(violation_examples) >= max_violation_examples:
                     break
-                actual_value = str(synthetic_norm.loc[row_index, cons_col])
+                actual_value = str(synthetic_logic.loc[row_index, cons_col])
                 violation_examples.append(
                     {
                         "row_index": int(row_index)
@@ -755,14 +779,14 @@ def rule_violation_score(
                 )
 
     rows_with_violations = int(row_violation_mask.sum())
-    denom = max(len(synthetic_norm), 1)
+    denom = max(len(synthetic_logic), 1)
     rule_diagnostics.sort(key=lambda d: d["violation_count"], reverse=True)
     return {
         "rule_violation_rate": round(rows_with_violations / denom, 4),
         "num_rule_violations": int(total_violations),
         "num_rules_mined": int(len(rules)),
         "rows_with_rule_violations": rows_with_violations,
-        "rows_evaluated": int(len(synthetic_norm)),
+        "rows_evaluated": int(len(synthetic_logic)),
         "example_rules": rules[:10],
         "top_violated_rules": rule_diagnostics[:10],
         "violation_examples": violation_examples,
