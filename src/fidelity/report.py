@@ -103,19 +103,11 @@ def _logical_section(
     try:
         from .logical import lcv_score, rule_violation_score
 
-        cat_cols = [c for c in cols if not pd.api.types.is_numeric_dtype(real[c])]
-        if not cat_cols:
-            return {
-                "info": "Vacuously consistent (no categorical columns detected)."
-            }, 100.0
-
-        lcv_result = lcv_score(
-            real, synthetic, columns=cat_cols, epochs=20, verbose=False
-        )
+        lcv_result = lcv_score(real, synthetic, columns=cols, epochs=20, verbose=False)
         rule_result = rule_violation_score(
             real,
             synthetic,
-            columns=cat_cols,
+            columns=cols,
             min_confidence=rule_min_confidence,
             min_support=rule_min_support,
             max_rules=rule_max_rules,
@@ -241,7 +233,10 @@ def fidelity_report(
     t0 = time.time()
 
     cols = _shared_columns(real, synthetic, columns)
-    syn = synthetic.drop(columns=["syn_id"], errors="ignore")
+
+    # Autonomous Alignment: Ensure both datasets operate in the exact same feature space.
+    real = real[cols].copy()
+    syn = synthetic[cols].copy()
 
     report: dict = {"dataset_type": dataset_type, "columns_evaluated": cols}
 

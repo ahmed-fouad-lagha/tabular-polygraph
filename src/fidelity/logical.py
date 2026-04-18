@@ -450,10 +450,7 @@ def lcv_score(
     if columns is None:
         columns = real.columns.intersection(synthetic.columns).tolist()
 
-    if not columns:
-        raise ValueError("No overlapping columns found for LCV.")
-
-    cols = [c for c in columns if c in real.columns and c in synthetic.columns]
+    cols = columns
 
     # Pre-process: Discretize numerics so the autoencoder can extract semantic boundaries
     real_logic = _adaptive_binning(real[cols], cols)
@@ -543,20 +540,7 @@ def mine_implication_rules(
     min_lift: float = 1.0,
     max_antecedents: int = 1,
 ) -> list[dict[str, Any]]:
-    """Mine implication rules from real categorical data with optional multi-antecedents."""
-    if not columns:
-        return []
-    if max_rules < 1:
-        return []
-    if max_antecedents < 1:
-        return []
-    if not (0.0 <= min_support <= 1.0):
-        return []
-    if not (0.0 <= min_confidence <= 1.0):
-        return []
-    if min_lift < 0.0:
-        return []
-
+    """Mine implication rules from real data."""
     n_rows = len(real)
     if n_rows == 0:
         return []
