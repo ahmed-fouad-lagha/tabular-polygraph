@@ -1,6 +1,4 @@
 """
-src.catalog.downloader
-------------------------------
 Downloads real bulk data from public government sources and caches it locally.
 Once downloaded, load_dataset() uses the real data instead of hand-coded approximations.
 

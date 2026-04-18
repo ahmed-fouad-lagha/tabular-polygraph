@@ -1,6 +1,4 @@
 """
-src.calibration.scenario
----------------------------------
 Scenario-based calibration: generate synthetic data conditioned on
 user-defined economic scenarios (recession, rate shock, credit crisis, etc.)
 
@@ -12,8 +10,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
-# ── Built-in scenarios ────────────────────────────────────────────────────────
 
 SCENARIOS: dict[str, dict] = {
     "recession": {

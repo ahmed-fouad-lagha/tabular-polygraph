@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 from src.generators import GaussianCopulaGenerator
 
 
@@ -24,7 +25,7 @@ class TestMarginalFidelity:
 
 
 class TestLogicalFidelity:
-    def test_neuro_lcv_handles_single_category_feature(self):
+    def test_lcv_handles_single_category_feature(self):
         from src.fidelity.logical import lcv_score
 
         real = pd.DataFrame({"cat": ["A"] * 20})
@@ -36,7 +37,33 @@ class TestLogicalFidelity:
         assert result["violation_rate"] == 0.0
         assert result["mean_penalty"] == 0.0
 
-    def test_neuro_lcv_penalizes_unseen_categories(self):
+    def test_lcv_small_dataset_trains_with_verbose(self):
+        from src.fidelity.logical import lcv_score
+
+        real = pd.DataFrame(
+            {
+                "a": ["x", "y"] * 20,
+                "b": ["m", "n"] * 20,
+            }
+        )
+        syn = real.copy()
+
+        result = lcv_score(real, syn, epochs=1, verbose=True, random_state=42)
+        assert 0.0 <= result["lcv_score"] <= 1.0
+
+    def test_lcv_autoencoder_evaluate_fallback_path(self):
+        import torch
+        from src.fidelity.logical import LCVAutoencoder
+
+        x = torch.rand(24, 4)
+        model = LCVAutoencoder(input_dim=4, hidden_dim=2)
+        model.fit(x, epochs=1, batch_size=8, verbose=False)
+
+        score, penalties = model.evaluate(x, feature_groups=None)
+        assert 0.0 <= score <= 1.0
+        assert len(penalties) == len(x)
+
+    def test_lcv_penalizes_unseen_categories(self):
         import torch
         from src.fidelity.logical import lcv_score
 
@@ -66,7 +93,7 @@ class TestLogicalFidelity:
         assert clean_result["lcv_score"] > bad_result["lcv_score"]
         assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
 
-    def test_neuro_lcv_canonicalizes_code_columns(self):
+    def test_lcv_canonicalizes_code_columns(self):
         import torch
         from src.fidelity.logical import lcv_score
 
@@ -125,6 +152,46 @@ class TestLogicalFidelity:
         assert clean_result["lcv_score"] > bad_result["lcv_score"]
         assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
         assert clean_result["violation_rate"] <= bad_result["violation_rate"]
+
+    def test_lcv_supports_weighting_modes(self):
+        from src.fidelity.logical import lcv_score
+
+        real = pd.DataFrame(
+            {
+                "g_small": ["A", "B"] * 80,
+                "g_large": [f"C{i % 8}" for i in range(160)],
+            }
+        )
+        syn = real.sample(frac=1.0, random_state=7).reset_index(drop=True)
+
+        weighted = lcv_score(
+            real,
+            syn,
+            columns=["g_small", "g_large"],
+            epochs=2,
+            feature_weighting="inverse_log_cardinality",
+            verbose=False,
+        )
+        uniform = lcv_score(
+            real,
+            syn,
+            columns=["g_small", "g_large"],
+            epochs=2,
+            feature_weighting="uniform",
+            verbose=False,
+        )
+
+        assert 0.0 <= weighted["lcv_score"] <= 1.0
+        assert 0.0 <= uniform["lcv_score"] <= 1.0
+
+    def test_lcv_rejects_unknown_weighting(self):
+        from src.fidelity.logical import lcv_score
+
+        real = pd.DataFrame({"a": ["x", "y"] * 20, "b": ["m", "n"] * 20})
+        syn = real.copy()
+
+        with pytest.raises(ValueError, match="Unknown feature_weighting"):
+            lcv_score(real, syn, epochs=1, feature_weighting="bad_mode", verbose=False)
 
     def test_rule_violation_score_penalizes_corruption(self):
         from src.fidelity.logical import rule_violation_score

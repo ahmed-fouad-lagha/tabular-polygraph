@@ -161,10 +161,19 @@ def _summary_section(
     t0: float,
     logical_validity: float | None,
 ) -> dict:
+    # If logical validity is available, include it in the aggregate (20% weight)
+    if logical_validity is not None:
+        overall = float(
+            0.35 * mm_score
+            + 0.25 * ks_score
+            + 0.20 * corr_score
+            + 0.20 * logical_validity
+        )
+    else:
+        overall = float(0.45 * mm_score + 0.30 * ks_score + 0.25 * corr_score)
+
     summary_dict = {
-        "overall_fidelity": round(
-            float(0.45 * mm_score + 0.30 * ks_score + 0.25 * corr_score), 2
-        ),
+        "overall_fidelity": round(overall, 2),
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
