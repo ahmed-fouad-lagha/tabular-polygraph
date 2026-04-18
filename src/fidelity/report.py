@@ -97,13 +97,21 @@ def _logical_section(
     rule_max_rules: int,
     rule_min_lift: float,
     rule_max_antecedents: int,
+    random_state: int = 42,
 ) -> tuple[dict, float]:
     logical_validity = 100.0
 
     try:
         from .logical import lcv_score, rule_violation_score
 
-        lcv_result = lcv_score(real, synthetic, columns=cols, epochs=20, verbose=False)
+        lcv_result = lcv_score(
+            real,
+            synthetic,
+            columns=cols,
+            epochs=20,
+            verbose=False,
+            random_state=random_state,
+        )
         rule_result = rule_violation_score(
             real,
             synthetic,
@@ -211,6 +219,7 @@ def fidelity_report(
     rule_max_rules: int = 25,
     rule_min_lift: float = 1.0,
     rule_max_antecedents: int = 1,
+    random_state: int = 42,
 ) -> dict:
     """
     Run all applicable fidelity metrics and return a structured report.
@@ -295,6 +304,7 @@ def fidelity_report(
         rule_max_rules,
         rule_min_lift,
         rule_max_antecedents,
+        random_state=random_state,
     )
     report["logical"] = logical_report
 

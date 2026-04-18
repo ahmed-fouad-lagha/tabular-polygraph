@@ -392,7 +392,7 @@ def _run_calibration_if_requested(syn, seed_df, args):
     return syn_body
 
 
-def _compute_generate_report(seed_df, syn, gen_type):
+def _compute_generate_report(seed_df, syn, gen_type, seed=42):
     from src.fidelity import fidelity_report
 
     info("Running fidelity report...")
@@ -405,6 +405,7 @@ def _compute_generate_report(seed_df, syn, gen_type):
             seed_df,
             syn_body,
             dataset_type=dataset_type,
+            random_state=seed,
         )
     except Exception as fe:
         warn(f"Fidelity report skipped: {fe}")
@@ -621,6 +622,7 @@ def cmd_generate(args):
         seed_df,
         syn,
         gen_type,
+        seed=args.seed,
     )
     _print_generate_report(report)
 
@@ -658,6 +660,7 @@ def cmd_evaluate(args):
         dataset_type=dataset_type,
         target_col=target_col,
         include_downstream=bool(target_col),
+        random_state=args.seed,
         **rule_params,
     )
 
@@ -1003,6 +1006,13 @@ def main():
         default="cross_sectional",
         metavar="TYPE",
         help="cross_sectional | time_series | panel",
+    )
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        metavar="N",
+        help="Random seed for deterministic evaluation (default: 42)",
     )
     p.add_argument(
         "--target",

@@ -17,6 +17,8 @@ probabilities, averaged across synthetic rows.
 from __future__ import annotations
 import warnings
 from itertools import combinations
+import os
+import random
 import numpy as np
 import pandas as pd
 from typing import Any, Tuple
@@ -443,8 +445,18 @@ def lcv_score(
         raise ImportError("LCV requires PyTorch. Install with: pip install torch")
 
     # Keep LCV reproducible across repeated evaluations.
+    if TORCH_AVAILABLE:
+        # Enforce absolute determinism for research-grade reproducibility.
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.manual_seed(int(random_state))
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(int(random_state))
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
     np.random.seed(int(random_state))
-    torch.manual_seed(int(random_state))
+    random.seed(int(random_state))
 
     # Determine columns to use
     if columns is None:
