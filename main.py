@@ -411,14 +411,12 @@ def _compute_generate_report(seed_df, syn, gen_type):
         return None
 
 
-def _print_generate_main_scores(report):
-    s = report["summary"]
-
-    section("Holistic Integrity report")
+def _print_generate_bars(report):
+    section("Marginal Fidelity")
 
     mm_cols = report.get("moment_matching", {}).get("column_scores", {})
     if mm_cols:
-        print("    Moment matching")
+        print(f"    {_c('Moment matching', C.GRAY)}")
         for col, score in mm_cols.items():
             print(
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
@@ -427,12 +425,18 @@ def _print_generate_main_scores(report):
 
     ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
     if ks_cols:
-        print("    KS distribution")
+        print(f"    {_c('KS distribution', C.GRAY)}")
         for col, score in ks_cols.items():
             print(
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
             )
         print()
+
+
+def _print_generate_summary(report):
+    s = report["summary"]
+    print()
+    section("Final Summary")
 
     # Primary aggregate score
     print(
@@ -448,13 +452,11 @@ def _print_generate_main_scores(report):
         f"    {_c('Joint score:', C.GRAY):<34}{_c(str(s['joint_score']) + '%', C.GREEN)}"
     )
     print(
-        f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
-    )
-
-    print(
         f"    {_c('Logical validity:', C.GRAY):<34}{_c(str(s['logical_validity']) + '%', C.GREEN)}"
     )
-
+    print(
+        f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
+    )
     print(f"    {_c('Exact copies:', C.GRAY):<34}{s['exact_copies']}")
 
 
@@ -484,14 +486,16 @@ def _print_generate_temporal(report):
     t = report["temporal"]
     section("Temporal fidelity")
     print(
-        f"    Stationarity agreement  {t['stationarity']['_summary']['agreement_rate']}%"
+        f"    {_c('Stationarity agreement', C.GRAY):<28}{t['stationarity']['_summary']['agreement_rate']}%"
     )
     print(
-        f"    Cointegration agreement {t['cointegration']['_summary']['agreement_rate']}%"
+        f"    {_c('Cointegration agreement', C.GRAY):<28}{t['cointegration']['_summary']['agreement_rate']}%"
     )
-    print(f"    Break match rate        {t['breaks']['_summary']['break_match_rate']}%")
     print(
-        f"    Causality agreement     {t['causality']['_summary']['agreement_rate']}%"
+        f"    {_c('Break match rate', C.GRAY):<28}{t['breaks']['_summary']['break_match_rate']}%"
+    )
+    print(
+        f"    {_c('Causality agreement', C.GRAY):<28}{t['causality']['_summary']['agreement_rate']}%"
     )
 
 
@@ -505,11 +509,17 @@ def _print_generate_logical(report):
         print(f"    {_c('Error:', C.RED)} {lg['error']}")
         return
 
-    print(f"    LCV violation rate      {lg.get('lcv_violation_rate_pct', '—')}%")
-    print(f"    Rule violation rate     {lg.get('rule_violation_rate_pct', '—')}%")
-    print(f"    Mean penalty            {lg.get('mean_penalty_pct', '—')}%")
     print(
-        f"    Rule violations         {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+        f"    {_c('LCV violation rate    ', C.GRAY):<28}{lg.get('lcv_violation_rate_pct', '—')}%"
+    )
+    print(
+        f"    {_c('Rule violation rate   ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%"
+    )
+    print(
+        f"    {_c('Mean penalty          ', C.GRAY):<28}{lg.get('mean_penalty_pct', '—')}%"
+    )
+    print(
+        f"    {_c('Rule violations       ', C.GRAY):<28}{lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
     )
 
 
@@ -517,10 +527,11 @@ def _print_generate_report(report):
     if report is None:
         return
 
-    _print_generate_main_scores(report)
+    _print_generate_bars(report)
+    _print_generate_logical(report)
     _print_generate_stylized(report)
     _print_generate_temporal(report)
-    _print_generate_logical(report)
+    _print_generate_summary(report)
 
 
 def _save_generated_output(syn, output_path: str):

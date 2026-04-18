@@ -102,7 +102,7 @@ python main.py audit real.csv syn.csv --attacks 300
 ```bash
 python main.py download census_acs
 
-python main.py generate census_acs --rows 5000 --seed 42 --drop-cols tract_id --output census_acs_synth.csv
+python main.py generate census_acs --rows 1000 --seed 42 --drop-cols tract_id --output census_acs_synth.csv
 
 python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional
 
