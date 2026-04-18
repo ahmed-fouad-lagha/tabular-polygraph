@@ -5,6 +5,7 @@ Returns a structured dict suitable for JSON serialisation or CLI display.
 
 from __future__ import annotations
 import time
+import numpy as np
 import pandas as pd
 from src.utils import numeric_columns
 
@@ -161,19 +162,56 @@ def _summary_section(
     t0: float,
     logical_validity: float | None,
 ) -> dict:
-    # If logical validity is available, include it in the aggregate (20% weight)
+    """
+    Compute aggregate fidelity indicators.
+    Following MS-Eq 149, we use a Weighted Geometric Mean to ensure that
+    low logical consistency is not offset by high marginal accuracy.
+    """
+    # Define research-principled weights
     if logical_validity is not None:
-        overall = float(
-            0.35 * mm_score
-            + 0.25 * ks_score
-            + 0.20 * corr_score
-            + 0.20 * logical_validity
-        )
+        # Holistic Aggregate (Logic is Primary)
+        weights = {
+            "lcv": 0.30,
+            "mm": 0.30,
+            "ks": 0.20,
+            "corr": 0.20,
+        }
+        scores = {
+            "lcv": logical_validity,
+            "mm": mm_score,
+            "ks": ks_score,
+            "corr": corr_score,
+        }
+        is_holistic = True
     else:
-        overall = float(0.45 * mm_score + 0.30 * ks_score + 0.25 * corr_score)
+        # Marginal-Only Aggregate
+        weights = {
+            "mm": 0.45,
+            "ks": 0.30,
+            "corr": 0.25,
+        }
+        scores = {
+            "mm": mm_score,
+            "ks": ks_score,
+            "corr": corr_score,
+        }
+        is_holistic = False
+
+    # Weighted Geometric Mean: exp(sum(w_i * ln(s_i + eps)))
+    # We add epsilon=1.0 to ensure stability and a 1% floor in logs
+    eps = 1.0
+    log_sum = 0.0
+    for key, w in weights.items():
+        s = max(0.0, scores[key])
+        log_sum += w * np.log(s + eps)
+
+    overall = np.exp(log_sum) - eps
+    overall = round(float(max(0.0, min(100.0, overall))), 2)
 
     summary_dict = {
-        "overall_fidelity": round(overall, 2),
+        "overall_fidelity": overall,
+        "is_holistic": is_holistic,
+        "aggregation_method": "weighted_geometric_mean",
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
@@ -322,16 +360,22 @@ def format_report(report: dict, width: int = 60) -> str:
         f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
     )
     lines.append("")
-    lines.append(f"  Overall fidelity: {s.get('overall_fidelity', '—')}%")
-    lines.append(f"  Moment matching : {s.get('moment_matching_score', '—')}%")
-    lines.append(f"  KS distribution : {s.get('ks_score', '—')}%")
-    lines.append(f"  Joint score     : {s.get('joint_score', '—')}%")
-    lines.append(f"  Privacy score   : {s.get('privacy_score', '—')}%")
+    if s.get("is_holistic"):
+        lines.append(f"  Holistic Integrity: {s.get('overall_fidelity', '—')}%")
+    else:
+        lines.append(
+            f"  Overall Fidelity  : {s.get('overall_fidelity', '—')}% (Marginal-Only)"
+        )
+
+    lines.append(f"  Moment matching   : {s.get('moment_matching_score', '—')}%")
+    lines.append(f"  KS distribution   : {s.get('ks_score', '—')}%")
+    lines.append(f"  Joint score       : {s.get('joint_score', '—')}%")
+    lines.append(f"  Privacy score     : {s.get('privacy_score', '—')}%")
     logical_validity = s.get("logical_validity")
     if logical_validity is None:
-        lines.append("  Logical validity: —")
+        lines.append("  Logical validity  : —")
     else:
-        lines.append(f"  Logical validity: {logical_validity}%")
+        lines.append(f"  Logical validity  : {logical_validity}%")
     lines.append(f"  Exact copies    : {s.get('exact_copies', '—')}")
     lines.append("")
 
