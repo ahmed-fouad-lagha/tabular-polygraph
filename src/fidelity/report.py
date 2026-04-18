@@ -218,7 +218,7 @@ def fidelity_report(
     rule_min_support: float = 0.005,
     rule_max_rules: int = 25,
     rule_min_lift: float = 1.0,
-    rule_max_antecedents: int = 1,
+    rule_max_antecedents: int = 2,
     random_state: int = 42,
 ) -> dict:
     """

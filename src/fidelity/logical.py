@@ -16,7 +16,6 @@ probabilities, averaged across synthetic rows.
 
 from __future__ import annotations
 import warnings
-from itertools import combinations
 import os
 import random
 import numpy as np
@@ -36,7 +35,7 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 
-_ANTE_JOIN = " AND "
+_ANTE_JOIN = " & "
 
 
 def _adaptive_binning(
@@ -552,98 +551,122 @@ def mine_implication_rules(
     min_lift: float = 1.0,
     max_antecedents: int = 1,
 ) -> list[dict[str, Any]]:
-    """Mine implication rules from real data."""
+    """Mine implication rules from real data using level-wise itemset search."""
     n_rows = len(real)
     if n_rows == 0:
         return []
 
     min_support_count = max(1, int(np.ceil(min_support * n_rows)))
     rules: list[dict[str, Any]] = []
+
+    # Pre-process into strings for discrete frequency counting
     cat = real[columns].copy().astype(str)
-    consequent_counts: dict[str, pd.Series] = {
-        col: cat[col].value_counts() for col in columns
+
+    # Frequent 1-itemsets (individual column=value pairs)
+    # Mapping: (col, val) -> count
+    frequent_items: dict[tuple[str, str], int] = {}
+    for col in columns:
+        counts = cat[col].value_counts()
+        for val, count in counts.items():
+            if count >= min_support_count:
+                frequent_items[(col, str(val))] = int(count)
+
+    # Current frequent itemsets found at size k
+    # itemsets[k] = list of tuples where each element is ((col1, val1), (col2, val2), ...)
+    frequent_sets_by_size: dict[int, list[tuple[tuple[str, str], ...]]] = {
+        1: [(item,) for item in frequent_items.keys()]
     }
 
-    max_k = max(1, min(max_antecedents, len(columns) - 1))
-    for k in range(1, max_k + 1):
-        for antecedent_cols in combinations(columns, k):
-            antecedent_cols_list = list(antecedent_cols)
-            antecedent_count_series = cat[antecedent_cols_list].value_counts()
-            valid_antecedents = antecedent_count_series[
-                antecedent_count_series >= min_support_count
-            ]
-            if valid_antecedents.empty:
-                continue
+    # Map from itemset tuple to its support count
+    support_counts: dict[tuple[tuple[str, str], ...], int] = {
+        (item,): count for item, count in frequent_items.items()
+    }
 
-            consequent_candidates = [
-                c for c in columns if c not in antecedent_cols_list
-            ]
-            if not consequent_candidates:
-                continue
+    max_k = max_antecedents + 1  # Total itemset size (antecedents + 1 consequent)
 
-            for consequent_col in consequent_candidates:
-                joint_count_series = cat[
-                    antecedent_cols_list + [consequent_col]
-                ].value_counts()
-                if joint_count_series.empty:
-                    continue
+    for k in range(2, max_k + 1):
+        # Generate candidates of size k from frequent itemsets of size k-1
+        prev_frequent = frequent_sets_by_size[k - 1]
+        candidates = []
 
-                for joint_key, pair_count in joint_count_series.items():
-                    if not isinstance(joint_key, tuple):
-                        joint_key = (joint_key,)
+        # Apriori Candidate Generation
+        for i in range(len(prev_frequent)):
+            for j in range(i + 1, len(prev_frequent)):
+                # Join if first k-2 elements are identical
+                l1, l2 = prev_frequent[i], prev_frequent[j]
+                if l1[:-1] == l2[:-1]:
+                    # Ensure we don't pick the same column twice
+                    cols1 = {item[0] for item in l1}
+                    if l2[-1][0] not in cols1:
+                        candidate = tuple(sorted(list(set(l1 + l2))))
+                        if candidate not in candidates:
+                            candidates.append(candidate)
 
-                    antecedent_key = tuple(joint_key[:k]) if k > 1 else joint_key[0]
-                    if antecedent_key not in valid_antecedents.index:
-                        continue
+        if not candidates:
+            break
 
-                    antecedent_count = int(valid_antecedents[antecedent_key])
-                    consequent_value = str(joint_key[-1])
-                    confidence = pair_count / max(antecedent_count, 1)
-                    if confidence < min_confidence:
-                        continue
+        # Count candidate support
+        current_frequent = []
+        for cand in candidates:
+            # Build query for the candidate
+            # Using bitmasks would be faster, but let's use vectorized filtering for compatibility
+            cand_cols = [item[0] for item in cand]
+            cand_vals = [item[1] for item in cand]
 
-                    consequent_support = int(
-                        consequent_counts[consequent_col].get(consequent_value, 0)
-                    ) / max(n_rows, 1)
-                    if consequent_support <= 0:
-                        continue
+            # Efficient grouped counting
+            # Instead of filtering the whole DF for every candidate, we could group by cand_cols once per col combination
+            # But here we group by cand_cols and check the specific value tuple
+            mask = (cat[cand_cols] == cand_vals).all(axis=1)
+            count = int(mask.sum())
 
-                    lift = confidence / consequent_support
-                    if lift < min_lift:
-                        continue
+            if count >= min_support_count:
+                support_counts[cand] = count
+                current_frequent.append(cand)
 
-                    if k == 1:
-                        ant_values = [str(antecedent_key)]
-                    else:
-                        ant_values = [str(v) for v in antecedent_key]
+                # Rule Generation for this frequent itemset
+                # For an itemset {A, B, C}, we test rules like {A, B} -> C
+                for i in range(len(cand)):
+                    consequent_item = cand[i]
+                    antecedent_items = tuple(cand[:i] + cand[i + 1 :])
 
-                    antecedents = [
-                        {"feature": f, "value": v}
-                        for f, v in zip(antecedent_cols_list, ant_values)
-                    ]
-                    antecedent_repr = _ANTE_JOIN.join(
-                        f"{a['feature']}={a['value']}" for a in antecedents
-                    )
+                    # Already guaranteed by level-wise search that antecedent is frequent
+                    antecedent_count = support_counts[antecedent_items]
+                    confidence = count / antecedent_count
 
-                    rule = {
-                        "antecedents": antecedents,
-                        "antecedent_repr": antecedent_repr,
-                        "consequent_feature": consequent_col,
-                        "consequent_value": consequent_value,
-                        "support": round(float(pair_count / n_rows), 4),
-                        "confidence": round(float(confidence), 4),
-                        "lift": round(float(lift), 4),
-                        "support_count": int(pair_count),
-                        "antecedent_count": antecedent_count,
-                    }
-                    if len(antecedents) == 1:
-                        rule["antecedent_feature"] = antecedents[0]["feature"]
-                        rule["antecedent_value"] = antecedents[0]["value"]
-                    rules.append(rule)
+                    if confidence >= min_confidence:
+                        # Compute Lift
+                        consequent_support = support_counts[(consequent_item,)] / n_rows
+                        lift = confidence / consequent_support
 
-    rules.sort(
-        key=lambda r: (r["lift"], r["confidence"], r["support_count"]), reverse=True
-    )
+                        if lift >= min_lift:
+                            # Build rule object
+                            antecedents = [
+                                {"feature": f, "value": v} for f, v in antecedent_items
+                            ]
+                            rule = {
+                                "antecedents": antecedents,
+                                "antecedent_repr": _ANTE_JOIN.join(
+                                    f"{a['feature']}={a['value']}" for a in antecedents
+                                ),
+                                "consequent_feature": consequent_item[0],
+                                "consequent_value": consequent_item[1],
+                                "support": round(count / n_rows, 4),
+                                "confidence": round(confidence, 4),
+                                "lift": round(lift, 4),
+                                "support_count": count,
+                                "antecedent_count": antecedent_count,
+                            }
+                            if len(antecedents) == 1:
+                                rule["antecedent_feature"] = antecedents[0]["feature"]
+
+                            rules.append(rule)
+
+        if not current_frequent:
+            break
+        frequent_sets_by_size[k] = current_frequent
+
+    # Sort and Deduplicate
+    rules.sort(key=lambda x: (x["confidence"], x["lift"], x["support"]), reverse=True)
     return rules[:max_rules]
 
 
