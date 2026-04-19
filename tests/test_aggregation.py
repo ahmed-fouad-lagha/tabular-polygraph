@@ -22,14 +22,14 @@ def test_weighted_geometric_mean_sensitivity():
         t0=0,
     )
 
-    holistic_score = res["holistic_integrity"]
-    assert holistic_score < 40.0  # Should be significantly lower than 80.0
-    assert "holistic_integrity" in res
+    hybrid_score = res["hybrid_integrity"]
+    assert hybrid_score < 40.0  # Should be significantly lower than 80.0
+    assert "hybrid_integrity" in res
 
 
 def test_perfect_scores_return_100():
     res = _summary_section(100.0, 100.0, 100.0, 100.0, 100.0, {}, 1, 1, 0)
-    assert np.isclose(res["holistic_integrity"], 100.0)
+    assert np.isclose(res["hybrid_integrity"], 100.0)
 
 
 def test_missing_hif_defaults_to_vacuous_consistency():
@@ -39,4 +39,4 @@ def test_missing_hif_defaults_to_vacuous_consistency():
     """
     # Should be 90.0 since all components (including the default 100% logic) are >= 90
     res = _summary_section(90.0, 90.0, 90.0, 100.0, 100.0, {}, 1, 1, 0)
-    assert res["holistic_integrity"] >= 90.0
+    assert res["hybrid_integrity"] >= 90.0
