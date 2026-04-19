@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://github.com/ahmed-fouad-lagha/tabular-polygraph/blob/main/assets/logo.png" alt="Tabular Polygraph" width="20%"/>
+<img src="assets/logo.png" alt="Tabular Polygraph" width="20%"/>
 
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
@@ -20,7 +20,7 @@ HIF (**Hybrid Integrity Framework**) provides a technically rigorous foundation 
 Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a **Tabular Polygraph** to detect "Semantic Hallucinations."
 
 <div align="center">
-  <img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/>
+  <img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/> <br/>
   <em>Figure 1: The HIF Hybrid Integrity Framework</em>
 </div>
 
