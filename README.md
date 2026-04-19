@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![CI](https://github.com/ahmed-fouad-lagha/HIF/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/HIF/actions/workflows/ci.yml)
+[![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
