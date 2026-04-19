@@ -100,9 +100,9 @@ def _logical_section(
     logical_validity = 100.0
 
     try:
-        from .logical import lcv_score, rule_violation_score
+        from .logical import hif_score, rule_violation_score
 
-        lcv_result = lcv_score(
+        hif_result = hif_score(
             real,
             synthetic,
             columns=cols,
@@ -119,19 +119,19 @@ def _logical_section(
             min_lift=rule_min_lift,
             max_antecedents=rule_max_antecedents,
         )
-        logical_validity = round(float(lcv_result["lcv_score"] * 100.0), 2)
+        logical_validity = round(float(hif_result["hif_score"] * 100.0), 2)
         return {
-            "lcv_score_pct": logical_validity,
-            "lcv_violation_rate_pct": round(
-                float(lcv_result["violation_rate"] * 100.0), 2
+            "hif_score_pct": logical_validity,
+            "hif_violation_rate_pct": round(
+                float(hif_result["violation_rate"] * 100.0), 2
             ),
-            "mean_penalty_pct": round(float(lcv_result["mean_penalty"] * 100.0), 2),
-            "num_lcv_violations": lcv_result["num_violations"],
-            "violation_threshold": lcv_result.get("violation_threshold"),
+            "mean_penalty_pct": round(float(hif_result["mean_penalty"] * 100.0), 2),
+            "num_hif_violations": hif_result["num_violations"],
+            "violation_threshold": hif_result.get("violation_threshold"),
             "nic_violation_rate_pct": round(
-                float(lcv_result.get("nic_violation_rate", 0) * 100.0), 2
+                float(hif_result.get("nic_violation_rate", 0) * 100.0), 2
             ),
-            "columns_used": lcv_result["columns_used"],
+            "columns_used": hif_result["columns_used"],
             "rule_violation_rate_pct": round(
                 float(rule_result["rule_violation_rate"] * 100.0), 2
             ),
@@ -253,7 +253,7 @@ def fidelity_report(
     target_col       : if given, runs TSTR downstream evaluation
     include_temporal : override temporal test inclusion
     include_downstream : run TSTR if target_col is provided
-    include_logical  : run LCV for logical constraint validation
+    include_logical  : run HIF for logical constraint validation
     columns          : restrict to these columns (default: all shared)
 
     Returns
@@ -429,7 +429,7 @@ def format_report(report: dict, width: int = 60) -> str:
         lines.append(f"    Status         : {lg['info']}")
     else:
         lines.append(
-            f"    Unified violation rate : {lg.get('lcv_violation_rate_pct', '—')}%"
+            f"    Unified violation rate : {lg.get('hif_violation_rate_pct', '—')}%"
         )
         lines.append(
             f"    NIC (Continuous) rate  : {lg.get('nic_violation_rate_pct', '—')}%"
@@ -442,7 +442,7 @@ def format_report(report: dict, width: int = 60) -> str:
             f"    Noise floor threshold  : {lg.get('violation_threshold', '—')}"
         )
         lines.append(
-            f"    Violations found       : {lg.get('num_lcv_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+            f"    Violations found       : {lg.get('num_hif_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
         )
 
         top_rules = lg.get("top_violated_rules", [])

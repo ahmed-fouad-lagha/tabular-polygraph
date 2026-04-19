@@ -1,5 +1,5 @@
 """
-LCV: Neurosymbolic Logical Constraint Validator for Synthetic Tabular Data.
+HIF: Neurosymbolic Logical Constraint Validator for Synthetic Tabular Data.
 
 Trains an under-complete autoencoder on real data to extract semantic boundaries,
 and evaluates synthetic data using a Continuous Semantic Severity Penalty (CSSP).
@@ -10,7 +10,7 @@ The frozen autoencoder defines a masked conditional semantic score by hiding one
 feature group at a time and measuring how much probability mass it assigns to the
 observed category given the remaining features.
 CSSP(x_g,i) = 1 - P(category_chosen | x_{-g}) measures logical impossibility.
-LCV Score ∈ [0, 1] is the geometric mean of the per-feature conditional
+HIF Score ∈ [0, 1] is the geometric mean of the per-feature conditional
 probabilities, averaged across synthetic rows.
 """
 
@@ -64,7 +64,7 @@ def _feature_weight_vector(
     feature_groups: list[list[int]],
     weighting: str,
 ) -> np.ndarray:
-    """Build normalized per-group weights for LCV aggregation."""
+    """Build normalized per-group weights for HIF aggregation."""
     n_groups = len(feature_groups)
     if n_groups == 0:
         return np.array([], dtype=np.float32)
@@ -220,8 +220,8 @@ class LogicalSentinelEnsemble:
                     }
                 )
 
-        lcv_score_val = 1.0 - row_penalties.mean()
-        return float(lcv_score_val), row_penalties, {"traces": traces}
+        hif_score_val = 1.0 - row_penalties.mean()
+        return float(hif_score_val), row_penalties, {"traces": traces}
 
 
 class NeighborContinuityScorer:
@@ -297,7 +297,7 @@ class NeighborContinuityScorer:
         return float(avg_score), row_penalties
 
 
-def lcv_score(
+def hif_score(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
@@ -326,7 +326,7 @@ def lcv_score(
 
     if not valid_cols:
         return {
-            "lcv_score": 1.0,
+            "hif_score": 1.0,
             "row_penalties": np.zeros(len(synthetic)),
             "violation_rate": 0.0,
             "mean_penalty": 0.0,
@@ -344,7 +344,7 @@ def lcv_score(
     # 2. Categorical Integrity Audit (LSE)
     oracle = LogicalSentinelEnsemble(random_state=random_state)
     oracle.fit(real_f, verbose=verbose)
-    lcv_score_val, row_penalties, meta = oracle.audit(synthetic_f)
+    hif_score_val, row_penalties, meta = oracle.audit(synthetic_f)
 
     # 3. Continuity Audit (NIC Breakthrough)
     nic_violation_rate = 0.0
@@ -366,7 +366,7 @@ def lcv_score(
         # validity = (1 - cat_error) * (1 - num_error)
         row_validity = (1.0 - row_penalties) * (1.0 - nic_penalties)
         row_penalties = 1.0 - row_validity
-        lcv_score_val = row_validity.mean()
+        hif_score_val = row_validity.mean()
         nic_violation_rate = (nic_penalties > 0.5).mean()
 
     # 4. Final Thresholding (Rule-based Alignment)
@@ -375,7 +375,7 @@ def lcv_score(
     violation_rate = float(num_violations / len(row_penalties))
 
     return {
-        "lcv_score": round(float(lcv_score_val), 4),
+        "hif_score": round(float(hif_score_val), 4),
         "row_penalties": row_penalties,
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),

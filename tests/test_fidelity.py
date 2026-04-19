@@ -24,20 +24,20 @@ class TestMarginalFidelity:
 
 
 class TestLogicalFidelity:
-    def test_lcv_handles_single_category_feature(self):
-        from src.fidelity.logical import lcv_score
+    def test_hif_handles_single_category_feature(self):
+        from src.fidelity.logical import hif_score
 
         real = pd.DataFrame({"cat": ["A"] * 20})
         syn = pd.DataFrame({"cat": ["A"] * 20})
 
-        result = lcv_score(real, syn, verbose=False)
+        result = hif_score(real, syn, verbose=False)
 
-        assert result["lcv_score"] == 1.0
+        assert result["hif_score"] == 1.0
         assert result["violation_rate"] == 0.0
         assert result["mean_penalty"] == 0.0
 
-    def test_lcv_small_dataset_train_with_verbose(self):
-        from src.fidelity.logical import lcv_score
+    def test_hif_small_dataset_train_with_verbose(self):
+        from src.fidelity.logical import hif_score
 
         real = pd.DataFrame(
             {
@@ -47,8 +47,8 @@ class TestLogicalFidelity:
         )
         syn = real.copy()
 
-        result = lcv_score(real, syn, verbose=True, random_state=42)
-        assert 0.0 <= result["lcv_score"] <= 1.0
+        result = hif_score(real, syn, verbose=True, random_state=42)
+        assert 0.0 <= result["hif_score"] <= 1.0
 
     def test_lse_oracle_trains_and_audits(self):
         from src.fidelity.logical import LogicalSentinelEnsemble

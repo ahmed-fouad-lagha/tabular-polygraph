@@ -1,7 +1,7 @@
 """
-Example 4: LCV metric validation for research reporting.
+Example 4: HIF metric validation for research reporting.
 
-This script runs five checks to decide whether the current LCV design is
+This script runs five checks to decide whether the current HIF design is
 scientifically useful:
 1) Corruption monotonicity
 2) External validity
@@ -10,7 +10,7 @@ scientifically useful:
 5) Practical separability vs distributional metrics
 
 Run:
-    python examples/04_lcv_validation.py \
+    python examples/04_hif_validation.py \
       --dataset census_acs \
       --rows 2000 \
       --seeds 42,43,44,45,46 \
@@ -38,7 +38,7 @@ from src.catalog.downloader import load_cached
 from src.generators import GaussianCopulaGenerator
 from src.fidelity import (
     correlation_distance_score,
-    lcv_score,
+    hif_score,
     mean_moment_matching_score,
     moment_matching_scores,
 )
@@ -270,8 +270,8 @@ def _evaluate_once(
     utility_feature_mode: str,
     seed: int,
 ) -> dict:
-    # Use the unified lcv_score (now handles LSE + NIC internally)
-    lcv = lcv_score(
+    # Use the unified hif_score (now handles LSE + NIC internally)
+    hif = hif_score(
         real,
         syn,
         columns=cat_cols + num_cols,
@@ -315,9 +315,9 @@ def _evaluate_once(
                 utility_ratio = float(util.get("ratio", np.nan))
 
     return {
-        "lcv_score": float(lcv["lcv_score"]),
-        "lcv_violation_rate": float(lcv["violation_rate"]),
-        "nic_violation_rate": float(lcv.get("nic_violation_rate", 0.0)),
+        "hif_score": float(hif["hif_score"]),
+        "hif_violation_rate": float(hif["violation_rate"]),
+        "nic_violation_rate": float(hif.get("nic_violation_rate", 0.0)),
         "rule_violation_rate": float(rules["rule_violation_rate"]),
         "num_rule_violations": int(rules["num_rule_violations"]),
         "num_rules_mined": int(rules["num_rules_mined"]),
@@ -349,61 +349,61 @@ def _monotonicity_by_seed(df: pd.DataFrame, metric: str) -> pd.DataFrame:
 
 
 def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
-    mono_lcv = _monotonicity_by_seed(df, "lcv_score")
+    mono_hif = _monotonicity_by_seed(df, "hif_score")
     mono_rule = _monotonicity_by_seed(df, "rule_violation_rate")
     mono_nic = _monotonicity_by_seed(df, "nic_violation_rate")
 
-    lcv_rho_mean = float(mono_lcv["rho"].mean()) if not mono_lcv.empty else 0.0
+    hif_rho_mean = float(mono_hif["rho"].mean()) if not mono_hif.empty else 0.0
     rule_rho_mean = float(mono_rule["rho"].mean()) if not mono_rule.empty else 0.0
     nic_rho_mean = float(mono_nic["rho"].mean()) if not mono_nic.empty else 0.0
 
-    ext_lcv_vs_rule = _safe_spearman(
-        df["lcv_score"].to_numpy(), df["rule_violation_rate"].to_numpy()
+    ext_hif_vs_rule = _safe_spearman(
+        df["hif_score"].to_numpy(), df["rule_violation_rate"].to_numpy()
     )
-    ext_lcv_vs_util = (np.nan, np.nan)
+    ext_hif_vs_util = (np.nan, np.nan)
     if has_utility:
         valid = df.dropna(subset=["utility_ratio"])
         if len(valid) > 2:
-            ext_lcv_vs_util = _safe_spearman(
-                valid["lcv_score"].to_numpy(), valid["utility_ratio"].to_numpy()
+            ext_hif_vs_util = _safe_spearman(
+                valid["hif_score"].to_numpy(), valid["utility_ratio"].to_numpy()
             )
 
-    grouped = df.groupby("corruption_level")["lcv_score"]
-    lcv_std_by_level = grouped.std(ddof=0).fillna(0.0)
-    mean_lcv_std = float(lcv_std_by_level.mean()) if len(lcv_std_by_level) else 0.0
+    grouped = df.groupby("corruption_level")["hif_score"]
+    hif_std_by_level = grouped.std(ddof=0).fillna(0.0)
+    mean_hif_std = float(hif_std_by_level.mean()) if len(hif_std_by_level) else 0.0
 
     dominance_mean = float(df["dominant_feature_share"].mean())
     dominance_max = float(df["dominant_feature_share"].max())
 
-    # Practical separability: LCV should track corruption at least as strongly
+    # Practical separability: HIF should track corruption at least as strongly
     # as moment matching and joint score in absolute rank-correlation magnitude.
     better_count = 0
     total = 0
     for _, sub in df.groupby("seed"):
         sub = sub.sort_values("corruption_level")
         x = sub["corruption_level"].to_numpy()
-        rho_lcv, _ = _safe_spearman(x, sub["lcv_score"].to_numpy())
+        rho_hif, _ = _safe_spearman(x, sub["hif_score"].to_numpy())
         rho_mm, _ = _safe_spearman(x, sub["moment_matching_score"].to_numpy())
         rho_joint, _ = _safe_spearman(x, sub["joint_score"].to_numpy())
 
         # For these metrics, stronger degradation means more negative rho.
-        lcv_strength = abs(min(rho_lcv, 0.0))
+        hif_strength = abs(min(rho_hif, 0.0))
         mm_strength = abs(min(rho_mm, 0.0))
         joint_strength = abs(min(rho_joint, 0.0))
 
-        better_count += int(lcv_strength > max(mm_strength, joint_strength))
+        better_count += int(hif_strength > max(mm_strength, joint_strength))
         total += 1
 
     separability_rate = float(better_count / max(total, 1))
 
     checks = {
-        "monotonicity_lcv": lcv_rho_mean <= -0.8,
+        "monotonicity_hif": hif_rho_mean <= -0.8,
         "monotonicity_rule": rule_rho_mean >= 0.8,
         "monotonicity_nic": nic_rho_mean >= 0.8,
-        "external_validity_rules": ext_lcv_vs_rule[0] <= -0.6,
+        "external_validity_rules": ext_hif_vs_rule[0] <= -0.6,
         "external_validity_utility": (not has_utility)
-        or (not np.isnan(ext_lcv_vs_util[0]) and ext_lcv_vs_util[0] >= 0.4),
-        "seed_stability": mean_lcv_std <= 0.05,
+        or (not np.isnan(ext_hif_vs_util[0]) and ext_hif_vs_util[0] >= 0.4),
+        "seed_stability": mean_hif_std <= 0.05,
         "feature_dominance": dominance_max <= 0.5,
         "practical_separability": separability_rate >= 0.6,
     }
@@ -412,14 +412,14 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
         "checks": checks,
         "check_pass_rate": float(sum(checks.values()) / len(checks)),
         "stats": {
-            "lcv_monotonicity_rho_mean": lcv_rho_mean,
+            "hif_monotonicity_rho_mean": hif_rho_mean,
             "rule_monotonicity_rho_mean": rule_rho_mean,
             "nic_monotonicity_rho_mean": nic_rho_mean,
-            "lcv_vs_rule_rho": ext_lcv_vs_rule[0],
-            "lcv_vs_rule_pvalue": ext_lcv_vs_rule[1],
-            "lcv_vs_utility_rho": ext_lcv_vs_util[0],
-            "lcv_vs_utility_pvalue": ext_lcv_vs_util[1],
-            "mean_lcv_std_across_corruption_levels": mean_lcv_std,
+            "hif_vs_rule_rho": ext_hif_vs_rule[0],
+            "hif_vs_rule_pvalue": ext_hif_vs_rule[1],
+            "hif_vs_utility_rho": ext_hif_vs_util[0],
+            "hif_vs_utility_pvalue": ext_hif_vs_util[1],
+            "mean_hif_std_across_corruption_levels": mean_hif_std,
             "dominant_feature_share_mean": dominance_mean,
             "dominant_feature_share_max": dominance_max,
             "separability_rate": separability_rate,
@@ -428,7 +428,7 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
 
 
 def _write_markdown_summary(path: Path, summary: dict) -> None:
-    lines = ["# LCV Validation Summary", ""]
+    lines = ["# HIF Validation Summary", ""]
     lines.append("## Check Outcomes")
     for k, v in summary["checks"].items():
         status = "PASS" if v else "FAIL"
@@ -448,7 +448,7 @@ def _write_markdown_summary(path: Path, summary: dict) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run LCV metric validation checks.")
+    parser = argparse.ArgumentParser(description="Run HIF metric validation checks.")
     parser.add_argument("--dataset", type=str, default="census_acs")
     parser.add_argument("--rows", type=int, default=2000)
     parser.add_argument("--fit-rows", type=int, default=None)
@@ -462,10 +462,10 @@ def main() -> None:
         choices=["numeric", "categorical_target_encoded", "hybrid"],
         help=(
             "Predictor set for utility check. "
-            "Use categorical_target_encoded for LCV-aligned external validity."
+            "Use categorical_target_encoded for HIF-aligned external validity."
         ),
     )
-    parser.add_argument("--lcv-epochs", type=int, default=50)
+    parser.add_argument("--hif-epochs", type=int, default=50)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
     parser.add_argument("--output-dir", type=str, default="results")
     args = parser.parse_args()
@@ -478,7 +478,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 72)
-    print("LCV Validation")
+    print("HIF Validation")
     print("=" * 72)
     print(f"Dataset: {args.dataset}")
     print(f"Seeds: {seeds}")
@@ -524,7 +524,7 @@ def main() -> None:
                 }
             )
             print(
-                f"  level={level:>4.2f} | lcv={metrics['lcv_score']:.4f} | "
+                f"  level={level:>4.2f} | hif={metrics['hif_score']:.4f} | "
                 f"nic_vr={metrics['nic_violation_rate']:.4f} | "
                 f"rule_vr={metrics['rule_violation_rate']:.4f} | "
                 f"mm={metrics['moment_matching_score']:.2f} | "
@@ -538,9 +538,9 @@ def main() -> None:
     )
     summary = _compute_summary(results, has_utility=has_utility)
 
-    csv_path = out_dir / "lcv_validation_results.csv"
-    json_path = out_dir / "lcv_validation_summary.json"
-    md_path = out_dir / "lcv_validation_summary.md"
+    csv_path = out_dir / "hif_validation_results.csv"
+    json_path = out_dir / "hif_validation_summary.json"
+    md_path = out_dir / "hif_validation_summary.md"
 
     results.to_csv(csv_path, index=False)
     json_path.write_text(json.dumps(summary, indent=2))

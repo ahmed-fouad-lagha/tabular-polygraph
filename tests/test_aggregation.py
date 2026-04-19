@@ -4,7 +4,7 @@ from src.fidelity.report import _summary_section
 
 def test_weighted_geometric_mean_sensitivity():
     """
-    Verify that a zero score in LCV results in a very low overall score,
+    Verify that a zero score in HIF results in a very low overall score,
     unlike an arithmetic mean.
     """
 
@@ -32,7 +32,7 @@ def test_perfect_scores_return_100():
     assert np.isclose(res["holistic_integrity"], 100.0)
 
 
-def test_missing_lcv_defaults_to_vacuous_consistency():
+def test_missing_hif_defaults_to_vacuous_consistency():
     """
     If logical_validity is not provided (e.g. no categorical columns),
     it should treat the logic score as 100% (vacuously consistent).
