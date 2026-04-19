@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://github.com/ahmed-fouad-lagha/tabular-polygraph/blob/main/assets/logo.png" alt="Tabular Polygraph" width="150"/>
+<img src="https://github.com/ahmed-fouad-lagha/tabular-polygraph/blob/main/assets/logo.png" alt="Tabular Polygraph" width="20%"/>
 
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
@@ -15,13 +15,16 @@
 
 </div>
 
-## Overview
+HIF (**Hybrid Integrity Framework**) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity.
 
-HIF (\textbf{Hybrid Integrity Framework}) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity.
+Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a **Tabular Polygraph** to detect "Semantic Hallucinations."
 
-Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a \textbf{Tabular Polygraph} to detect ``Semantic Hallucinations.''
+<div align="center">
+  <img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/>
+  <em>Figure 1: The HIF Hybrid Integrity Framework</em>
+</div>
 
-**The HIF Hybrid Integrity Oracle provides:**
+**The HIF Hybrid Integrity Framework provides:**
 - **Algebraic Integrity Certificates** via the Multiplicative Integrity (MI) model.
 - **Neural-Symbolic Oracles (LSE)** for categorical manifold discovery and auditing.
 - **Neighbor-Invariant Continuity (NIC)** for verifying continuous manifold residuals.
@@ -41,65 +44,53 @@ Standard evaluation pipelines measure Euclidean and marginal agreement, which ca
 ## Setup
 
 ```bash
-git clone https://github.com/ahmed-fouad-lagha/HIF.git
-cd HIF
+git clone https://github.com/ahmed-fouad-lagha/tabular-polygraph.git
+cd tabular-polygraph
 pip install -r requirements.txt
 
-# Environment check
+# Verify environment 
 python main.py list
 ```
 
-## Quick Start (Absolute Parity)
+## Quick Start
 
-Establish a ground truth evaluation during generation, then reproduce it perfectly in standalone mode.
+Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy. 
 
 ```bash
-# 1. Download and Generate
+# 1. Download sample data (cached in ~/.src/cache/)  
 python main.py download census_acs
-python main.py generate census_acs --rows 100 --seed 42 --output synthetic.csv
 
-# 2. Standalone Evaluation
-python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10 --seed 42
+# 2. Generate synthetic data using a Gaussian Copula   
+python main.py generate census_acs --rows 100 --output synthetic.csv
+
+# 3. Audit for Hallucinations (Semantic Integrity)
+python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
 ```
 
-## CLI Usage
-
-```bash
-# Evaluate with High-Order Logic (Supports Multi-Antecedents)
-python main.py evaluate real.csv syn.csv \
-  --type cross_sectional --hif-epochs 10 \
-  --rule-max-antecedents 2 \
-  --rule-min-confidence 0.98
-
-# Evaluate Time-Series sequence integrity
-python main.py evaluate real_ts.parquet syn_ts.csv --type time_series --seed 42
-
-# Run adversarial privacy audit
-python main.py audit real.csv syn.csv --attacks 300
-```
-
-## Python API
+## Python API                            
 
 ```python
+import pandas as pd
 from src.catalog import load_dataset
 from src.fidelity import fidelity_report
+from src.fidelity.logical import hif_score
 
+# 1. Load Data
 real = load_dataset("census_acs")
 syn = pd.read_csv("synthetic.csv")
 
-# Report (Fidelity + Logic + Utility + Privacy)
-report = fidelity_report( # Returns Hybrid Integrity Scorecard
-    real,
-    syn,
-    dataset_type="cross_sectional",
-    random_state=42
-)
+# 2. Generate 4-Pillar Scorecard (Stats, Logic, Utility, Privacy)
+report = fidelity_report(real, syn, dataset_type="cross_sectional")
+print(f"Hybrid Integrity Score: {report['summary']['hybrid_integrity']}%")
 
-# Access the 4-Pillar Scorecard
-summary = report['summary']
-print(f"Hybrid Score: {summary['hybrid_integrity']}%")
-print(f"Pillars Score: {summary['pillars']}")
-# {'fidelity': 86.4, 'logic': 20.5, 'utility': 60.7, 'privacy': 100.0}
+# 3. Detect Row-Level Hallucinations (The Polygraph)
+# hif_score returns per-row penalty scores [0 = valid, 1 = hallucination]
+hif_results = hif_score(real, syn)
+syn['hallucination_score'] = hif_results['row_penalties']
+
+# Identify the top "Economic Hallucinations"
+hallucinations = syn.sort_values('hallucination_score', ascending=False).head(5)
+print(hallucinations)
 ```
 
 ## License
