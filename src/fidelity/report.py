@@ -95,6 +95,9 @@ def _logical_section(
     rule_max_rules: int,
     rule_min_lift: float,
     rule_max_antecedents: int,
+    hif_epochs: int = 10,
+    hif_hubs: int = 5,
+    hif_depth: int = 12,
     random_state: int = 42,
 ) -> tuple[dict, float]:
     logical_validity = 100.0
@@ -107,6 +110,9 @@ def _logical_section(
             synthetic,
             columns=cols,
             verbose=True,
+            hif_epochs=hif_epochs,
+            hif_hubs=hif_hubs,
+            hif_depth=hif_depth,
             random_state=random_state,
         )
         rule_result = rule_violation_score(
@@ -241,6 +247,9 @@ def fidelity_report(
     rule_max_rules: int = 25,
     rule_min_lift: float = 1.0,
     rule_max_antecedents: int = 2,
+    hif_epochs: int = 10,
+    hif_hubs: int = 5,
+    hif_depth: int = 12,
     random_state: int = 42,
 ) -> dict:
     """
@@ -328,6 +337,9 @@ def fidelity_report(
         rule_max_rules,
         rule_min_lift,
         rule_max_antecedents,
+        hif_epochs=hif_epochs,
+        hif_hubs=hif_hubs,
+        hif_depth=hif_depth,
         random_state=random_state,
     )
     report["logical"] = logical_report

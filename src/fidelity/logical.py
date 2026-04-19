@@ -123,8 +123,11 @@ class LogicalSentinelEnsemble:
     Learns 'Manifold Laws' using Random Forest Sentinels on high-dependency hubs.
     """
 
-    def __init__(self, top_n_hubs: int = 5, random_state: int = 42):
+    def __init__(
+        self, top_n_hubs: int = 5, max_depth: int = 12, random_state: int = 42
+    ):
         self.top_n_hubs = top_n_hubs
+        self.max_depth = max_depth
         self.random_state = random_state
         self.sentinels: Dict[str, RandomForestClassifier] = {}
         self.hubs: List[str] = []
@@ -132,20 +135,18 @@ class LogicalSentinelEnsemble:
         self.is_trained = False
 
     def _calculate_dependency_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Discover 'Dependency Hubs' using Normalized Mutual Information."""
+        """Discover 'Dependency Hubs' using Symmetric Mutual Information."""
         cols = df.columns
         n = len(cols)
-        matrix = np.zeros((n, n))
+        matrix = np.eye(n)
         for i in range(n):
-            for j in range(n):
-                if i == j:
-                    matrix[i, j] = 1.0
-                    continue
+            for j in range(i + 1, n):
                 mi = mutual_info_score(df[cols[i]], df[cols[j]])
                 matrix[i, j] = mi
+                matrix[j, i] = mi
         return pd.DataFrame(matrix, index=cols, columns=cols)
 
-    def fit(self, df: pd.DataFrame, verbose: bool = True):
+    def fit(self, df: pd.DataFrame, hif_epochs: int = 10, verbose: bool = True):
         """Train Sentinels on Ground-Truth 'Laws'."""
         if len(df) < 50:
             return
@@ -163,9 +164,11 @@ class LogicalSentinelEnsemble:
             X = pd.get_dummies(df[other_cols], drop_first=True)
             y = df[hub_col]
 
+            # Map 'epochs' metaphor to n_estimators for Random Forest Sentinels
+            n_trees = max(10, hif_epochs * 10)
             clf = RandomForestClassifier(
-                n_estimators=100,
-                max_depth=12,
+                n_estimators=n_trees,
+                max_depth=self.max_depth,
                 random_state=self.random_state,
                 n_jobs=-1,
             )
@@ -221,7 +224,21 @@ class LogicalSentinelEnsemble:
                 )
 
         hif_score_val = 1.0 - row_penalties.mean()
-        return float(hif_score_val), row_penalties, {"traces": traces}
+        # Data-driven Law Floor (delta_h): Average boundary of expected certainty
+        avg_floor = (
+            float(np.mean(list(self.confidence_floors.values())))
+            if self.confidence_floors
+            else 1.0
+        )
+        return (
+            float(hif_score_val),
+            row_penalties,
+            {
+                "traces": traces,
+                "confidence_floors": self.confidence_floors,
+                "avg_floor": avg_floor,
+            },
+        )
 
 
 class NeighborContinuityScorer:
@@ -239,12 +256,21 @@ class NeighborContinuityScorer:
 
     def fit(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame):
         """Establish the 'Semantic Latent Space' using categorical features."""
-        # Internal Manifold Projection
+        # 0. Robustness: Filter out constant columns that would break scaling/regression
+        valid_cols = [
+            c for c in continuous_df.columns if continuous_df[c].nunique() > 1
+        ]
+        if not valid_cols:
+            return
+
+        active_df = continuous_df[valid_cols]
+
+        # 1. Internal Manifold Projection
         self.manifold_features = pd.get_dummies(categorical_df, drop_first=True)
         latent = self.pca.fit_transform(self.manifold_features)
 
-        for col in continuous_df.columns:
-            y = continuous_df[col].values
+        for col in active_df.columns:
+            y = active_df[col].values
             scaler = StandardScaler()
             y_scaled = scaler.fit_transform(y.reshape(-1, 1)).flatten()
 
@@ -301,6 +327,9 @@ def hif_score(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
+    hif_epochs: int = 10,
+    hif_hubs: int = 5,
+    hif_depth: int = 12,
     random_state: int = 42,
     verbose: bool = True,
 ) -> dict:
@@ -342,8 +371,10 @@ def hif_score(
     )
 
     # 2. Categorical Integrity Audit (LSE)
-    oracle = LogicalSentinelEnsemble(random_state=random_state)
-    oracle.fit(real_f, verbose=verbose)
+    oracle = LogicalSentinelEnsemble(
+        top_n_hubs=hif_hubs, max_depth=hif_depth, random_state=random_state
+    )
+    oracle.fit(real_f, hif_epochs=hif_epochs, verbose=verbose)
     hif_score_val, row_penalties, meta = oracle.audit(synthetic_f)
 
     # 3. Continuity Audit (NIC Breakthrough)
@@ -380,10 +411,11 @@ def hif_score(
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),
         "num_violations": int(num_violations),
-        "violation_threshold": 0.5,
+        "violation_threshold": round(meta.get("avg_floor", 0.5), 3),
         "nic_violation_rate": round(float(nic_violation_rate), 4),
         "columns_used": valid_cols + skipped_cols,
         "traces": meta.get("traces", []),
+        "confidence_floors": meta.get("confidence_floors", {}),
     }
 
 

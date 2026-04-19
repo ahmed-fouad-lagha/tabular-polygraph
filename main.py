@@ -654,8 +654,9 @@ def cmd_evaluate(args):
         dataset_type=dataset_type,
         target_col=target_col,
         include_downstream=bool(target_col),
-        random_state=args.seed,
         hif_epochs=getattr(args, "hif_epochs", 10),
+        hif_hubs=getattr(args, "hif_hubs", 5),
+        hif_depth=getattr(args, "hif_depth", 12),
         **rule_params,
     )
 
@@ -674,7 +675,7 @@ def cmd_evaluate(args):
 
 
 def cmd_audit(args):
-    header("Privacy audit", f"{args.real}  vs  {args.synthetic}")
+    header("TAMIS Privacy Oracle audit", f"{args.real}  vs  {args.synthetic}")
 
     for p in [Path(args.real), Path(args.synthetic)]:
         if not p.exists():
@@ -689,7 +690,7 @@ def cmd_audit(args):
     info(f"Loading synthetic: {args.synthetic}")
     syn = read(args.synthetic)
     info(f"Rows — real: {len(real):,}  synthetic: {len(syn):,}")
-    info(f"Running {args.attacks} attacks per test...")
+    info(f"Running {args.attacks} TAMIS attacks per test...")
     print()
 
     report = privacy_audit(
@@ -990,6 +991,15 @@ def main():
         help="Training epochs for the logical integrity oracle (default: 10)",
     )
     p.add_argument(
+        "--hif-hubs",
+        type=int,
+        default=5,
+        help="Number of high-dependency hubs to audit",
+    )
+    p.add_argument(
+        "--hif-depth", type=int, default=12, help="Max depth for sentinel forests"
+    )
+    p.add_argument(
         "--drop-cols",
         type=str,
         default=None,
@@ -1033,6 +1043,15 @@ def main():
         default=None,
         metavar="FILE",
         help="Save JSON report to file",
+    )
+    p.add_argument(
+        "--hif-hubs",
+        type=int,
+        default=5,
+        help="Number of high-dependency hubs to audit",
+    )
+    p.add_argument(
+        "--hif-depth", type=int, default=12, help="Max depth for sentinel forests"
     )
     p.add_argument(
         "--drop-cols",
@@ -1079,7 +1098,7 @@ def main():
     p.set_defaults(func=cmd_evaluate)
 
     # audit
-    p = sub.add_parser("audit", help="Full privacy audit.")
+    p = sub.add_parser("audit", help="Full TAMIS privacy audit.")
     p.add_argument("real")
     p.add_argument("synthetic")
     p.add_argument(
@@ -1087,7 +1106,7 @@ def main():
         type=int,
         default=300,
         metavar="N",
-        help="Number of attack attempts per test (default: 300)",
+        help="Number of TAMIS attack attempts per test (default: 300)",
     )
     p.add_argument("--json", action="store_true")
     p.add_argument("--output", type=str, default=None, metavar="FILE")

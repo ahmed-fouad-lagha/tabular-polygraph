@@ -1,14 +1,15 @@
 """
 src.privacy.audit
 --------------------------
+TAMIS Privacy Oracle: Targeted Adversarial Masking and Inference Suite.
 Full privacy audit: runs all privacy tests and returns a structured report.
 
-Tests run
+Tests run (TAMIS Suite)
 ---------
-1. Exact copy check         — zero-tolerance
-2. Membership inference     — AUC-based attack advantage
+1. Exact copy check         — Zero-tolerance threshold
+2. Membership inference     — Shadow-model AUC advantage
 3. Singling-out risk        — quasi-identifier subset attack
-4. Linkability risk         — nearest-neighbour cross-dataset attack
+4. Linkability risk         — Nearest-neighbour manifold linkage
 
 Each test returns a risk_level: very_low | low | medium | high | very_high
 The overall verdict is the maximum risk level across all tests.
@@ -142,8 +143,8 @@ def _recommendation(max_risk: int, exact_copies: int) -> str:
 
 
 def format_audit(report: dict, width: int = 60) -> str:
-    """Return a human-readable audit report string."""
-    lines = ["=" * width, "  PRIVACY AUDIT REPORT", "=" * width]
+    """Return a human-readable TAMIS audit report string."""
+    lines = ["=" * width, "  TAMIS PRIVACY ORACLE REPORT", "=" * width]
     v = report.get("verdict", {})
 
     overall = v.get("overall_risk", "—").upper()

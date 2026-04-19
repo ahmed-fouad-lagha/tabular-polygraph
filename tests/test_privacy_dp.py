@@ -76,7 +76,7 @@ def test_format_audit_returns_string():
 
     report = privacy_audit(real, syn, n_attacks=30, seed=4)
     text = format_audit(report)
-    assert "PRIVACY AUDIT" in text
+    assert "TAMIS PRIVACY ORACLE" in text
 
 
 def test_budget_exhaustion_raises():

@@ -1,12 +1,12 @@
 """
-Example 3: Privacy Audit Walkthrough
+Example 3: TAMIS Privacy Oracle Walkthrough
 --------------------------------------
-Demonstrates the full privacy audit workflow:
+Demonstrates the TAMIS (Targeted Adversarial Masking and Inference Suite) workflow:
 - Membership inference attack
 - Singling-out risk
 - Linkability risk
 - Differential privacy noise addition
-- Interpreting risk levels and recommendations
+- Interpreting TAMIS risk levels and recommendations
 
 Run: python examples/03_privacy_audit.py
 """
@@ -27,7 +27,7 @@ from src.privacy.dp import PrivacyBudget, laplace_mechanism
 
 def main():
     print("=" * 60)
-    print("  Privacy Audit — Census ACS Data")
+    print("  TAMIS Privacy Oracle Audit — Census ACS Data")
     print("=" * 60)
 
     # ── 1. Generate synthetic data ────────────────────────────────────────────
