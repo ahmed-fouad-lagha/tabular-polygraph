@@ -1,4 +1,4 @@
-# HIF: Semantic Fidelity Evaluation for Synthetic Tabular Data
+# The Tabular Polygraph: Neurosymbolic Hallucination Detection in Synthetic Data
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**A Neuro-Symbolic Hallucination Oracle for logically-consistent synthetic tabular data.**
+**A Neuro-Symbolic Hybrid Integrity Framework for logically-consistent synthetic tabular data.**
 
 ---
 
@@ -15,14 +15,15 @@
 
 ## Overview
 
-HIF (Holistic Integrity Framework) for evaluating synthetic tabular data quality beyond distributional similarity.
+HIF (\textbf{Hybrid Integrity Framework}) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity.
 
-Standard evaluation pipelines measure Euclidean and distributional agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and validation of latent tabular constraints.
+Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a \textbf{Tabular Polygraph} to detect ``Semantic Hallucinations.''
 
-**The HIF Hallucination Oracle provides:**
+**The HIF Hybrid Integrity Oracle provides:**
 - **Algebraic Integrity Certificates** via the Multiplicative Integrity (MI) model.
 - **Neural-Symbolic Oracles (LSE)** for categorical manifold discovery and auditing.
-- Reporting alongside marginal, joint, temporal, stylized-facts, downstream, and privacy metrics
+- **Neighbor-Invariant Continuity (NIC)** for verifying continuous manifold residuals.
+- Reporting alongside marginal, joint, stylized-facts, downstream, and TAMIS privacy metrics.
 
 **Core workflow:**
 1. Learn structural regularities from real data using an unsupervised model
@@ -85,7 +86,7 @@ real = load_dataset("census_acs")
 syn = pd.read_csv("synthetic.csv")
 
 # Report (Fidelity + Logic + Utility + Privacy)
-report = fidelity_report( # Returns Holistic Integrity Scorecard
+report = fidelity_report( # Returns Hybrid Integrity Scorecard
     real,
     syn,
     dataset_type="cross_sectional",
@@ -94,8 +95,8 @@ report = fidelity_report( # Returns Holistic Integrity Scorecard
 
 # Access the 4-Pillar Scorecard
 summary = report['summary']
-print(f"Holistic Score: {summary['holistic_integrity']}%")
-print(f"Pillars Score:  {summary['pillars']}")
+print(f"Hybrid Score: {summary['hybrid_integrity']}%")
+print(f"Pillars Score: {summary['pillars']}")
 # {'fidelity': 86.4, 'logic': 20.5, 'utility': 60.7, 'privacy': 100.0}
 ```
 

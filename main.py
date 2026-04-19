@@ -647,7 +647,7 @@ def cmd_evaluate(args):
         err(str(e))
         sys.exit(1)
 
-    info("Running full fidelity report...")
+    info("Running Hybrid Integrity Framework: The Tabular Polygraph...")
     report = fidelity_report(
         real,
         syn,

@@ -169,7 +169,7 @@ def _summary_section(
     t0: float,
 ) -> dict:
     """
-    Compute 4-Pillar Holistic Integrity scores.
+    Compute 4-Pillar Hybrid Integrity scores.
     """
     eps = 1.0
 
@@ -207,7 +207,7 @@ def _summary_section(
     # 4. Privacy Pillar
     p_score = round(float(privacy_score), 2)
 
-    # Holistic Aggregate
+    # Hybrid Aggregate
     # If utility is missing, we average the 3 available pillars
     pillars = {"fidelity": fidelity_score, "logic": logic_score, "privacy": p_score}
     if utility_score is not None:
@@ -218,7 +218,7 @@ def _summary_section(
     overall = round(float(max(0.0, min(100.0, overall))), 2)
 
     return {
-        "holistic_integrity": overall,
+        "hybrid_integrity": overall,
         "pillars": {
             "fidelity": fidelity_score,
             "logic": logic_score,
@@ -389,8 +389,7 @@ def format_report(report: dict, width: int = 60) -> str:
     lines.append(f"  3. Utility (Tasks)      | {u_str}")
 
     lines.append(f"  4. Privacy (Audit)      | {pillars.get('privacy', 0):>6.2f}%")
-    lines.append("-" * width)
-    lines.append(f"  HOLISTIC INTEGRITY      | {s.get('holistic_integrity', 0):>6.2f}%")
+    lines.append(f"  HYBRID INTEGRITY (HIF)  | {s.get('hybrid_integrity', 0):>6.2f}%")
     lines.append("-" * width)
     lines.append("")
 
