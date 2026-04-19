@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 import numpy as np
 import pandas as pd
-from src.utils import numeric_columns
+from src.utils import numeric_columns, DEFAULT_DROP_LIST
 
 from .marginal import (
     moment_matching_scores,
@@ -17,14 +17,19 @@ from .marginal import (
 )
 from .joint import correlation_distance_score, pairwise_correlation_report
 from .stylized_facts import stylized_facts_score
+from .tabular_facts import tabular_stylized_facts
 from .causality import causality_score
+from .downstream import tstr_score
 
 
 def _shared_columns(
     real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str] | None
 ) -> list[str]:
+    # DEFAULT_DROP_LIST: Exclude non-statistical identifiers automatically
     return columns or [
-        c for c in real.columns if c in synthetic.columns and c != "syn_id"
+        c
+        for c in real.columns
+        if c in synthetic.columns and c.lower() not in DEFAULT_DROP_LIST
     ]
 
 
@@ -37,14 +42,8 @@ def _stylized_facts_section(
     if dataset_type in ("time_series", "panel"):
         return stylized_facts_score(real, synthetic, num_cols)
 
-    return {
-        "_summary": {
-            "mean_score": None,
-            "columns_tested": 0,
-            "applicable": False,
-            "note": "Stylized facts are not evaluated for cross-sectional data.",
-        }
-    }
+    # For cross-sectional data, use the new tabular facts engine
+    return tabular_stylized_facts(real, synthetic, num_cols)
 
 
 def _temporal_section(
@@ -79,13 +78,12 @@ def _downstream_section(
     synthetic: pd.DataFrame,
     target_col: str | None,
     include_downstream: bool,
+    seed: int = 42,
 ) -> dict | None:
     if not (include_downstream and target_col and target_col in real.columns):
         return None
 
-    from .downstream import tstr_score
-
-    return tstr_score(real, synthetic, target_col=target_col)
+    return tstr_score(real, synthetic, target_col=target_col, seed=seed)
 
 
 def _logical_section(
@@ -151,59 +149,76 @@ def _logical_section(
 
 
 def _summary_section(
-    real: pd.DataFrame,
-    synthetic: pd.DataFrame,
     mm_score: float,
     ks_score: float,
     corr_score: float,
     privacy_score: float,
-    exact_copies: int,
-    t0: float,
     logical_validity: float,
+    utility_report: dict,
+    t0: float,
 ) -> dict:
     """
-    Compute Holistic Integrity indicators.
+    Compute 4-Pillar Holistic Integrity scores.
     """
-    weights = {
-        "lcv": 0.30,
-        "mm": 0.30,
-        "ks": 0.20,
-        "corr": 0.20,
-    }
-    # Logic score defaults to 100% (vacuously consistent) if not calculable
-    scores = {
-        "lcv": logical_validity,
-        "mm": mm_score,
-        "ks": ks_score,
-        "corr": corr_score,
-    }
-
-    # Weighted Geometric Mean: exp(sum(w_i * ln(s_i + eps))) - eps
     eps = 1.0
-    log_sum = 0.0
-    for key, w in weights.items():
-        s_val = max(0.0, scores[key])
-        log_sum += w * np.log(s_val + eps)
 
-    overall = np.exp(log_sum) - eps
+    # 1. Fidelity Pillar (Stats)
+    fidelity_score = (
+        np.exp(
+            (np.log(mm_score + eps) + np.log(ks_score + eps) + np.log(corr_score + eps))
+            / 3
+        )
+        - eps
+    )
+    fidelity_score = round(float(max(0.0, min(100.0, fidelity_score))), 2)
+
+    # 2. Logic Pillar (Integrity)
+    logic_score = round(float(logical_validity), 2)
+
+    # 3. Utility Pillar (Downstream)
+    u_scores = []
+    if "downstream" in utility_report and "ratio" in utility_report["downstream"]:
+        # Perfect ratio is 1.0
+        ratio = utility_report["downstream"]["ratio"]
+        tstr_val = max(0.0, (1.0 - abs(1.0 - ratio)) * 100)
+        u_scores.append(tstr_val)
+
+    if (
+        "stylized_facts" in utility_report
+        and "_summary" in utility_report["stylized_facts"]
+    ):
+        u_scores.append(
+            utility_report["stylized_facts"]["_summary"].get("mean_score", 0)
+        )
+
+    utility_score = round(float(np.mean(u_scores)), 2) if u_scores else None
+
+    # 4. Privacy Pillar
+    p_score = round(float(privacy_score), 2)
+
+    # Holistic Aggregate
+    # If utility is missing, we average the 3 available pillars
+    pillars = {"fidelity": fidelity_score, "logic": logic_score, "privacy": p_score}
+    if utility_score is not None:
+        pillars["utility"] = utility_score
+
+    log_sum = sum(np.log(val + eps) for val in pillars.values())
+    overall = np.exp(log_sum / len(pillars)) - eps
     overall = round(float(max(0.0, min(100.0, overall))), 2)
 
-    summary_dict = {
+    return {
         "holistic_integrity": overall,
-        "overall_fidelity": overall,  # Alias for backward compatibility if needed
-        "aggregation_method": "weighted_geometric_mean",
+        "pillars": {
+            "fidelity": fidelity_score,
+            "logic": logic_score,
+            "utility": utility_score,
+            "privacy": p_score,
+        },
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
-        "privacy_score": privacy_score,
-        "logical_validity": scores["lcv"],
-        "exact_copies": exact_copies,
-        "rows_real": len(real),
-        "rows_synthetic": len(synthetic),
         "elapsed_seconds": round(time.time() - t0, 3),
     }
-
-    return summary_dict
 
 
 def fidelity_report(
@@ -280,7 +295,9 @@ def fidelity_report(
         report["temporal"] = temporal_report
 
     # ── Downstream ────────────────────────────────────────────────────────────
-    downstream_report = _downstream_section(real, syn, target_col, include_downstream)
+    downstream_report = _downstream_section(
+        real, syn, target_col, include_downstream, seed=random_state
+    )
     if downstream_report is not None:
         report["downstream"] = downstream_report
 
@@ -311,16 +328,15 @@ def fidelity_report(
     # ── Summary ───────────────────────────────────────────────────────────────
     mm_score = report["moment_matching"]["mean_score"]
     ks_score = report["distribution_fit"]["mean_score"]
+
     report["summary"] = _summary_section(
-        real,
-        syn,
-        mm_score,
-        ks_score,
-        corr_score,
-        report["privacy_basic"]["privacy_score"],
-        exact_copies,
-        t0,
-        logical_validity,
+        mm_score=mm_score,
+        ks_score=ks_score,
+        corr_score=corr_score,
+        privacy_score=report["privacy_basic"]["privacy_score"],
+        logical_validity=logical_validity,
+        utility_report=report,  # Contains stylized_facts and downstream
+        t0=t0,
     )
 
     return report
@@ -339,14 +355,22 @@ def format_report(report: dict, width: int = 60) -> str:
         f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
     )
     lines.append("")
-    lines.append(f"  Holistic Integrity: {s.get('holistic_integrity', '—')}%")
+    # 4-Pillar Scoreboard
+    lines.append("-" * width)
+    lines.append(f"{'  PILLAR':<25} | {'SCORE':<10}")
+    lines.append("-" * width)
+    pillars = s.get("pillars", {})
+    lines.append(f"  1. Fidelity (Stats)     | {pillars.get('fidelity', 0):>6.2f}%")
+    lines.append(f"  2. Logic (Integrity)    | {pillars.get('logic', 0):>6.2f}%")
 
-    lines.append(f"  Moment matching   : {s.get('moment_matching_score', '—')}%")
-    lines.append(f"  KS distribution   : {s.get('ks_score', '—')}%")
-    lines.append(f"  Joint score       : {s.get('joint_score', '—')}%")
-    lines.append(f"  Privacy score     : {s.get('privacy_score', '—')}%")
-    lines.append(f"  Logical validity  : {s.get('logical_validity', '—')}%")
-    lines.append(f"  Exact copies    : {s.get('exact_copies', '—')}")
+    u_score = pillars.get("utility")
+    u_str = f"{u_score:>6.2f}%" if u_score is not None else "N/A"
+    lines.append(f"  3. Utility (Tasks)      | {u_str}")
+
+    lines.append(f"  4. Privacy (Audit)      | {pillars.get('privacy', 0):>6.2f}%")
+    lines.append("-" * width)
+    lines.append(f"  HOLISTIC INTEGRITY      | {s.get('holistic_integrity', 0):>6.2f}%")
+    lines.append("-" * width)
     lines.append("")
 
     sf_summary = report.get("stylized_facts", {}).get("_summary", {})

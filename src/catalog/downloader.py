@@ -174,7 +174,9 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
         for c in meta_data[1]:
             meta_rows.append(
                 {
-                    "country_code": c["id"],
+                    "country_code": c.get(
+                        "iso2Code"
+                    ),  # Use ISO2 (e.g. 'AF') instead of ID (e.g. 'AFG')
                     "income_group": c.get("incomeLevel", {}).get("value", "Unknown"),
                     "region": c.get("region", {}).get("value", "Unknown"),
                 }

@@ -461,20 +461,50 @@ def lcv_score(
     if columns is None:
         columns = real.columns.intersection(synthetic.columns).tolist()
 
-    cols = columns
+    # High-Cardinality Guardrail: Skip columns with > 500 unique values
+    # These often represent identifiers (e.g. Tract IDs) which cause
+    # sparse tensor explosion in the Neural Autoencoder.
+    valid_cols = []
+    skipped_cols = []
+    for col in columns:
+        cardinality = real[col].nunique()
+        if cardinality > 500:
+            skipped_cols.append((col, cardinality))
+        else:
+            valid_cols.append(col)
+
+    if skipped_cols and verbose:
+        skipped_names = ", ".join([f"{c} ({n})" for c, n in skipped_cols])
+        print(
+            f"      [LCV Warning] Skipping high-cardinality features for neural audit: {skipped_names}"
+        )
+
+    if not valid_cols:
+        # Fallback to symbolic-only or return perfection if no logical features
+        row_penalties = np.zeros(len(synthetic), dtype=float)
+        return {
+            "lcv_score": 1.0,
+            "row_penalties": row_penalties,
+            "violation_rate": 0.0,
+            "mean_penalty": 0.0,
+            "num_violations": 0,
+            "columns_used": [],
+        }
+
+    cols = valid_cols
 
     # Pre-process: Discretize numerics so the autoencoder can extract semantic boundaries
     real_logic = _adaptive_binning(real[cols], cols)
     syn_logic = _adaptive_binning(synthetic[cols], cols)
 
-    real, synthetic = _canonicalize_code_columns(real_logic, syn_logic, cols)
+    real_f, synthetic_f = _canonicalize_code_columns(real_logic, syn_logic, cols)
 
     # One-hot encode
-    real_encoded = pd.get_dummies(real[cols], drop_first=False, prefix_sep="__").astype(
-        np.float32
-    )
+    real_encoded = pd.get_dummies(
+        real_f[cols], drop_first=False, prefix_sep="__"
+    ).astype(np.float32)
     syn_encoded = pd.get_dummies(
-        synthetic[cols], drop_first=False, prefix_sep="__"
+        synthetic_f[cols], drop_first=False, prefix_sep="__"
     ).astype(np.float32)
 
     # Align feature spaces
@@ -482,13 +512,13 @@ def lcv_score(
     real_encoded = real_encoded.reindex(columns=all_features, fill_value=0.0)
     syn_encoded = syn_encoded.reindex(columns=all_features, fill_value=0.0)
 
-    real_encoded = real_encoded[all_features].values
-    syn_encoded = syn_encoded[all_features].values
+    real_encoded_arr = real_encoded[all_features].values
+    syn_encoded_arr = syn_encoded[all_features].values
 
     feature_groups = _feature_groups_from_encoded_columns(all_features)
 
     if len(all_features) <= 1:
-        row_penalties = np.zeros(len(syn_encoded), dtype=float)
+        row_penalties = np.zeros(len(syn_encoded_arr), dtype=float)
         return {
             "lcv_score": 1.0,
             "row_penalties": row_penalties,
@@ -499,8 +529,8 @@ def lcv_score(
         }
 
     # Keep inputs in float32 to match model parameter dtype in PyTorch.
-    real_tensor = torch.tensor(real_encoded, dtype=torch.float32)
-    syn_tensor = torch.tensor(syn_encoded, dtype=torch.float32)
+    real_tensor = torch.tensor(real_encoded_arr, dtype=torch.float32)
+    syn_tensor = torch.tensor(syn_encoded_arr, dtype=torch.float32)
 
     # Train and evaluate
     input_dim = real_tensor.shape[1]
@@ -521,7 +551,7 @@ def lcv_score(
     feature_weights = _feature_weight_vector(feature_groups, feature_weighting)
 
     with torch.no_grad():
-        lcv_score, row_penalties = model.evaluate(
+        lcv_score_val, row_penalties = model.evaluate(
             syn_tensor,
             feature_groups=feature_groups,
             feature_weights=feature_weights,
@@ -533,7 +563,7 @@ def lcv_score(
     violation_rate = float(num_violations / len(row_penalties))
 
     return {
-        "lcv_score": round(float(lcv_score), 4),
+        "lcv_score": round(float(lcv_score_val), 4),
         "row_penalties": row_penalties,
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),
@@ -550,6 +580,7 @@ def mine_implication_rules(
     max_rules: int = 200,
     min_lift: float = 1.0,
     max_antecedents: int = 1,
+    random_state: int | None = None,
 ) -> list[dict[str, Any]]:
     """Mine implication rules from real data using level-wise itemset search."""
     n_rows = len(real)
@@ -559,11 +590,31 @@ def mine_implication_rules(
     min_support_count = max(1, int(np.ceil(min_support * n_rows)))
     rules: list[dict[str, Any]] = []
 
-    # Pre-process into strings for discrete frequency counting
-    cat = real[columns].copy().astype(str)
+    # Pre-process into "Logical Predicates"
+    # Continuous features (numeric with high nunique) are binned to prevent combinatorial explosion
+    # while categorical/binary features are kept as-is.
+    cat = pd.DataFrame(index=real.index)
+
+    for col in columns:
+        col_data = real[col]
+        n_unique = col_data.nunique()
+
+        # Heuristic: Numeric columns with more than 50 unique values are quantized
+        if pd.api.types.is_numeric_dtype(col_data) and n_unique > 50:
+            try:
+                # Use qcut for equal-frequency binning (robust logic)
+                # We use 10 bins (deciles) if possible
+                n_bins = 10
+                # Drop duplicates if the distribution is very peaked
+                quantized = pd.qcut(col_data, n_bins, labels=None, duplicates="drop")
+                cat[col] = quantized.astype(str)
+            except Exception:
+                # Fallback to simple binning if qcut fails
+                cat[col] = col_data.astype(str)
+        else:
+            cat[col] = col_data.astype(str)
 
     # Frequent 1-itemsets (individual column=value pairs)
-    # Mapping: (col, val) -> count
     frequent_items: dict[tuple[str, str], int] = {}
     for col in columns:
         counts = cat[col].value_counts()
@@ -571,8 +622,12 @@ def mine_implication_rules(
             if count >= min_support_count:
                 frequent_items[(col, str(val))] = int(count)
 
+    # Pre-calculate bitmasks for all frequent items (Vertical Data Format / TID-lists)
+    item_masks: dict[tuple[str, str], np.ndarray] = {}
+    for col, val in frequent_items.keys():
+        item_masks[(col, val)] = cat[col].values == val
+
     # Current frequent itemsets found at size k
-    # itemsets[k] = list of tuples where each element is ((col1, val1), (col2, val2), ...)
     frequent_sets_by_size: dict[int, list[tuple[tuple[str, str], ...]]] = {
         1: [(item,) for item in frequent_items.keys()]
     }
@@ -582,41 +637,54 @@ def mine_implication_rules(
         (item,): count for item, count in frequent_items.items()
     }
 
-    max_k = max_antecedents + 1  # Total itemset size (antecedents + 1 consequent)
+    max_k = max_antecedents + 1
 
     for k in range(2, max_k + 1):
-        # Generate candidates of size k from frequent itemsets of size k-1
-        prev_frequent = frequent_sets_by_size[k - 1]
-        candidates = []
+        prev_frequent = frequent_sets_by_size.get(k - 1, [])
+        if not prev_frequent:
+            break
 
-        # Apriori Candidate Generation
+        candidates = []
+        # Apriori Candidate Generation (Optimized with Set for O(1) lookups)
+        candidates_set = set()
         for i in range(len(prev_frequent)):
             for j in range(i + 1, len(prev_frequent)):
-                # Join if first k-2 elements are identical
                 l1, l2 = prev_frequent[i], prev_frequent[j]
+                # Join itemsets if first k-2 elements are identical
                 if l1[:-1] == l2[:-1]:
                     # Ensure we don't pick the same column twice
                     cols1 = {item[0] for item in l1}
                     if l2[-1][0] not in cols1:
-                        candidate = tuple(sorted(list(set(l1 + l2))))
-                        if candidate not in candidates:
-                            candidates.append(candidate)
+                        # Create unique candidate tuple
+                        cand_list = list(l1) + [l2[-1]]
+                        candidate = tuple(sorted(cand_list))
+                        candidates_set.add(candidate)
+
+        candidates = list(candidates_set)
+        if not candidates:
+            break
+
+        # Safety Capacity-Bound: Prevent combinatorial explosion on degenerate datasets
+        # Research note: Using a 100k cap ensures sub-minute diagnostics while maintaining
+        # a statistically representative sample for rule mining on high-dimensional data.
+        MAX_CANDIDATES_PER_LEVEL = 100000
+        if len(candidates) > MAX_CANDIDATES_PER_LEVEL:
+            import random
+
+            random.seed(random_state or 42)
+            candidates = random.sample(candidates, MAX_CANDIDATES_PER_LEVEL)
 
         if not candidates:
             break
 
-        # Count candidate support
+        # Count candidate support using Vertical Bitmask Intersection
         current_frequent = []
         for cand in candidates:
-            # Build query for the candidate
-            # Using bitmasks would be faster, but let's use vectorized filtering for compatibility
-            cand_cols = [item[0] for item in cand]
-            cand_vals = [item[1] for item in cand]
+            # INTERSECTION: Intersection of bitmasks for all items in the candidate
+            mask = item_masks[cand[0]]
+            for i in range(1, len(cand)):
+                mask = mask & item_masks[cand[i]]
 
-            # Efficient grouped counting
-            # Instead of filtering the whole DF for every candidate, we could group by cand_cols once per col combination
-            # But here we group by cand_cols and check the specific value tuple
-            mask = (cat[cand_cols] == cand_vals).all(axis=1)
             count = int(mask.sum())
 
             if count >= min_support_count:
@@ -680,6 +748,7 @@ def rule_violation_score(
     min_lift: float = 1.0,
     max_antecedents: int = 1,
     max_violation_examples: int = 20,
+    random_state: int | None = None,
 ) -> dict[str, Any]:
     """Evaluate synthetic rows against implication rules mined from real data."""
     if not columns:
@@ -717,6 +786,7 @@ def rule_violation_score(
         max_rules=max_rules,
         min_lift=min_lift,
         max_antecedents=max_antecedents,
+        random_state=random_state,
     )
     if not rules:
         return {

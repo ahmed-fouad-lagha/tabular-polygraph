@@ -183,6 +183,7 @@ def _load_generator(
     fit_rows: int | None = None,
 ):
     """Load and fit a generator for the given dataset."""
+    from src.utils import DEFAULT_DROP_LIST
     from src.catalog import load_dataset
     from src.catalog.downloader import load_cached
     from src.generators import GaussianCopulaGenerator
@@ -203,7 +204,17 @@ def _load_generator(
         seed_df = seed_df.reset_index(drop=True)
     else:
         seed_df = load_dataset(dataset_id, n=fit_n)
-    seed_df = _drop_existing_columns(seed_df, drop_cols)
+
+    # Merge user drop_cols with DEFAULT_DROP_LIST
+    all_drop = list(set((drop_cols or []) + list(DEFAULT_DROP_LIST)))
+    seed_df = _drop_existing_columns(seed_df, all_drop)
+
+    # Log what we dropped if it's more than just the defaults
+    if any(c for c in all_drop if c not in DEFAULT_DROP_LIST):
+        info(f"Dropping columns before fit/eval: {all_drop}")
+    elif all_drop:
+        # Just generic info that we've cleaned the dataset
+        pass
 
     if generator_type == "var":
         time_col = "year" if "year" in seed_df.columns else None
@@ -233,9 +244,13 @@ def _load_eval_frames(real_path: str, syn_path: str):
 
 
 def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
-    drop_cols = _parse_drop_cols(drop_cols_arg)
-    if not drop_cols:
-        return real, syn
+    from src.utils import DEFAULT_DROP_LIST
+
+    drop_cols = _parse_drop_cols(drop_cols_arg) or []
+    # Automatically add default blocklist
+    drop_cols = list(set(drop_cols + list(DEFAULT_DROP_LIST)))
+
+    real_drop = [c for c in drop_cols if c in real.columns]
 
     real_drop = [c for c in drop_cols if c in real.columns]
     syn_drop = [c for c in drop_cols if c in syn.columns]
@@ -405,6 +420,7 @@ def _compute_generate_report(seed_df, syn, gen_type, seed=42):
             seed_df,
             syn_body,
             dataset_type=dataset_type,
+            include_downstream=False,
             random_state=seed,
         )
     except Exception as fe:
@@ -432,33 +448,6 @@ def _print_generate_bars(report):
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
             )
         print()
-
-
-def _print_generate_summary(report):
-    s = report["summary"]
-    print()
-    section("Final Summary")
-
-    # Primary aggregate score
-    print(
-        f"    {_c('Holistic Integrity:', C.CYAN):<34}{_c(str(s['holistic_integrity']) + '%', C.GREEN)}"
-    )
-    print(
-        f"    {_c('Moment matching:', C.GRAY):<34}{_c(str(s['moment_matching_score']) + '%', C.GREEN)}"
-    )
-    print(
-        f"    {_c('KS distribution:', C.GRAY):<34}{_c(str(s['ks_score']) + '%', C.GREEN)}"
-    )
-    print(
-        f"    {_c('Joint score:', C.GRAY):<34}{_c(str(s['joint_score']) + '%', C.GREEN)}"
-    )
-    print(
-        f"    {_c('Logical validity:', C.GRAY):<34}{_c(str(s['logical_validity']) + '%', C.GREEN)}"
-    )
-    print(
-        f"    {_c('Privacy score:', C.GRAY):<34}{_c(str(s['privacy_score']) + '%', C.GREEN)}"
-    )
-    print(f"    {_c('Exact copies:', C.GRAY):<34}{s['exact_copies']}")
 
 
 def _print_generate_stylized(report):
@@ -532,7 +521,6 @@ def _print_generate_report(report):
     _print_generate_logical(report)
     _print_generate_stylized(report)
     _print_generate_temporal(report)
-    _print_generate_summary(report)
 
 
 def _save_generated_output(syn, output_path: str):

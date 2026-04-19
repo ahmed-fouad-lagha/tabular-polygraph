@@ -19,6 +19,26 @@ FloatArray: TypeAlias = np.ndarray  # 1D or 2D float array
 
 
 # ============================================================================
+# Global Constants
+# ============================================================================
+
+# DEFAULT_DROP_LIST: Columns that should be automatically excluded from
+# both generation and evaluation (IDs, internal keys, high-cardinality noise).
+DEFAULT_DROP_LIST: set[str] = {
+    "syn_id",
+    "id",
+    "row_id",
+    "index",
+    "uid",
+    "uuid",
+    "tract_id",
+    "serial_no",
+    "fips_code",
+    "ip_address",
+}
+
+
+# ============================================================================
 # Column Filtering
 # ============================================================================
 

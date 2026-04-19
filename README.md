@@ -32,114 +32,66 @@ Standard evaluation pipelines measure Euclidean and distributional agreement, wh
 ## Setup
 
 ```bash
-
 git clone https://github.com/ahmed-fouad-lagha/LCV.git
 cd LCV
 pip install -r requirements.txt
 
 # Environment check
 python main.py list
-pytest tests -q
-
-# Cross-sectional experiment (fidelity + downstream + privacy)
-python examples/01_cross_sectional.py
-
-# Macro scenarios experiment (baseline + stressed scenarios + temporal fidelity)
-python examples/02_macro_scenarios.py
-
-# Privacy audit walkthrough (MI, singling-out, linkability, DP demo)
-python examples/03_privacy_audit.py
 ```
 
-Expected output files are written under `examples/`:
-- `output_census_train.csv`
-- `output_census_eval.csv`
-- `output_macro_baseline.csv`
-- `output_macro_*.csv`
+## Quick Start (Absolute Parity)
+
+Establish a ground truth evaluation during generation, then reproduce it perfectly in standalone mode.
+
+```bash
+# 1. Download and Generate
+python main.py download census_acs
+python main.py generate census_acs --rows 100 --seed 42 --output synthetic.csv --drop-cols tract_id
+
+# 2. Standalone Evaluation (Bit-for-Bit Parity)
+# No need to drop 'syn_id' or 'tract_id' — Alignment is autonomous.
+python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --seed 42
+```
 
 ## CLI Usage
 
 ```bash
-# Download a specific dataset
-python main.py download fred_macro
-python main.py download bls
-python main.py download world_bank
-python main.py download census_acs
-
-# Download all 4 real datasets
-python main.py download all
-
-# Check what's cached
-python main.py download status
-
-# Force re-download (ignore cache)
-python main.py download fred_macro --force
-
-# Limit cache size (e.g., first 1000 rows only)
-python main.py download bls --sample 1000
-
-# Generate synthetic data: python main.py generate <id>
-python main.py generate fred_macro --rows 10000 --output syn.csv
-
-# Evaluate fidelity
-python main.py evaluate real.csv syn.csv --type cross_sectional
-
-# Evaluate fidelity with logical rule controls
+# Evaluate with High-Order Logic (Supports Multi-Antecedents)
 python main.py evaluate real.csv syn.csv \
   --type cross_sectional \
-  --rule-min-confidence 0.7 \
-  --rule-min-support 0.01 \
-  --rule-min-lift 1.0 \
   --rule-max-antecedents 2 \
-  --rule-max-rules 200
+  --rule-min-confidence 0.98
 
-# Run privacy audit
+# Evaluate Time-Series sequence integrity
+python main.py evaluate real_ts.parquet syn_ts.csv --type time_series --seed 42
+
+# Run adversarial privacy audit
 python main.py audit real.csv syn.csv --attacks 300
-```
-
-## Quick start
-
-```bash
-python main.py download census_acs
-
-python main.py generate census_acs --rows 1000 --seed 42 --drop-cols tract_id --output census_acs_synth.csv
-
-python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional
-
-python main.py evaluate ~/.src/cache/census_acs.parquet census_acs_synth.csv --type cross_sectional --target household_income
-# Other numeric columns you can use as targets: total_renter_units, severe_burden_units, in_labor_force, unemployed, total_housing_units, owner_occupied.
-
 ```
 
 ## Python API
 
 ```python
-from src.generators import GaussianCopulaGenerator
 from src.catalog import load_dataset
 from src.fidelity import fidelity_report
 
 real = load_dataset("census_acs")
+syn = pd.read_csv("synthetic.csv")
 
-gen = GaussianCopulaGenerator()
-gen.fit(real)
-syn = gen.generate(10000, seed=42)
-
-# Basic evaluation
-report = fidelity_report(real, syn, include_logical=True)
-print(report["summary"])
-
-# With tuned symbolic rule mining
+# Report (Fidelity + Logic + Utility + Privacy)
 report = fidelity_report(
     real,
     syn,
-    include_logical=True,
-    rule_min_confidence=0.7,
-    rule_min_support=0.01,
-    rule_min_lift=1.0,
-    rule_max_antecedents=2,
-    rule_max_rules=200,
+    dataset_type="cross_sectional",
+    random_state=42
 )
-print(report.get("logical", {}))
+
+# Access the 4-Pillar Scorecard
+summary = report['summary']
+print(f"Holistic Score: {summary['holistic_integrity']}%")
+print(f"Pillars Score:  {summary['pillars']}")
+# {'fidelity': 86.4, 'logic': 20.5, 'utility': 60.7, 'privacy': 100.0}
 ```
 
 ## License
