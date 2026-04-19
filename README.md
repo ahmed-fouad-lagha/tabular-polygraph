@@ -21,7 +21,7 @@ Standard evaluation pipelines measure Euclidean and marginal agreement, which ca
 
 <div align="center">
   <img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/> <br/>
-  <em>Figure 1: The HIF Hybrid Integrity Framework</em>
+  <em>Figure 1: The HIF Hybrid Integrity Framework</em> <br/>
 </div>
 
 **The HIF Hybrid Integrity Framework provides:**
