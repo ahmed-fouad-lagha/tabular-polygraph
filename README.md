@@ -46,26 +46,26 @@ git clone https://github.com/ahmed-fouad-lagha/tabular-polygraph.git
 cd tabular-polygraph
 pip install -r requirements.txt
 
-# Verify environment 
+# Verify environment
 python main.py list
 ```
 
 ## Quick Start
 
-Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy. 
+Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy.
 
 ```bash
-# 1. Download sample data (cached in ~/.src/cache/)  
+# 1. Download sample data (cached in ~/.src/cache/)
 python main.py download census_acs
 
-# 2. Generate synthetic data using a Gaussian Copula   
+# 2. Generate synthetic data using a Gaussian Copula
 python main.py generate census_acs --rows 100 --output synthetic.csv
 
 # 3. Audit for Hallucinations (Semantic Integrity)
 python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
 ```
 
-## Python API                            
+## Python API
 
 ```python
 import pandas as pd

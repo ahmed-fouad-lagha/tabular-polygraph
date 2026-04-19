@@ -211,7 +211,7 @@ class LogicalSentinelEnsemble:
             floor = self.confidence_floors[hub_col]
             # Semantic Penalty: Proportional distance of OBSERVED probability from the floor
             penalty = np.clip((floor - probs_observed) / max(1e-5, floor), 0, 1)
-            
+
             # Aggregate via Maximum (Worst-Violation Law) for stability
             row_penalties = np.maximum(row_penalties, penalty)
 
