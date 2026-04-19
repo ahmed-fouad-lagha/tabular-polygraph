@@ -15,29 +15,26 @@
 
 </div>
 
-The Hybrid Integrity Framework (HIF) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity.
+The Hybrid Integrity Framework (HIF) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity. Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a Tabular Polygraph to detect "Semantic Hallucinations".
 
-Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a **Tabular Polygraph** to detect "Semantic Hallucinations."
+<p align="center">
+	<img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/>
+	<br>
+	<em>Figure 1: The HIF Hybrid Integrity Framework</em>
+</p>
 
-<div align="center">
-  <img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/> <br/>
-  <em>Figure 1: The HIF Hybrid Integrity Framework</em>
-</div>
-
-
-**The HIF Hybrid Integrity Framework provides:**
+The HIF Hybrid Integrity Framework provides:
 - **Algebraic Integrity Certificates** via the Multiplicative Integrity (MI) model.
 - **Neural-Symbolic Oracles (LSE)** for categorical manifold discovery and auditing.
 - **Neighbor-Invariant Continuity (NIC)** for verifying continuous manifold residuals.
 - Reporting alongside marginal, joint, stylized-facts, downstream, and TAMIS privacy metrics.
 
-**Core workflow:**
+#### Core workflow
 1. Learn structural regularities from real data using an unsupervised model
 2. Score each synthetic row by semantic deviation severity
 3. Aggregate violations into dataset-level quality diagnostics
 
-
-## Proven Performance (NeurIPS 2026)
+#### Performance
 - **Spearman Monotonicity (rho = -1.0)**: Perfect sensitivity to semantic corruption levels on the ACS Census dataset.
 - **Utility Correlation (> 0.87)**: High alignment between HIF integrity scores and downstream predictive accuracy.
 - **Hallucination Detection**: Identifies row-level 'Logical Consistency Gaps' missed by standard KS and TVD metrics.
@@ -84,12 +81,12 @@ syn = pd.read_csv("synthetic.csv")
 report = fidelity_report(real, syn, dataset_type="cross_sectional")
 print(f"Hybrid Integrity Score: {report['summary']['hybrid_integrity']}%")
 
-# 3. Detect Row-Level Hallucinations (The Polygraph)
+# 3. Detect Row-Level Hallucinations
 # hif_score returns per-row penalty scores [0 = valid, 1 = hallucination]
 hif_results = hif_score(real, syn)
 syn['hallucination_score'] = hif_results['row_penalties']
 
-# Identify the top "Economic Hallucinations"
+# Identify the top Hallucinations
 hallucinations = syn.sort_values('hallucination_score', ascending=False).head(5)
 print(hallucinations)
 ```
