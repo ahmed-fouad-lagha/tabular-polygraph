@@ -21,7 +21,7 @@ from typing import Any, Tuple, Dict, List
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import mutual_info_score
+from sklearn.metrics import mutual_info_score as mutual_info_score
 from sklearn.decomposition import PCA
 
 
@@ -195,25 +195,33 @@ class LogicalSentinelEnsemble:
             X = X.reindex(columns=clf.feature_names_in_, fill_value=0)
 
             probs = clf.predict_proba(X)
-            max_probs = np.max(probs, axis=1)
+            classes = clf.classes_
+            observed_values = df[hub_col].astype(str).values
+
+            # Map observed values to their probabilities (observed vs predicted)
+            probs_observed = np.zeros(len(df))
+            for class_idx, class_val in enumerate(classes):
+                mask = observed_values == str(class_val)
+                if mask.any():
+                    probs_observed[mask] = probs[mask, class_idx]
 
             floor = self.confidence_floors[hub_col]
-            # Semantic Penalty: Proportional distance from the ground-truth floor
-            penalty = np.clip((floor - max_probs) / max(1e-5, floor), 0, 1)
+            # Semantic Penalty: Proportional distance of OBSERVED probability from the floor
+            penalty = np.clip((floor - probs_observed) / max(1e-5, floor), 0, 1)
             row_penalties = np.maximum(row_penalties, penalty)
 
-            ruptures = max_probs < (floor * 0.1)  # 10x drop in confidence
+            ruptures = probs_observed < (floor * 0.1)  # 10x drop in confidence
             if ruptures.any():
                 traces.append(
                     {
                         "column": hub_col,
                         "violations": int(ruptures.sum()),
-                        "mean_prob": float(max_probs[ruptures].mean()),
+                        "mean_prob": float(probs_observed[ruptures].mean()),
                     }
                 )
 
-        lcv_score = 1.0 - row_penalties.mean()
-        return lcv_score, row_penalties, {"traces": traces}
+        lcv_score_val = 1.0 - row_penalties.mean()
+        return float(lcv_score_val), row_penalties, {"traces": traces}
 
 
 class NeighborContinuityScorer:
@@ -327,9 +335,11 @@ def lcv_score(
         }
 
     # 1. Pre-process: Discretize and Canonicalize
-    real_logic = _adaptive_binning(real[valid_cols], valid_cols)
-    syn_logic = _adaptive_binning(synthetic[valid_cols], valid_cols)
-    real_f, synthetic_f = _canonicalize_code_columns(real_logic, syn_logic, valid_cols)
+    real_f_data = _adaptive_binning(real[valid_cols], valid_cols)
+    syn_f_data = _adaptive_binning(synthetic[valid_cols], valid_cols)
+    real_f, synthetic_f = _canonicalize_code_columns(
+        real_f_data, syn_f_data, valid_cols
+    )
 
     # 2. Categorical Integrity Audit (LSE)
     oracle = LogicalSentinelEnsemble(random_state=random_state)
@@ -348,7 +358,7 @@ def lcv_score(
         manifold_cols = oracle.hubs
         nic_auditor = NeighborContinuityScorer(random_state=random_state)
         nic_auditor.fit(real_f[manifold_cols], real[skipped_cols])
-        nic_score_val, nic_penalties = nic_auditor.score(
+        _, nic_penalties = nic_auditor.score(
             synthetic_f[manifold_cols], synthetic[skipped_cols]
         )
 
@@ -396,8 +406,6 @@ def mine_implication_rules(
     rules: list[dict[str, Any]] = []
 
     # Pre-process into "Logical Predicates"
-    # Continuous features (numeric with high nunique) are binned to prevent combinatorial explosion
-    # while categorical/binary features are kept as-is.
     cat = pd.DataFrame(index=real.index)
 
     for col in columns:
@@ -408,9 +416,7 @@ def mine_implication_rules(
         if pd.api.types.is_numeric_dtype(col_data) and n_unique > 50:
             try:
                 # Use qcut for equal-frequency binning (robust logic)
-                # We use 10 bins (deciles) if possible
                 n_bins = 10
-                # Drop duplicates if the distribution is very peaked
                 quantized = pd.qcut(col_data, n_bins, labels=None, duplicates="drop")
                 cat[col] = quantized.astype(str)
             except Exception:
@@ -450,17 +456,13 @@ def mine_implication_rules(
             break
 
         candidates = []
-        # Apriori Candidate Generation (Optimized with Set for O(1) lookups)
         candidates_set = set()
         for i in range(len(prev_frequent)):
             for j in range(i + 1, len(prev_frequent)):
                 l1, l2 = prev_frequent[i], prev_frequent[j]
-                # Join itemsets if first k-2 elements are identical
                 if l1[:-1] == l2[:-1]:
-                    # Ensure we don't pick the same column twice
                     cols1 = {item[0] for item in l1}
                     if l2[-1][0] not in cols1:
-                        # Create unique candidate tuple
                         cand_list = list(l1) + [l2[-1]]
                         candidate = tuple(sorted(cand_list))
                         candidates_set.add(candidate)
@@ -469,9 +471,6 @@ def mine_implication_rules(
         if not candidates:
             break
 
-        # Safety Capacity-Bound: Prevent combinatorial explosion on degenerate datasets
-        # Research note: Using a 100k cap ensures sub-minute diagnostics while maintaining
-        # a statistically representative sample for rule mining on high-dimensional data.
         MAX_CANDIDATES_PER_LEVEL = 100000
         if len(candidates) > MAX_CANDIDATES_PER_LEVEL:
             import random
@@ -482,10 +481,8 @@ def mine_implication_rules(
         if not candidates:
             break
 
-        # Count candidate support using Vertical Bitmask Intersection
         current_frequent = []
         for cand in candidates:
-            # INTERSECTION: Intersection of bitmasks for all items in the candidate
             mask = item_masks[cand[0]]
             for i in range(1, len(cand)):
                 mask = mask & item_masks[cand[i]]
@@ -496,23 +493,17 @@ def mine_implication_rules(
                 support_counts[cand] = count
                 current_frequent.append(cand)
 
-                # Rule Generation for this frequent itemset
-                # For an itemset {A, B, C}, we test rules like {A, B} -> C
                 for i in range(len(cand)):
                     consequent_item = cand[i]
                     antecedent_items = tuple(cand[:i] + cand[i + 1 :])
-
-                    # Already guaranteed by level-wise search that antecedent is frequent
                     antecedent_count = support_counts[antecedent_items]
                     confidence = count / antecedent_count
 
                     if confidence >= min_confidence:
-                        # Compute Lift
                         consequent_support = support_counts[(consequent_item,)] / n_rows
                         lift = confidence / consequent_support
 
                         if lift >= min_lift:
-                            # Build rule object
                             antecedents = [
                                 {"feature": f, "value": v} for f, v in antecedent_items
                             ]
@@ -531,14 +522,12 @@ def mine_implication_rules(
                             }
                             if len(antecedents) == 1:
                                 rule["antecedent_feature"] = antecedents[0]["feature"]
-
                             rules.append(rule)
 
         if not current_frequent:
             break
         frequent_sets_by_size[k] = current_frequent
 
-    # Sort and Deduplicate
     rules.sort(key=lambda x: (x["confidence"], x["lift"], x["support"]), reverse=True)
     return rules[:max_rules]
 
@@ -578,13 +567,11 @@ def rule_violation_score(
         }
 
     real_norm, synthetic_norm = _canonicalize_code_columns(real, synthetic, columns)
-
-    # Discretize numerics for rule mining
-    real_logic = _adaptive_binning(real_norm, columns)
-    synthetic_logic = _adaptive_binning(synthetic_norm, columns)
+    real_f_data = _adaptive_binning(real_norm, columns)
+    synthetic_f_data = _adaptive_binning(synthetic_norm, columns)
 
     rules = mine_implication_rules(
-        real_logic,
+        real_f_data,
         columns=columns,
         min_confidence=min_confidence,
         min_support=min_support,
@@ -599,12 +586,12 @@ def rule_violation_score(
             "num_rule_violations": 0,
             "num_rules_mined": 0,
             "rows_with_rule_violations": 0,
-            "rows_evaluated": len(synthetic_logic),
+            "rows_evaluated": len(synthetic_f_data),
             "top_violated_rules": [],
             "violation_examples": [],
         }
 
-    row_violation_mask = np.zeros(len(synthetic_logic), dtype=bool)
+    row_violation_mask = np.zeros(len(synthetic_f_data), dtype=bool)
     total_violations = 0
     rule_diagnostics: list[dict[str, Any]] = []
     violation_examples: list[dict[str, Any]] = []
@@ -619,15 +606,15 @@ def rule_violation_score(
         cons_col = rule["consequent_feature"]
         cons_val = rule["consequent_value"]
 
-        ant_mask = pd.Series(True, index=synthetic_logic.index)
+        ant_mask = pd.Series(True, index=synthetic_f_data.index)
         for ant in antecedents:
             ant_mask &= (
-                synthetic_logic[ant["feature"]].astype(str).eq(str(ant["value"]))
+                synthetic_f_data[ant["feature"]].astype(str).eq(str(ant["value"]))
             )
         if not ant_mask.any():
             continue
 
-        violates = ant_mask & (~synthetic_logic[cons_col].astype(str).eq(cons_val))
+        violates = ant_mask & (~synthetic_f_data[cons_col].astype(str).eq(cons_val))
         row_violation_mask |= violates.to_numpy()
         violation_count = int(violates.sum())
         total_violations += violation_count
@@ -652,10 +639,10 @@ def rule_violation_score(
                 }
             )
 
-            for row_index in synthetic_logic.index[violates][:3]:
+            for row_index in synthetic_f_data.index[violates][:3]:
                 if len(violation_examples) >= max_violation_examples:
                     break
-                actual_value = str(synthetic_logic.loc[row_index, cons_col])
+                actual_value = str(synthetic_f_data.loc[row_index, cons_col])
                 violation_examples.append(
                     {
                         "row_index": int(row_index)
@@ -673,14 +660,14 @@ def rule_violation_score(
                 )
 
     rows_with_violations = int(row_violation_mask.sum())
-    denom = max(len(synthetic_logic), 1)
+    denom = max(len(synthetic_f_data), 1)
     rule_diagnostics.sort(key=lambda d: d["violation_count"], reverse=True)
     return {
         "rule_violation_rate": round(rows_with_violations / denom, 4),
         "num_rule_violations": int(total_violations),
         "num_rules_mined": int(len(rules)),
         "rows_with_rule_violations": rows_with_violations,
-        "rows_evaluated": int(len(synthetic_logic)),
+        "rows_evaluated": int(len(synthetic_f_data)),
         "example_rules": rules[:10],
         "top_violated_rules": rule_diagnostics[:10],
         "violation_examples": violation_examples,

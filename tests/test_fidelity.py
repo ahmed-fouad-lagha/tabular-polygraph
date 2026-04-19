@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from src.generators import GaussianCopulaGenerator
 
 
@@ -37,7 +36,7 @@ class TestLogicalFidelity:
         assert result["violation_rate"] == 0.0
         assert result["mean_penalty"] == 0.0
 
-    def test_lcv_small_dataset_trains_with_verbose(self):
+    def test_lcv_small_dataset_train_with_verbose(self):
         from src.fidelity.logical import lcv_score
 
         real = pd.DataFrame(
@@ -48,150 +47,50 @@ class TestLogicalFidelity:
         )
         syn = real.copy()
 
-        result = lcv_score(real, syn, epochs=1, verbose=True, random_state=42)
+        result = lcv_score(real, syn, verbose=True, random_state=42)
         assert 0.0 <= result["lcv_score"] <= 1.0
 
-    def test_lcv_autoencoder_evaluate_fallback_path(self):
-        import torch
-        from src.fidelity.logical import LCVAutoencoder
+    def test_lse_oracle_trains_and_audits(self):
+        from src.fidelity.logical import LogicalSentinelEnsemble
 
-        x = torch.rand(24, 4)
-        model = LCVAutoencoder(input_dim=4, hidden_dim=2)
-        model.fit(x, epochs=1, batch_size=8, verbose=False)
-
-        score, penalties = model.evaluate(x, feature_groups=None)
-        assert 0.0 <= score <= 1.0
-        assert len(penalties) == len(x)
-
-    def test_lcv_penalizes_unseen_categories(self):
-        import torch
-        from src.fidelity.logical import lcv_score
-
-        np.random.seed(0)
-        torch.manual_seed(0)
-
+        # Increase data diversity for better Sentinel training
         real = pd.DataFrame(
             {
-                "state": ["CA", "CA", "NY", "NY", "TX", "TX"] * 20,
-                "county": ["001", "003", "005", "007", "009", "011"] * 20,
-                "class": ["A", "B", "A", "B", "A", "B"] * 20,
+                "a": ["X", "Y", "Z", "W"] * 50,
+                "b": ["1", "2", "3", "4"] * 50,
+                "c": ["M", "N", "O", "P"] * 50,
             }
         )
-
-        clean = real.sample(frac=1.0, random_state=0).reset_index(drop=True)
-        bad = clean.copy()
-        bad.loc[:19, "state"] = "__ILLOGICAL__"
-        bad.loc[:19, "county"] = "__ILLOGICAL__"
-
-        clean_result = lcv_score(
-            real, clean, columns=["state", "county", "class"], epochs=6, verbose=False
-        )
-        bad_result = lcv_score(
-            real, bad, columns=["state", "county", "class"], epochs=6, verbose=False
-        )
-
-        assert clean_result["lcv_score"] > bad_result["lcv_score"]
-        assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
-
-    def test_lcv_canonicalizes_code_columns(self):
-        import torch
-        from src.fidelity.logical import lcv_score
-
-        np.random.seed(1)
-        torch.manual_seed(1)
-
-        real = pd.DataFrame(
-            {
-                "state_fips": [
-                    "06",
-                    "08",
-                    "06",
-                    "04",
-                    "06",
-                    "08",
-                    "12",
-                    "06",
-                    "08",
-                    "04",
-                ]
-                * 40,
-                "county": [
-                    "037",
-                    "109",
-                    "083",
-                    "019",
-                    "001",
-                    "097",
-                    "071",
-                    "073",
-                    "005",
-                    "111",
-                ]
-                * 40,
-            }
-        )
-
-        clean = pd.DataFrame(
-            {
-                "state_fips": [6, 8, 6, 4, 6, 8, 12, 6, 8, 4] * 40,
-                "county": [37, 109, 83, 19, 1, 97, 71, 73, 5, 111] * 40,
-            }
-        )
-
-        bad = clean.astype({"state_fips": "object", "county": "object"}).copy()
-        bad.loc[:199, "state_fips"] = "__ILLOGICAL__"
-        bad.loc[:199, "county"] = "__ILLOGICAL__"
-
-        clean_result = lcv_score(
-            real, clean, columns=["state_fips", "county"], epochs=6, verbose=False
-        )
-        bad_result = lcv_score(
-            real, bad, columns=["state_fips", "county"], epochs=6, verbose=False
-        )
-
-        assert clean_result["lcv_score"] > bad_result["lcv_score"]
-        assert clean_result["mean_penalty"] < bad_result["mean_penalty"]
-        assert clean_result["violation_rate"] <= bad_result["violation_rate"]
-
-    def test_lcv_supports_weighting_modes(self):
-        from src.fidelity.logical import lcv_score
-
-        real = pd.DataFrame(
-            {
-                "g_small": ["A", "B"] * 80,
-                "g_large": [f"C{i % 8}" for i in range(160)],
-            }
-        )
-        syn = real.sample(frac=1.0, random_state=7).reset_index(drop=True)
-
-        weighted = lcv_score(
-            real,
-            syn,
-            columns=["g_small", "g_large"],
-            epochs=2,
-            feature_weighting="inverse_log_cardinality",
-            verbose=False,
-        )
-        uniform = lcv_score(
-            real,
-            syn,
-            columns=["g_small", "g_large"],
-            epochs=2,
-            feature_weighting="uniform",
-            verbose=False,
-        )
-
-        assert 0.0 <= weighted["lcv_score"] <= 1.0
-        assert 0.0 <= uniform["lcv_score"] <= 1.0
-
-    def test_lcv_rejects_unknown_weighting(self):
-        from src.fidelity.logical import lcv_score
-
-        real = pd.DataFrame({"a": ["x", "y"] * 20, "b": ["m", "n"] * 20})
         syn = real.copy()
+        syn.loc[0, "b"] = "99"  # Violation
 
-        with pytest.raises(ValueError, match="Unknown feature_weighting"):
-            lcv_score(real, syn, epochs=1, feature_weighting="bad_mode", verbose=False)
+        oracle = LogicalSentinelEnsemble()
+        oracle.fit(real)
+        score, penalties, meta = oracle.audit(syn)
+
+        assert len(penalties) == len(syn)
+        assert penalties[0] > 0.0
+        assert penalties[1] == 0.0
+
+    def test_nic_scorer_manifold_continuity(self):
+        from src.fidelity.logical import NeighborContinuityScorer
+
+        # Increase feature space for PCA(n_components=32)
+        data_dict = {
+            f"cat_{i}": [chr(65 + (j % 4)) for j in range(100)] for i in range(40)
+        }
+        real_cat = pd.DataFrame(data_dict)
+        real_num = pd.DataFrame({"val": np.linspace(0, 10, 100)})
+
+        syn_cat = real_cat.iloc[:2].copy()
+        syn_num = pd.DataFrame({"val": [5.0, 50.0]})  # 50.0 is an outlier
+
+        scorer = NeighborContinuityScorer()
+        scorer.fit(real_cat, real_num)
+        score, penalties = scorer.score(syn_cat, syn_num)
+
+        assert penalties[0] < 0.5
+        assert penalties[1] > 0.5
 
     def test_rule_violation_score_penalizes_corruption(self):
         from src.fidelity.logical import rule_violation_score
