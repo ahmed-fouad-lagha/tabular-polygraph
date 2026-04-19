@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="https://github.com/ahmed-fouad-lagha/tabular-polygraph/blob/main/assets/logo.png" alt="Tabular Polygraph" width="200"/>
+
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
