@@ -500,16 +500,22 @@ def _print_generate_logical(report):
         return
 
     print(
-        f"    {_c('LCV violation rate    ', C.GRAY):<28}{lg.get('lcv_violation_rate_pct', '—')}%"
+        f"    {_c('Unified violation rate ', C.GRAY):<28}{lg.get('lcv_violation_rate_pct', '—')}%"
     )
     print(
-        f"    {_c('Rule violation rate   ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%"
+        f"    {_c('NIC (Continuous) rate  ', C.GRAY):<28}{lg.get('nic_violation_rate_pct', '—')}%"
     )
     print(
-        f"    {_c('Mean penalty          ', C.GRAY):<28}{lg.get('mean_penalty_pct', '—')}%"
+        f"    {_c('Rule violation rate    ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%"
     )
     print(
-        f"    {_c('Rule violations       ', C.GRAY):<28}{lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+        f"    {_c('Mean penalty           ', C.GRAY):<28}{lg.get('mean_penalty_pct', '—')}%"
+    )
+    print(
+        f"    {_c('Noise floor threshold  ', C.GRAY):<28}{lg.get('violation_threshold', '—')}"
+    )
+    print(
+        f"    {_c('Violations found       ', C.GRAY):<28}{lg.get('num_lcv_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
     )
 
 
@@ -649,6 +655,7 @@ def cmd_evaluate(args):
         target_col=target_col,
         include_downstream=bool(target_col),
         random_state=args.seed,
+        lcv_epochs=getattr(args, "lcv_epochs", 10),
         **rule_params,
     )
 
@@ -976,6 +983,13 @@ def main():
     )
     p.add_argument("--seed", type=int, default=None, metavar="INT")
     p.add_argument(
+        "--lcv-epochs",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Training epochs for the logical integrity oracle (default: 10)",
+    )
+    p.add_argument(
         "--drop-cols",
         type=str,
         default=None,
@@ -994,6 +1008,9 @@ def main():
         default="cross_sectional",
         metavar="TYPE",
         help="cross_sectional | time_series | panel",
+    )
+    p.add_argument(
+        "--lcv-epochs", type=int, default=10, help="Training epochs for neural auditor"
     )
     p.add_argument(
         "--seed",

@@ -106,8 +106,7 @@ def _logical_section(
             real,
             synthetic,
             columns=cols,
-            epochs=20,
-            verbose=False,
+            verbose=True,
             random_state=random_state,
         )
         rule_result = rule_violation_score(
@@ -128,6 +127,10 @@ def _logical_section(
             ),
             "mean_penalty_pct": round(float(lcv_result["mean_penalty"] * 100.0), 2),
             "num_lcv_violations": lcv_result["num_violations"],
+            "violation_threshold": lcv_result.get("violation_threshold"),
+            "nic_violation_rate_pct": round(
+                float(lcv_result.get("nic_violation_rate", 0) * 100.0), 2
+            ),
             "columns_used": lcv_result["columns_used"],
             "rule_violation_rate_pct": round(
                 float(rule_result["rule_violation_rate"] * 100.0), 2
@@ -155,6 +158,8 @@ def _summary_section(
     privacy_score: float,
     logical_validity: float,
     utility_report: dict,
+    n_real: int,
+    n_syn: int,
     t0: float,
 ) -> dict:
     """
@@ -217,6 +222,8 @@ def _summary_section(
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
+        "rows_real": n_real,
+        "rows_synthetic": n_syn,
         "elapsed_seconds": round(time.time() - t0, 3),
     }
 
@@ -336,6 +343,8 @@ def fidelity_report(
         privacy_score=report["privacy_basic"]["privacy_score"],
         logical_validity=logical_validity,
         utility_report=report,  # Contains stylized_facts and downstream
+        n_real=len(real),
+        n_syn=len(syn),
         t0=t0,
     )
 
@@ -420,14 +429,20 @@ def format_report(report: dict, width: int = 60) -> str:
         lines.append(f"    Status         : {lg['info']}")
     else:
         lines.append(
-            f"    LCV violation rate : {lg.get('lcv_violation_rate_pct', '—')}%"
+            f"    Unified violation rate : {lg.get('lcv_violation_rate_pct', '—')}%"
         )
         lines.append(
-            f"    Rule violation rate  : {lg.get('rule_violation_rate_pct', '—')}%"
+            f"    NIC (Continuous) rate  : {lg.get('nic_violation_rate_pct', '—')}%"
         )
-        lines.append(f"    Mean penalty         : {lg.get('mean_penalty_pct', '—')}%")
         lines.append(
-            f"    Rule violations      : {lg.get('num_rule_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
+            f"    Rule violation rate    : {lg.get('rule_violation_rate_pct', '—')}%"
+        )
+        lines.append(f"    Mean penalty           : {lg.get('mean_penalty_pct', '—')}%")
+        lines.append(
+            f"    Noise floor threshold  : {lg.get('violation_threshold', '—')}"
+        )
+        lines.append(
+            f"    Violations found       : {lg.get('num_lcv_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
         )
 
         top_rules = lg.get("top_violated_rules", [])

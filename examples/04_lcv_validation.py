@@ -112,6 +112,34 @@ def _corrupt_categorical(
     return out
 
 
+def _corrupt_continuous(
+    syn: pd.DataFrame,
+    real: pd.DataFrame,
+    num_cols: list[str],
+    corruption_level: float,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    if corruption_level <= 0.0 or not num_cols:
+        return syn.copy()
+
+    out = syn.copy()
+    for col in num_cols:
+        if col not in out.columns or col not in real.columns:
+            continue
+
+        # Add high-variance salt-and-pepper noise to break continuity
+        mask = rng.random(len(out)) < corruption_level
+        n = int(mask.sum())
+        if n == 0:
+            continue
+
+        # Swap values with random samples from real data to break semantic manifold
+        pool = real[col].dropna().to_numpy()
+        out.loc[mask, col] = rng.choice(pool, size=n, replace=True)
+
+    return out
+
+
 def _antecedent_features_from_rule(rule: dict) -> set[str]:
     features: set[str] = set()
 
@@ -240,35 +268,16 @@ def _evaluate_once(
     num_cols: list[str],
     target: str | None,
     utility_feature_mode: str,
-    lcv_epochs: int,
     seed: int,
-    lcv_weighting: str,
-    compare_uniform: bool,
 ) -> dict:
+    # Use the unified lcv_score (now handles LSE + NIC internally)
     lcv = lcv_score(
         real,
         syn,
-        columns=cat_cols,
-        epochs=lcv_epochs,
+        columns=cat_cols + num_cols,
         random_state=seed,
-        feature_weighting=lcv_weighting,
         verbose=False,
     )
-
-    lcv_uniform_score = np.nan
-    lcv_uniform_vr = np.nan
-    if compare_uniform:
-        lcv_uniform = lcv_score(
-            real,
-            syn,
-            columns=cat_cols,
-            epochs=lcv_epochs,
-            random_state=seed,
-            feature_weighting="uniform",
-            verbose=False,
-        )
-        lcv_uniform_score = float(lcv_uniform["lcv_score"])
-        lcv_uniform_vr = float(lcv_uniform["violation_rate"])
 
     rules = rule_violation_score(
         real,
@@ -308,8 +317,7 @@ def _evaluate_once(
     return {
         "lcv_score": float(lcv["lcv_score"]),
         "lcv_violation_rate": float(lcv["violation_rate"]),
-        "lcv_score_uniform": lcv_uniform_score,
-        "lcv_violation_rate_uniform": lcv_uniform_vr,
+        "nic_violation_rate": float(lcv.get("nic_violation_rate", 0.0)),
         "rule_violation_rate": float(rules["rule_violation_rate"]),
         "num_rule_violations": int(rules["num_rule_violations"]),
         "num_rules_mined": int(rules["num_rules_mined"]),
@@ -340,52 +348,18 @@ def _monotonicity_by_seed(df: pd.DataFrame, metric: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _weighted_monotonicity_equivalent(
-    weighted_strength: float,
-    uniform_strength: float,
-    has_uniform: bool,
-    tolerance: float = 0.02,
-) -> bool:
-    if not has_uniform or np.isnan(uniform_strength):
-        return True
-    return weighted_strength + tolerance >= uniform_strength
-
-
 def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
     mono_lcv = _monotonicity_by_seed(df, "lcv_score")
     mono_rule = _monotonicity_by_seed(df, "rule_violation_rate")
-    has_uniform = bool(
-        "lcv_score_uniform" in df.columns and df["lcv_score_uniform"].notna().any()
-    )
-    mono_lcv_uniform = (
-        _monotonicity_by_seed(
-            df.dropna(subset=["lcv_score_uniform"]), "lcv_score_uniform"
-        )
-        if has_uniform
-        else pd.DataFrame()
-    )
+    mono_nic = _monotonicity_by_seed(df, "nic_violation_rate")
 
     lcv_rho_mean = float(mono_lcv["rho"].mean()) if not mono_lcv.empty else 0.0
     rule_rho_mean = float(mono_rule["rho"].mean()) if not mono_rule.empty else 0.0
-    lcv_uniform_rho_mean = (
-        float(mono_lcv_uniform["rho"].mean()) if not mono_lcv_uniform.empty else np.nan
-    )
-    weighted_monotonicity_strength = abs(min(lcv_rho_mean, 0.0))
-    uniform_monotonicity_strength = abs(min(float(lcv_uniform_rho_mean), 0.0))
-    weighted_vs_uniform_gap = (
-        weighted_monotonicity_strength - uniform_monotonicity_strength
-        if has_uniform
-        else np.nan
-    )
+    nic_rho_mean = float(mono_nic["rho"].mean()) if not mono_nic.empty else 0.0
 
     ext_lcv_vs_rule = _safe_spearman(
         df["lcv_score"].to_numpy(), df["rule_violation_rate"].to_numpy()
     )
-    ext_lcv_uniform_vs_rule = (np.nan, np.nan)
-    if has_uniform:
-        ext_lcv_uniform_vs_rule = _safe_spearman(
-            df["lcv_score_uniform"].to_numpy(), df["rule_violation_rate"].to_numpy()
-        )
     ext_lcv_vs_util = (np.nan, np.nan)
     if has_utility:
         valid = df.dropna(subset=["utility_ratio"])
@@ -397,11 +371,6 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
     grouped = df.groupby("corruption_level")["lcv_score"]
     lcv_std_by_level = grouped.std(ddof=0).fillna(0.0)
     mean_lcv_std = float(lcv_std_by_level.mean()) if len(lcv_std_by_level) else 0.0
-    weighted_minus_uniform_mean = (
-        float((df["lcv_score"] - df["lcv_score_uniform"]).mean())
-        if has_uniform
-        else np.nan
-    )
 
     dominance_mean = float(df["dominant_feature_share"].mean())
     dominance_max = float(df["dominant_feature_share"].max())
@@ -430,17 +399,13 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
     checks = {
         "monotonicity_lcv": lcv_rho_mean <= -0.8,
         "monotonicity_rule": rule_rho_mean >= 0.8,
+        "monotonicity_nic": nic_rho_mean >= 0.8,
         "external_validity_rules": ext_lcv_vs_rule[0] <= -0.6,
         "external_validity_utility": (not has_utility)
         or (not np.isnan(ext_lcv_vs_util[0]) and ext_lcv_vs_util[0] >= 0.4),
         "seed_stability": mean_lcv_std <= 0.05,
         "feature_dominance": dominance_max <= 0.5,
         "practical_separability": separability_rate >= 0.6,
-        "weighted_vs_uniform_monotonicity": _weighted_monotonicity_equivalent(
-            weighted_monotonicity_strength,
-            uniform_monotonicity_strength,
-            has_uniform,
-        ),
     }
 
     return {
@@ -448,17 +413,13 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
         "check_pass_rate": float(sum(checks.values()) / len(checks)),
         "stats": {
             "lcv_monotonicity_rho_mean": lcv_rho_mean,
-            "lcv_uniform_monotonicity_rho_mean": lcv_uniform_rho_mean,
-            "weighted_vs_uniform_monotonicity_gap": weighted_vs_uniform_gap,
             "rule_monotonicity_rho_mean": rule_rho_mean,
+            "nic_monotonicity_rho_mean": nic_rho_mean,
             "lcv_vs_rule_rho": ext_lcv_vs_rule[0],
             "lcv_vs_rule_pvalue": ext_lcv_vs_rule[1],
-            "lcv_uniform_vs_rule_rho": ext_lcv_uniform_vs_rule[0],
-            "lcv_uniform_vs_rule_pvalue": ext_lcv_uniform_vs_rule[1],
             "lcv_vs_utility_rho": ext_lcv_vs_util[0],
             "lcv_vs_utility_pvalue": ext_lcv_vs_util[1],
             "mean_lcv_std_across_corruption_levels": mean_lcv_std,
-            "weighted_minus_uniform_mean": weighted_minus_uniform_mean,
             "dominant_feature_share_mean": dominance_mean,
             "dominant_feature_share_max": dominance_max,
             "separability_rate": separability_rate,
@@ -504,26 +465,14 @@ def main() -> None:
             "Use categorical_target_encoded for LCV-aligned external validity."
         ),
     )
-    parser.add_argument("--lcv-epochs", type=int, default=10)
-    parser.add_argument(
-        "--lcv-weighting",
-        type=str,
-        default="inverse_log_cardinality",
-        choices=["inverse_log_cardinality", "uniform"],
-    )
-    parser.add_argument(
-        "--no-uniform-baseline",
-        action="store_true",
-        help="Skip side-by-side uniform-weight LCV baseline.",
-    )
+    parser.add_argument("--lcv-epochs", type=int, default=50)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
-    parser.add_argument("--output-dir", type=str, default="examples")
+    parser.add_argument("--output-dir", type=str, default="results")
     args = parser.parse_args()
 
     seeds = _parse_int_list(args.seeds)
     levels = _parse_float_list(args.corruption_levels)
     drop_cols = _parse_str_list(args.drop_cols)
-    compare_uniform = not args.no_uniform_baseline
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -552,7 +501,10 @@ def main() -> None:
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))
+            # Apply Mixed Corruption: Both categorical and continuous
             syn = _corrupt_categorical(base_syn, real, cat_cols, level, rng)
+            syn = _corrupt_continuous(syn, real, num_cols, level, rng)
+
             metrics = _evaluate_once(
                 real=real,
                 syn=syn,
@@ -560,10 +512,7 @@ def main() -> None:
                 num_cols=num_cols,
                 target=args.target,
                 utility_feature_mode=args.utility_feature_mode,
-                lcv_epochs=args.lcv_epochs,
                 seed=seed,
-                lcv_weighting=args.lcv_weighting,
-                compare_uniform=compare_uniform,
             )
             rows.append(
                 {
@@ -575,8 +524,8 @@ def main() -> None:
                 }
             )
             print(
-                f"  level={level:>4.2f} | lcv_w={metrics['lcv_score']:.4f} | "
-                f"lcv_u={metrics['lcv_score_uniform']:.4f} | "
+                f"  level={level:>4.2f} | lcv={metrics['lcv_score']:.4f} | "
+                f"nic_vr={metrics['nic_violation_rate']:.4f} | "
                 f"rule_vr={metrics['rule_violation_rate']:.4f} | "
                 f"mm={metrics['moment_matching_score']:.2f} | "
                 f"joint={metrics['joint_score']:.2f}",

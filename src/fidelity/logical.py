@@ -14,25 +14,15 @@ LCV Score ∈ [0, 1] is the geometric mean of the per-feature conditional
 probabilities, averaged across synthetic rows.
 """
 
-from __future__ import annotations
-import warnings
-import os
 import random
 import numpy as np
 import pandas as pd
-from typing import Any, Tuple
-
-warnings.filterwarnings("ignore")
-
-try:
-    import torch
-    import torch.nn as nn
-    import torch.nn.functional as F
-    import torch.optim as optim
-
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+from typing import Any, Tuple, Dict, List
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import mutual_info_score
+from sklearn.decomposition import PCA
 
 
 _ANTE_JOIN = " & "
@@ -127,333 +117,190 @@ def _canonicalize_code_columns(
     return real_norm, synthetic_norm
 
 
-class LCVAutoencoder(nn.Module):
+class LogicalSentinelEnsemble:
     """
-    Under-complete denoising autoencoder trained on categorical tabular data.
-    Serves as the frozen "Laws of Physics" oracle for semantic validation.
+    Neuro-Symbolic Integrity Oracle (LSE).
+    Learns 'Manifold Laws' using Random Forest Sentinels on high-dependency hubs.
     """
 
-    def __init__(
-        self,
-        input_dim: int,
-        hidden_dim: int,
-        learning_rate: float = 0.005,
-        feature_groups: list[list[int]] | None = None,
-    ):
-        super(LCVAutoencoder, self).__init__()
-        assert hidden_dim < input_dim, (
-            "Hidden dimension must compress input for under-complete design."
-        )
-
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.learning_rate = learning_rate
-        self.weight_decay = 1e-5
-        self._group_sizes: list[int] | None = None
-
-        # For categorical tabular data, dropout-denoising is more stable than Gaussian perturbation.
-        self.input_dropout = nn.Dropout(p=0.1)
-
-        dim_1 = min(256, max(64, input_dim * 2))
-        dim_2 = min(128, max(32, input_dim))
-        self._cond_dim = dim_2
-
-        # Deep Bottleneck for semantic extraction
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, dim_1),
-            nn.BatchNorm1d(dim_1),
-            nn.ReLU(),
-            nn.Linear(dim_1, dim_2),
-            nn.ReLU(),
-            nn.Linear(dim_2, hidden_dim),
-            nn.ReLU(),
-        )
-        self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, dim_2),
-            nn.ReLU(),
-            nn.Linear(dim_2, dim_1),
-            nn.ReLU(),
-            nn.Linear(dim_1, input_dim),
-            nn.Sigmoid(),
-        )
-
-        # Optional conditional heads for masked group-wise scoring.
-        self.conditional_trunk: nn.Module | None = None
-        self.group_heads: nn.ModuleList | None = None
-        if feature_groups:
-            self._init_group_heads(feature_groups)
-
-        self.optimizer = optim.Adam(
-            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
-        )
-        self.criterion = nn.BCELoss()
+    def __init__(self, top_n_hubs: int = 5, random_state: int = 42):
+        self.top_n_hubs = top_n_hubs
+        self.random_state = random_state
+        self.sentinels: Dict[str, RandomForestClassifier] = {}
+        self.hubs: List[str] = []
+        self.confidence_floors: Dict[str, float] = {}
         self.is_trained = False
 
-    def _reset_optimizer(self) -> None:
-        self.optimizer = optim.Adam(
-            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
-        )
+    def _calculate_dependency_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Discover 'Dependency Hubs' using Normalized Mutual Information."""
+        cols = df.columns
+        n = len(cols)
+        matrix = np.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    matrix[i, j] = 1.0
+                    continue
+                mi = mutual_info_score(df[cols[i]], df[cols[j]])
+                matrix[i, j] = mi
+        return pd.DataFrame(matrix, index=cols, columns=cols)
 
-    def _init_group_heads(self, feature_groups: list[list[int]]) -> None:
-        if not feature_groups:
-            raise ValueError("feature_groups must be non-empty for conditional heads.")
+    def fit(self, df: pd.DataFrame, verbose: bool = True):
+        """Train Sentinels on Ground-Truth 'Laws'."""
+        if len(df) < 50:
+            return
 
-        self._group_sizes = [len(g) for g in feature_groups]
-        self.conditional_trunk = nn.Sequential(
-            nn.Linear(self.hidden_dim, self._cond_dim),
-            nn.ReLU(),
-        )
-        self.group_heads = nn.ModuleList(
-            [nn.Linear(self._cond_dim, size) for size in self._group_sizes]
-        )
-        self._reset_optimizer()
+        mi_matrix = self._calculate_dependency_matrix(df)
+        hub_scores = mi_matrix.sum(axis=1).sort_values(ascending=False)
+        self.hubs = hub_scores.head(self.top_n_hubs).index.tolist()
 
-    def _encode(self, x: torch.Tensor) -> torch.Tensor:
-        if self.training:
-            x = self.input_dropout(x)
-        return self.encoder(x)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        latent = self._encode(x)
-        reconstruction = self.decoder(latent)
-        return reconstruction
-
-    def _forward_group_logits(self, x: torch.Tensor) -> list[torch.Tensor]:
-        if self.conditional_trunk is None or self.group_heads is None:
-            raise RuntimeError(
-                "Conditional heads are not initialized. Provide feature_groups to fit/evaluate."
-            )
-        latent = self._encode(x)
-        shared = self.conditional_trunk(latent)
-        return [head(shared) for head in self.group_heads]
-
-    def fit(
-        self,
-        real_tensor: torch.Tensor,
-        epochs: int = 30,
-        batch_size: int = 128,
-        feature_groups: list[list[int]] | None = None,
-        verbose: bool = True,
-    ):
-        """
-        Phase 1: Learn structural patterns from real data in O(n) time.
-
-        Parameters
-        ----------
-        real_tensor : torch.Tensor
-            One-hot encoded real data, shape (n_samples, n_features)
-        epochs : int
-            Number of training epochs
-        batch_size : int
-            Batch size for SGD
-        feature_groups : list[list[int]] | None
-            Optional one-hot feature groups. If provided, trains with masked
-            conditional objective by hiding one feature group per batch and
-            maximizing the observed category probability within that group.
-        verbose : bool
-            Print training progress
-        """
         if verbose:
-            print(f"[LCV] Training on {len(real_tensor)} real records...")
+            print(f"  [HIF Hubs] Discovered {len(self.hubs)} Logical Hubs: {self.hubs}")
 
-        if len(real_tensor) == 0:
-            raise ValueError("LCVAutoencoder.fit received empty training data.")
+        for hub_col in self.hubs:
+            other_cols = [c for c in df.columns if c != hub_col]
+            # Use categorical encoding for the forest and save feature space
+            X = pd.get_dummies(df[other_cols], drop_first=True)
+            y = df[hub_col]
 
-        if feature_groups:
-            requested_sizes = [len(g) for g in feature_groups]
-            if self.group_heads is None or self.conditional_trunk is None:
-                self._init_group_heads(feature_groups)
-            elif self._group_sizes != requested_sizes:
-                raise ValueError(
-                    "feature_groups mismatch with initialized conditional heads."
-                )
+            clf = RandomForestClassifier(
+                n_estimators=100,
+                max_depth=12,
+                random_state=self.random_state,
+                n_jobs=-1,
+            )
+            clf.fit(X, y)
+            self.sentinels[hub_col] = clf
 
-        # Ensure at least one batch even for small datasets.
-        batch_size = max(1, min(int(batch_size), len(real_tensor)))
-
-        self.train()
-        dataset = torch.utils.data.TensorDataset(real_tensor)
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=True,
-            drop_last=False,
-            num_workers=0,
-        )
-
-        for epoch in range(epochs):
-            epoch_loss = 0.0
-            for (batch_x,) in dataloader:
-                self.optimizer.zero_grad()
-
-                if feature_groups:
-                    group_idx = int(torch.randint(len(feature_groups), (1,)).item())
-                    indices = feature_groups[group_idx]
-                    masked_batch = batch_x.clone()
-                    masked_batch[:, indices] = 0.0
-
-                    logits_list = self._forward_group_logits(masked_batch)
-                    logits = logits_list[group_idx]
-                    group_target = batch_x[:, indices]
-                    valid_mask = group_target.sum(dim=1) > 0
-                    if not valid_mask.any():
-                        continue
-
-                    target_idx = group_target[valid_mask].argmax(dim=1).long()
-                    loss = F.cross_entropy(logits[valid_mask], target_idx)
-                else:
-                    outputs = self.forward(batch_x)
-                    loss = self.criterion(outputs, batch_x)
-
-                loss.backward()
-                self.optimizer.step()
-
-                epoch_loss += loss.item()
-
-            if verbose and (epoch + 1) % max(1, epochs // 3) == 0:
-                avg_loss = epoch_loss / len(dataloader)
-                print(f"[LCV] Epoch [{epoch + 1}/{epochs}], Loss: {avg_loss:.4f}")
+            # Establish the 'Certainty Law' (Confidence Floor)
+            probs = clf.predict_proba(X)
+            max_probs = np.max(probs, axis=1)
+            # Use 1st percentile as a strict law boundary
+            self.confidence_floors[hub_col] = float(np.percentile(max_probs, 1))
 
         self.is_trained = True
-        if verbose:
-            print("[LCV] Semantic extraction complete.")
 
-    def evaluate(
-        self,
-        synth_tensor: torch.Tensor,
-        feature_groups: list[list[int]] | None = None,
-        feature_weights: list[float] | np.ndarray | None = None,
-    ) -> Tuple[float, np.ndarray]:
-        """
-        Phase 2: Grade synthetic data using masked feature-group conditionals.
-
-        Parameters
-        ----------
-        synth_tensor : torch.Tensor
-            One-hot encoded synthetic data, shape (n_samples, n_features)
-
-        Returns
-        -------
-        lcv_score : float
-            LCV fidelity ∈ [0, 1]. Higher is better (1.0 = perfect logical alignment).
-        row_penalties : np.ndarray
-            Per-row Continuous Semantic Severity Penalty ∈ [0, 1].
-        """
+    def audit(self, df: pd.DataFrame) -> Tuple[float, np.ndarray, Dict[str, Any]]:
+        """Audit synthetic rows for 'Logical Ruptures'."""
         if not self.is_trained:
-            raise RuntimeError("LCVAutoencoder must be fitted first.")
+            return 1.0, np.zeros(len(df)), {}
 
-        self.eval()
-        with torch.no_grad():
-            if feature_groups:
-                feature_scores = []
-                for group_idx, indices in enumerate(feature_groups):
-                    masked_tensor = synth_tensor.clone()
-                    masked_tensor[:, indices] = 0.0
+        row_penalties = np.zeros(len(df))
+        traces = []
 
-                    logits_list = self._forward_group_logits(masked_tensor)
-                    probs = torch.softmax(logits_list[group_idx], dim=1)
-                    group_target = synth_tensor[:, indices]
-                    valid_mask = group_target.sum(dim=1) > 0
+        for hub_col in self.hubs:
+            clf = self.sentinels[hub_col]
+            other_cols = [c for c in df.columns if c != hub_col]
+            X = pd.get_dummies(df[other_cols], drop_first=True)
+            X = X.reindex(columns=clf.feature_names_in_, fill_value=0)
 
-                    selected_probs = torch.ones(
-                        synth_tensor.shape[0], device=synth_tensor.device
-                    )
-                    if valid_mask.any():
-                        target_idx = group_target[valid_mask].argmax(dim=1).long()
-                        selected_probs[valid_mask] = probs[valid_mask, target_idx]
+            probs = clf.predict_proba(X)
+            max_probs = np.max(probs, axis=1)
 
-                    feature_scores.append(selected_probs.clamp(1e-6, 1.0))
+            floor = self.confidence_floors[hub_col]
+            # Semantic Penalty: Proportional distance from the ground-truth floor
+            penalty = np.clip((floor - max_probs) / max(1e-5, floor), 0, 1)
+            row_penalties = np.maximum(row_penalties, penalty)
 
-                feature_matrix = torch.stack(feature_scores, dim=1).clamp_min(1e-6)
-                if feature_weights is None:
-                    per_row_score = torch.exp(torch.log(feature_matrix).mean(dim=1))
-                else:
-                    weights = torch.as_tensor(
-                        feature_weights,
-                        dtype=feature_matrix.dtype,
-                        device=feature_matrix.device,
-                    )
-                    if weights.ndim != 1 or weights.numel() != feature_matrix.shape[1]:
-                        raise ValueError(
-                            "feature_weights must be a 1D vector with one weight per feature group"
-                        )
-                    weights = weights.clamp_min(1e-9)
-                    weights = weights / weights.sum()
-                    per_row_score = torch.exp(
-                        (torch.log(feature_matrix) * weights).sum(dim=1)
-                    )
-                row_penalties = (1.0 - per_row_score).cpu().numpy()
-                lcv_score = float(per_row_score.mean().item())
-                return lcv_score, row_penalties
+            ruptures = max_probs < (floor * 0.1)  # 10x drop in confidence
+            if ruptures.any():
+                traces.append(
+                    {
+                        "column": hub_col,
+                        "violations": int(ruptures.sum()),
+                        "mean_prob": float(max_probs[ruptures].mean()),
+                    }
+                )
 
-            # Backward-compatible fallback: use the stricter minimum-over-hot-bits score.
-            expected_probs = self.forward(synth_tensor)
-            chosen_probs = expected_probs * synth_tensor
-            masked_probs = chosen_probs.clone()
-            masked_probs[synth_tensor == 0] = 1.0
-            min_row_prob = masked_probs.min(dim=1).values
-            row_penalties_tensor = 1.0 - min_row_prob
-            lcv_score = 1.0 - row_penalties_tensor.mean().item()
-            return lcv_score, row_penalties_tensor.cpu().numpy()
+        lcv_score = 1.0 - row_penalties.mean()
+        return lcv_score, row_penalties, {"traces": traces}
+
+
+class NeighborContinuityScorer:
+    """
+    Audits continuous features by measuring their 'Semantic Adjacency Residual'
+    within the categorical manifold. Detects economic hallucinations.
+    """
+
+    def __init__(self, random_state: int = 42):
+        self.regressors: Dict[str, Ridge] = {}
+        self.scalers: Dict[str, StandardScaler] = {}
+        self.z_thresholds: Dict[str, float] = {}
+        self.pca = PCA(n_components=32, random_state=random_state)
+        self.random_state = random_state
+
+    def fit(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame):
+        """Establish the 'Semantic Latent Space' using categorical features."""
+        # Internal Manifold Projection
+        self.manifold_features = pd.get_dummies(categorical_df, drop_first=True)
+        latent = self.pca.fit_transform(self.manifold_features)
+
+        for col in continuous_df.columns:
+            y = continuous_df[col].values
+            scaler = StandardScaler()
+            y_scaled = scaler.fit_transform(y.reshape(-1, 1)).flatten()
+
+            reg = Ridge(alpha=1.0, random_state=self.random_state)
+            reg.fit(latent, y_scaled)
+
+            y_pred = reg.predict(latent)
+            residuals = np.abs(y_scaled - y_pred)
+
+            self.regressors[col] = reg
+            self.scalers[col] = scaler
+            self.z_thresholds[col] = float(np.percentile(residuals, 95))
+
+    def score(
+        self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame
+    ) -> Tuple[float, np.ndarray]:
+        """Audit continuous features against the learned categorical manifold."""
+        if not self.regressors:
+            return 1.0, np.zeros(len(continuous_df))
+
+        # Internal Manifold Alignment
+        syn_dummy = pd.get_dummies(categorical_df, drop_first=True)
+        # Force alignment with ground-truth manifold
+        syn_dummy = syn_dummy.reindex(
+            columns=self.manifold_features.columns, fill_value=0
+        )
+        latent = self.pca.transform(syn_dummy)
+
+        row_penalties = np.zeros(len(continuous_df))
+        for col in continuous_df.columns:
+            y = continuous_df[col].values
+            y_scaled = self.scalers[col].transform(y.reshape(-1, 1)).flatten()
+            y_pred = self.regressors[col].predict(latent)
+
+            residuals = np.abs(y_scaled - y_pred)
+
+            # Normalize by real-world threshold.
+            # Penalty scales from 0 to 1 as residual exceeds expected noise.
+            threshold = self.z_thresholds[col]
+            if threshold > 0:
+                # We use 2.5x the noise floor as the 'Absolute Hallucination' boundary
+                col_penalty = np.clip(residuals / (threshold * 2.5), 0, 1)
+            else:
+                col_penalty = np.zeros_like(residuals)
+
+            # Aggregate using Max-L (maximum-logical-impossibility)
+            row_penalties = np.maximum(row_penalties, col_penalty)
+
+        avg_score = 1.0 - row_penalties.mean()
+        return float(avg_score), row_penalties
 
 
 def lcv_score(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str] | None = None,
-    epochs: int = 30,
     random_state: int = 42,
-    feature_weighting: str = "inverse_log_cardinality",
     verbose: bool = True,
 ) -> dict:
     """
-    Compute LCV logical constraint validation score.
+    Compute HIF (Holistic Integrity Framework) score.
 
-    Trains an autoencoder on categorical real data and evaluates whether
-    the synthetic data respects the learned semantic boundaries.
-
-    Parameters
-    ----------
-    real : pd.DataFrame
-        Real tabular data
-    synthetic : pd.DataFrame
-        Synthetic tabular data
-    columns : list[str] | None
-        Columns to evaluate. If None, uses all categorical columns present in both.
-    epochs : int
-        Training epochs for autoencoder
-    random_state : int
-        Random seed for deterministic LCV training/evaluation
-    feature_weighting : str
-        Aggregation weighting for feature groups: "uniform" or
-        "inverse_log_cardinality".
-    verbose : bool
-        Print progress
-
-    Returns
-    -------
-    dict
-        Contains:
-        - lcv_score : float ∈ [0, 1]
-        - row_penalties : np.ndarray
-        - violation_rate : float (fraction of rows with penalty > 0.5)
-        - mean_penalty : float
-        - columns_used : list[str]
+    Uses Logical Sentinel Ensembles (LSE) to discover and audit manifold laws.
     """
-    if not TORCH_AVAILABLE:
-        raise ImportError("LCV requires PyTorch. Install with: pip install torch")
-
-    # Keep LCV reproducible across repeated evaluations.
-    if TORCH_AVAILABLE:
-        # Enforce absolute determinism for research-grade reproducibility.
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-        torch.use_deterministic_algorithms(True, warn_only=True)
-        torch.manual_seed(int(random_state))
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(int(random_state))
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-
     np.random.seed(int(random_state))
     random.seed(int(random_state))
 
@@ -461,105 +308,60 @@ def lcv_score(
     if columns is None:
         columns = real.columns.intersection(synthetic.columns).tolist()
 
-    # High-Cardinality Guardrail: Skip columns with > 500 unique values
-    # These often represent identifiers (e.g. Tract IDs) which cause
-    # sparse tensor explosion in the Neural Autoencoder.
     valid_cols = []
     skipped_cols = []
     for col in columns:
-        cardinality = real[col].nunique()
-        if cardinality > 500:
-            skipped_cols.append((col, cardinality))
+        if pd.api.types.is_numeric_dtype(real[col]):
+            skipped_cols.append(col)
         else:
             valid_cols.append(col)
 
-    if skipped_cols and verbose:
-        skipped_names = ", ".join([f"{c} ({n})" for c, n in skipped_cols])
-        print(
-            f"      [LCV Warning] Skipping high-cardinality features for neural audit: {skipped_names}"
-        )
-
     if not valid_cols:
-        # Fallback to symbolic-only or return perfection if no logical features
-        row_penalties = np.zeros(len(synthetic), dtype=float)
         return {
             "lcv_score": 1.0,
-            "row_penalties": row_penalties,
+            "row_penalties": np.zeros(len(synthetic)),
             "violation_rate": 0.0,
             "mean_penalty": 0.0,
             "num_violations": 0,
             "columns_used": [],
         }
 
-    cols = valid_cols
+    # 1. Pre-process: Discretize and Canonicalize
+    real_logic = _adaptive_binning(real[valid_cols], valid_cols)
+    syn_logic = _adaptive_binning(synthetic[valid_cols], valid_cols)
+    real_f, synthetic_f = _canonicalize_code_columns(real_logic, syn_logic, valid_cols)
 
-    # Pre-process: Discretize numerics so the autoencoder can extract semantic boundaries
-    real_logic = _adaptive_binning(real[cols], cols)
-    syn_logic = _adaptive_binning(synthetic[cols], cols)
+    # 2. Categorical Integrity Audit (LSE)
+    oracle = LogicalSentinelEnsemble(random_state=random_state)
+    oracle.fit(real_f, verbose=verbose)
+    lcv_score_val, row_penalties, meta = oracle.audit(synthetic_f)
 
-    real_f, synthetic_f = _canonicalize_code_columns(real_logic, syn_logic, cols)
+    # 3. Continuity Audit (NIC Breakthrough)
+    nic_violation_rate = 0.0
+    if skipped_cols:
+        if verbose:
+            print(
+                f"  [NIC Audit] Auditing {len(skipped_cols)} continuous features using LSE Manifold."
+            )
 
-    # One-hot encode
-    real_encoded = pd.get_dummies(
-        real_f[cols], drop_first=False, prefix_sep="__"
-    ).astype(np.float32)
-    syn_encoded = pd.get_dummies(
-        synthetic_f[cols], drop_first=False, prefix_sep="__"
-    ).astype(np.float32)
-
-    # Align feature spaces
-    all_features = sorted(set(real_encoded.columns) | set(syn_encoded.columns))
-    real_encoded = real_encoded.reindex(columns=all_features, fill_value=0.0)
-    syn_encoded = syn_encoded.reindex(columns=all_features, fill_value=0.0)
-
-    real_encoded_arr = real_encoded[all_features].values
-    syn_encoded_arr = syn_encoded[all_features].values
-
-    feature_groups = _feature_groups_from_encoded_columns(all_features)
-
-    if len(all_features) <= 1:
-        row_penalties = np.zeros(len(syn_encoded_arr), dtype=float)
-        return {
-            "lcv_score": 1.0,
-            "row_penalties": row_penalties,
-            "violation_rate": 0.0,
-            "mean_penalty": 0.0,
-            "num_violations": 0,
-            "columns_used": cols,
-        }
-
-    # Keep inputs in float32 to match model parameter dtype in PyTorch.
-    real_tensor = torch.tensor(real_encoded_arr, dtype=torch.float32)
-    syn_tensor = torch.tensor(syn_encoded_arr, dtype=torch.float32)
-
-    # Train and evaluate
-    input_dim = real_tensor.shape[1]
-    hidden_dim = max(1, int(input_dim * 0.5))  # Under-complete bottleneck
-
-    model = LCVAutoencoder(
-        input_dim=input_dim,
-        hidden_dim=hidden_dim,
-        feature_groups=feature_groups,
-    )
-    model.fit(
-        real_tensor,
-        epochs=epochs,
-        feature_groups=feature_groups,
-        verbose=verbose,
-    )
-
-    feature_weights = _feature_weight_vector(feature_groups, feature_weighting)
-
-    with torch.no_grad():
-        lcv_score_val, row_penalties = model.evaluate(
-            syn_tensor,
-            feature_groups=feature_groups,
-            feature_weights=feature_weights,
+        # We pass the Hub Categorical Features as the 'Semantic Manifold' foundation
+        manifold_cols = oracle.hubs
+        nic_auditor = NeighborContinuityScorer(random_state=random_state)
+        nic_auditor.fit(real_f[manifold_cols], real[skipped_cols])
+        nic_score_val, nic_penalties = nic_auditor.score(
+            synthetic_f[manifold_cols], synthetic[skipped_cols]
         )
 
-    # Compute violation metrics
-    violation_threshold = 0.5
-    num_violations = (row_penalties > violation_threshold).sum()
+        # Multiplicative Integrity: Compounding failures across semantic layers.
+        # validity = (1 - cat_error) * (1 - num_error)
+        row_validity = (1.0 - row_penalties) * (1.0 - nic_penalties)
+        row_penalties = 1.0 - row_validity
+        lcv_score_val = row_validity.mean()
+        nic_violation_rate = (nic_penalties > 0.5).mean()
+
+    # 4. Final Thresholding (Rule-based Alignment)
+    # Hallucinations are rows with significant logic gaps (>0.5 penalty)
+    num_violations = (row_penalties > 0.5).sum()
     violation_rate = float(num_violations / len(row_penalties))
 
     return {
@@ -568,7 +370,10 @@ def lcv_score(
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),
         "num_violations": int(num_violations),
-        "columns_used": cols,
+        "violation_threshold": 0.5,
+        "nic_violation_rate": round(float(nic_violation_rate), 4),
+        "columns_used": valid_cols + skipped_cols,
+        "traces": meta.get("traces", []),
     }
 
 

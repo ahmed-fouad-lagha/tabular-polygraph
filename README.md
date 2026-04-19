@@ -47,10 +47,9 @@ Establish a ground truth evaluation during generation, then reproduce it perfect
 ```bash
 # 1. Download and Generate
 python main.py download census_acs
-python main.py generate census_acs --rows 100 --seed 42 --output synthetic.csv --drop-cols tract_id
+python main.py generate census_acs --rows 100 --seed 42 --output synthetic.csv
 
-# 2. Standalone Evaluation (Bit-for-Bit Parity)
-# No need to drop 'syn_id' or 'tract_id' — Alignment is autonomous.
+# 2. Standalone Evaluation
 python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --seed 42
 ```
 
