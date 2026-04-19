@@ -138,7 +138,7 @@ class VineCopulaGenerator(BaseGenerator):
             trunc_lvl=self._trunc_lvl,
             num_threads=1,
         )
-        self._vine = pv.Vinecop(data=U, controls=controls)
+        self._vine = pv.Vinecop.from_data(data=U, controls=controls)
         self._fitted = True
         return self
 

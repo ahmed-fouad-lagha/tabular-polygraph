@@ -1,4 +1,10 @@
 from .base import BaseGenerator
-from .cross_sectional import GaussianCopulaGenerator
+from .cross_sectional import GaussianCopulaGenerator, VineCopulaGenerator
+from .deep import CTGANGenerator
 
-__all__ = ["BaseGenerator", "GaussianCopulaGenerator"]
+__all__ = [
+    "BaseGenerator",
+    "GaussianCopulaGenerator",
+    "VineCopulaGenerator",
+    "CTGANGenerator",
+]
