@@ -23,6 +23,7 @@ from src.generators import GaussianCopulaGenerator, VineCopulaGenerator, CTGANGe
 from src.fidelity import hif_score
 from src.utils import numeric_columns
 
+
 def _get_generator(gen_type: str, epochs: int = 300):
     if gen_type == "gaussian":
         return GaussianCopulaGenerator()
@@ -33,58 +34,117 @@ def _get_generator(gen_type: str, epochs: int = 300):
     else:
         raise ValueError(f"Unknown generator type: {gen_type}")
 
-def run_audit(dataset_id: str, gen_type: str, rows: int = 2000, seed: int = 42, epochs: int = 100):
+
+def run_audit(
+    dataset_id: str, gen_type: str, rows: int = 1000, seed: int = 42, epochs: int = 50
+):
     print(f"\n[Audit] Dataset: {dataset_id} | Generator: {gen_type}")
-    
+
     # 1. Load Real Data
-    real_df = load_dataset(dataset_id, n=rows * 2)
-    
+    try:
+        raw_df = load_dataset(dataset_id, n=50000).dropna()
+        if len(raw_df) < 100:
+            print(
+                f"  Skipping {dataset_id}: insufficient rows ({len(raw_df)}) after dropna"
+            )
+            return None
+
+        n_available = len(raw_df)
+        rows = min(rows, n_available // 2)
+        real_df = raw_df.sample(rows * 2, random_state=seed)
+        print(f"  Using {rows * 2} real records for {dataset_id}")
+    except Exception as e:
+        print(f"  Error loading {dataset_id}: {e}")
+        return None
+
     # 2. Fit and Generate Synthetic
-    print(f"  Fitting {gen_type} generator...")
-    gen = _get_generator(gen_type, epochs=epochs)
-    gen.fit(real_df)
-    
-    print(f"  Generating {rows} synthetic records...")
-    syn_df = gen.generate(rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
-    
+    try:
+        print(f"  Fitting {gen_type} generator...")
+        gen = _get_generator(gen_type, epochs=epochs)
+        gen.fit(real_df)
+
+        print(f"  Generating {rows} synthetic records...")
+        syn_df = gen.generate(rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
+    except Exception as e:
+        print(f"  Error fitting/generating {dataset_id} with {gen_type}: {e}")
+        return None
+
     # 3. Evaluate Integrity (Base)
-    print("  Evaluating HIF base integrity...")
-    base_res = hif_score(real_df, syn_df, verbose=False)
-    base_hif = base_res["hif_score"]
-    
+    try:
+        print("  Evaluating HIF base integrity...")
+        base_res = hif_score(real_df, syn_df, verbose=False)
+        base_hif = base_res["hif_score"]
+    except Exception as e:
+        print(f"  Error evaluating base HIF for {dataset_id}: {e}")
+        return None
+
+    # 4. Corruption Sensitivity Check
+    try:
+        # Swap 30% of categorical values to force hallucinations
+        corrupt_syn = syn_df.copy()
+        numeric_cols = [
+            c for c in syn_df.columns if pd.api.types.is_numeric_dtype(syn_df[c])
+        ]
+        cat_cols = [c for c in syn_df.columns if c not in numeric_cols]
+
+        if not cat_cols:
+            print(
+                f"  No categorical columns in {dataset_id}, skipping corruption check."
+            )
+            corr_hif = base_hif  # Dummy
+        else:
+            for col in cat_cols:
+                mask = np.random.rand(len(corrupt_syn)) < 0.3
+                unique_vals = real_df[col].unique()
+                corrupt_syn.loc[mask, col] = np.random.choice(
+                    unique_vals, size=mask.sum()
+                )
+
+            print("  Evaluating HIF corrupted sensitivity...")
+            corr_res = hif_score(real_df, corrupt_syn, verbose=False)
+            corr_hif = corr_res["hif_score"]
+    except Exception as e:
+        print(f"  Error evaluating corrupted HIF for {dataset_id}: {e}")
+        corr_hif = base_hif  # Fallback
+
     # 4. Corruption Sensitivity Check
     # Swap 30% of categorical values to force hallucinations
     corrupt_syn = syn_df.copy()
     cat_cols = [c for c in syn_df.columns if c not in numeric_columns(syn_df)]
     for col in cat_cols:
         mask = np.random.rand(len(corrupt_syn)) < 0.3
-        corrupt_syn.loc[mask, col] = np.random.choice(real_df[col].unique(), size=mask.sum())
-        
+        corrupt_syn.loc[mask, col] = np.random.choice(
+            real_df[col].unique(), size=mask.sum()
+        )
+
     print("  Evaluating HIF corrupted sensitivity...")
     corr_res = hif_score(real_df, corrupt_syn, verbose=False)
     corr_hif = corr_res["hif_score"]
-    
+
     delta = base_hif - corr_hif
-    print(f"  Results: Base={base_hif:.4f} | Corrupted={corr_hif:.4f} | Delta={delta:.4f}")
-    
+    print(
+        f"  Results: Base={base_hif:.4f} | Corrupted={corr_hif:.4f} | Delta={delta:.4f}"
+    )
+
     return {
         "dataset": dataset_id,
         "generator": gen_type,
         "base_hif": base_hif,
         "corrupted_hif": corr_hif,
         "delta": delta,
-        "status": "PASS" if delta > 0.01 else "FAIL"
+        "status": "PASS" if delta > 0.01 else "FAIL",
     }
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--rows", type=int, default=1000)
-    parser.add_argument("--epochs", type=int, default=50) # Faster for testing
+    parser.add_argument("--epochs", type=int, default=50)  # Faster for testing
     args = parser.parse_args()
-    
-    datasets = ["census_acs", "bls"]
+
+    datasets = ["census_acs", "bls", "world_bank"]
     generators = ["gaussian", "vine", "ctgan"]
-    
+
     results = []
     for ds in datasets:
         for gen in generators:
@@ -93,13 +153,14 @@ if __name__ == "__main__":
                 results.append(res)
             except Exception as e:
                 print(f"  Error auditing {ds} with {gen}: {e}")
-                
+
+    results = [r for r in results if r is not None]
     df_res = pd.DataFrame(results)
-    print("\n" + "="*60)
-    print("CROSS-ARCHITECTURE MATURITY AUDIT SUMMARY")
-    print("="*60)
+    print("\n" + "=" * 60)
+    print("CROSS-ARCHITECTURE & MULTI-DOMAIN MATURITY AUDIT SUMMARY")
+    print("=" * 60)
     print(df_res)
-    print("="*60)
-    
+    print("=" * 60)
+
     df_res.to_csv("results/cross_architecture_audit.csv", index=False)
     print("\nResults saved to results/cross_architecture_audit.csv")
