@@ -1,9 +1,6 @@
 import pytest
-import pandas as pd
-import numpy as np
-import os
-from pathlib import Path
 from src.catalog.downloader import DOWNLOADERS, cache_path, is_cached, load_cached
+
 
 class TestCatalogRegistry:
     def test_registry_completeness(self):
@@ -15,12 +12,14 @@ class TestCatalogRegistry:
             # url is optional but good to have
             # assert "url" in info
 
+
 class TestCacheLogic:
     def test_cache_path_extension(self):
         """Verify we are using parquet for research-grade storage."""
         path = cache_path("test_ds")
         assert path.suffix == ".parquet"
         assert "test_ds" in path.name
+
 
 class TestDataHardening:
     @pytest.mark.skipif(not is_cached("bls"), reason="BLS not cached")
@@ -37,7 +36,8 @@ class TestDataHardening:
         df = load_cached("world_bank")
         if df is not None:
             unknown_ratio = (df["income_group"] == "Unknown").mean()
-            assert unknown_ratio < 0.5 
+            assert unknown_ratio < 0.5
+
 
 class TestSchemaIntegrity:
     def test_cached_data_columns(self):
@@ -46,7 +46,7 @@ class TestSchemaIntegrity:
         This provides the guardrail previously in _validate_df.
         """
         from src.catalog.loader import DATASETS
-        
+
         for did in DATASETS:
             if is_cached(did):
                 df = load_cached(did)

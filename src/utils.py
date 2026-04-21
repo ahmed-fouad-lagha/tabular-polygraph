@@ -165,11 +165,11 @@ def normalize(
     """
     mu = np.mean(arr, axis=0)
     sigma = np.std(arr, axis=0)
-    
+
     # Safety Switch: If a column has no variation, don't divide by epsilon.
     # We set it to 1.0 so we just subtract the mean and don't scale the noise.
     sigma = np.where(sigma < epsilon, 1.0, sigma)
-    
+
     normalized = (arr - mu) / sigma
 
     if return_params:

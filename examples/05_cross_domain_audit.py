@@ -1,13 +1,13 @@
 """
 Example 5: Cross-Architecture & Multi-Domain Integrity Audit.
 
-This script evaluates the Holistic Integrity Framework (HIF) across diverse 
-architectures and datasets to confirm the cross-domain robustness of the 
+This script evaluates the Holistic Integrity Framework (HIF) across diverse
+architectures and datasets to confirm the cross-domain robustness of the
 Integrity Oracle.
 - Datasets: census_acs, bls, world_bank
 - Generators: GaussianCopula, VineCopula, CTGAN
 
-Objective: Validate that the Continuous Semantic Severity Penalty (CSSP) 
+Objective: Validate that the Continuous Semantic Severity Penalty (CSSP)
 consistently identifies hallucinations across varied structural priors.
 """
 

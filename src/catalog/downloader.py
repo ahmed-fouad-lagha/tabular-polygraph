@@ -264,7 +264,11 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     df["year"] = df["date"].dt.year
     # Target specific indicator for dropna to avoid fragility
-    primary_col = "gdp_growth_yoy" if "gdp_growth_yoy" in df.columns else list(indicators.values())[0]
+    primary_col = (
+        "gdp_growth_yoy"
+        if "gdp_growth_yoy" in df.columns
+        else list(indicators.values())[0]
+    )
     df = df.dropna(subset=[primary_col])
 
     # Add VIX if available (it's in a different series)
@@ -279,7 +283,7 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
     var_map = DOWNLOADERS["census_acs"]["indicators"]
     variables = ",".join(var_map.keys())
-    
+
     states = [f"{i:02d}" for i in range(1, 57)]
     all_rows = []
 
@@ -310,7 +314,7 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df = pd.DataFrame(all_rows)
     # Rename variables
     df = df.rename(columns=var_map)
-    
+
     # Convert to numeric
     for col in df.columns:
         if col not in ["state", "public use microdata area"]:
@@ -318,19 +322,27 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
     # Feature Engineering (Ratios)
     # We remove .fillna() to ensure missing data is handled explicitly by dropna()
-    df["poverty_status"] = (df["poverty_count"] / df["poverty_total"])
-    df["employment_status"] = (1 - (df["unemployed_count"] / df["labor_force_total"]))
-    df["tenure"] = (df["owner_occupied_count"] / df["tenure_total"])
-    df["education"] = (df["bachelors_count"] / df["education_total"])
+    df["poverty_status"] = df["poverty_count"] / df["poverty_total"]
+    df["employment_status"] = 1 - (df["unemployed_count"] / df["labor_force_total"])
+    df["tenure"] = df["owner_occupied_count"] / df["tenure_total"]
+    df["education"] = df["bachelors_count"] / df["education_total"]
     df["puma"] = df["public use microdata area"]
 
     cols_to_keep = [
-        "puma", "state", "household_income", "housing_cost", 
-        "cost_burden_pct", "poverty_status", "employment_status",
-        "household_size", "tenure", "age_group", "education"
+        "puma",
+        "state",
+        "household_income",
+        "housing_cost",
+        "cost_burden_pct",
+        "poverty_status",
+        "employment_status",
+        "household_size",
+        "tenure",
+        "age_group",
+        "education",
     ]
     df = df[cols_to_keep].dropna()
-    
+
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
@@ -341,10 +353,10 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     # To keep the download fast, we focus on the US National level and Top 5 states.
     years = list(range(2018, 2024))
     quarters = [1, 2, 3, 4]
-    
+
     # Area Codes: US National (US000), CA (06000), TX (48000), NY (36000), FL (12000), IL (17000)
     area_codes = ["US000", "06000", "48000", "36000", "12000", "17000"]
-    
+
     base_url = "https://data.bls.gov/cew/data/api"
     frames = []
 
@@ -356,9 +368,13 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
                 url = f"{base_url}/{year}/{qtr}/area/{area_code}.csv"
                 try:
                     with urllib.request.urlopen(url, timeout=10) as r:
-                        df_q = pd.read_csv(io.BytesIO(r.read()), dtype={"area_fips": str, "qtr": str})
+                        df_q = pd.read_csv(
+                            io.BytesIO(r.read()), dtype={"area_fips": str, "qtr": str}
+                        )
                         # Filter to private sector (ownership=5) and total industries (naics=10)
-                        df_q = df_q[(df_q["own_code"] == 5) & (df_q["industry_code"] == "10")]
+                        df_q = df_q[
+                            (df_q["own_code"] == 5) & (df_q["industry_code"] == "10")
+                        ]
                         if not df_q.empty:
                             frames.append(df_q)
                 except Exception:
@@ -378,7 +394,12 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df = raw[list(required)].rename(columns=required)
 
     # Convert numeric columns
-    for col in ["avg_weekly_wage", "total_employment", "yoy_employment_change", "yoy_wage_change"]:
+    for col in [
+        "avg_weekly_wage",
+        "total_employment",
+        "yoy_employment_change",
+        "yoy_wage_change",
+    ]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Final cleaning
@@ -424,7 +445,7 @@ def download(
     Returns
     -------
     pd.DataFrame | dict[str, pd.DataFrame]
-        A single DataFrame if a specific ID was requested, 
+        A single DataFrame if a specific ID was requested,
         or a dictionary of {id: DataFrame} if 'all' was requested.
 
     Example
@@ -440,11 +461,11 @@ def download(
                 results[did] = download(did, force=force, n_sample=n_sample)
             except Exception as e:
                 print(f"  ✗ {did}: {e}")
-        
+
         failed = [did for did in DOWNLOADERS if did not in results]
         if failed:
             print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
-            
+
         return results
 
     if dataset_id not in DOWNLOADERS:
