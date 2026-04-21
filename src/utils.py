@@ -129,7 +129,7 @@ def to_numeric_array(
     elif fill_method == "zero":
         s = s.fillna(0.0)
     elif fill_method == "forward":
-        s = s.fillna(method="ffill").fillna(method="bfill")  # type: ignore
+        s = s.ffill().bfill()
     elif fill_method == "value":
         if fill_value is None:
             raise ValueError("fill_value required when fill_method='value'")
@@ -163,8 +163,13 @@ def normalize(
     Returns:
         Normalized array, or tuple of (normalized, mean, std) if return_params=True.
     """
-    mu = arr.mean(axis=0)
-    sigma = arr.std(axis=0) + epsilon
+    mu = np.mean(arr, axis=0)
+    sigma = np.std(arr, axis=0)
+    
+    # Safety Switch: If a column has no variation, don't divide by epsilon.
+    # We set it to 1.0 so we just subtract the mean and don't scale the noise.
+    sigma = np.where(sigma < epsilon, 1.0, sigma)
+    
     normalized = (arr - mu) / sigma
 
     if return_params:

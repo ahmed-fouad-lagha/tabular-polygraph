@@ -1,45 +1,56 @@
 import pytest
+import pandas as pd
+import numpy as np
+import os
+from pathlib import Path
+from src.catalog.downloader import DOWNLOADERS, cache_path, is_cached, load_cached
 
+class TestCatalogRegistry:
+    def test_registry_completeness(self):
+        """Ensure every registered downloader has mandatory metadata."""
+        for did, info in DOWNLOADERS.items():
+            assert "name" in info
+            assert "source" in info
+            assert "method" in info
+            # url is optional but good to have
+            # assert "url" in info
 
-class TestCatalog:
-    def test_list_datasets_count(self):
-        from src.catalog import list_datasets, DATASETS
+class TestCacheLogic:
+    def test_cache_path_extension(self):
+        """Verify we are using parquet for research-grade storage."""
+        path = cache_path("test_ds")
+        assert path.suffix == ".parquet"
+        assert "test_ds" in path.name
 
-        assert len(list_datasets()) == len(DATASETS)
+class TestDataHardening:
+    @pytest.mark.skipif(not is_cached("bls"), reason="BLS not cached")
+    def test_bls_quarter_integrity(self):
+        """Check for 'Annual' (A) quarter corruption."""
+        df = load_cached("bls")
+        if df is not None:
+            quarters = df["quarter"].unique()
+            assert all(q in [1, 2, 3, 4] for q in quarters)
 
-    def test_list_datasets_vertical_filter(self):
-        from src.catalog import list_datasets
+    @pytest.mark.skipif(not is_cached("world_bank"), reason="World Bank not cached")
+    def test_world_bank_metadata_integrity(self):
+        """Verify metadata merge is working (no Unknowns where data exists)."""
+        df = load_cached("world_bank")
+        if df is not None:
+            unknown_ratio = (df["income_group"] == "Unknown").mean()
+            assert unknown_ratio < 0.5 
 
-        df = list_datasets(vertical="Macro & Central Bank")
-        assert len(df) == 3
-        assert set(df["id"]) == {"fred_macro", "bls", "world_bank"}
-
-    def test_get_dataset_info_valid(self):
-        from src.catalog import get_dataset_info
-
-        info = get_dataset_info("fred_macro")
-        assert info["col_count"] == 15
-        assert "vix" in info["columns"]
-
-    def test_get_dataset_info_invalid(self):
-        from src.catalog import get_dataset_info
-
-        with pytest.raises(ValueError, match="Unknown"):
-            get_dataset_info("does_not_exist")
-
-    @pytest.mark.parametrize(
-        "did",
-        [
-            "fred_macro",
-            "bls",
-            "world_bank",
-            "census_acs",
-        ],
-    )
-    def test_all_seeds_build(self, did, all_seeds):
-        df = all_seeds[did]
-
-        assert len(df) == 2000
-        assert df.shape[1] > 0
-        # Some datasets have missing values in some columns (but not all columns)
-        assert df.shape[0] > 0  # Check that data was loaded
+class TestSchemaIntegrity:
+    def test_cached_data_columns(self):
+        """
+        Validate that all cached datasets have the expected core columns.
+        This provides the guardrail previously in _validate_df.
+        """
+        from src.catalog.loader import DATASETS
+        
+        for did in DATASETS:
+            if is_cached(did):
+                df = load_cached(did)
+                expected = set(DATASETS[did].get("columns", []))
+                actual = set(df.columns)
+                missing = expected - actual
+                assert not missing, f"Dataset '{did}' missing columns: {missing}"

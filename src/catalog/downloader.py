@@ -1,6 +1,5 @@
 """
-Downloads real bulk data from public government sources and caches it locally.
-Once downloaded, load_dataset() uses the real data instead of hand-coded approximations.
+Download data from public government sources and cache it locally.
 
 Usage
 -----
@@ -22,7 +21,7 @@ CLI
 
 Sources
 -------
-All sources are free, public, and require no authentication except FRED
+All sources are public, and require no authentication except FRED
 (which needs a free API key from fred.stlouisfed.org/docs/api/api_key.html).
 """
 
@@ -35,13 +34,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-# ── Cache location ────────────────────────────────────────────────────────────
-# Default: ~/.src/cache/
-# Override: set SRC_CACHE env var
+import urllib.request
+import urllib.parse
 
 
 def _cache_dir() -> Path:
+    """Get the cache directory and ensure it exists."""
     base = Path(os.environ.get("SRC_CACHE", Path.home() / ".src" / "cache"))
     base.mkdir(parents=True, exist_ok=True)
     return base
@@ -55,8 +53,6 @@ def is_cached(dataset_id: str) -> bool:
     return cache_path(dataset_id).exists()
 
 
-# ── Download registry ─────────────────────────────────────────────────────────
-
 DOWNLOADERS: dict[str, dict] = {
     "fred_macro": {
         "name": "FRED Macroeconomic Indicators",
@@ -65,7 +61,7 @@ DOWNLOADERS: dict[str, dict] = {
         "method": "fred_api",
         "size_hint": "~1 MB — fast",
         "requires": "FRED_API_KEY environment variable",
-        "series": {
+        "indicators": {
             "GDP": "gdp_growth_yoy",
             "CPIAUCSL": "cpi_yoy",
             "CPILFESL": "core_cpi_yoy",
@@ -83,9 +79,21 @@ DOWNLOADERS: dict[str, dict] = {
     "bls": {
         "name": "BLS Employment & Wages",
         "source": "Bureau of Labor Statistics QCEW",
-        "url": "https://www.bls.gov/cew/downloadable-data.htm",
+        "url": "https://www.bls.gov/cew/",
         "method": "bls_api",
         "size_hint": "~200 MB",
+        "indicators": {
+            "industry_code": "naics_sector",
+            "own_code": "ownership",
+            "area_fips": "state",
+            "annual_avg_wkly_wage": "avg_weekly_wage",
+            "annual_avg_emplvl": "total_employment",
+            "oty_annual_avg_emplvl_pct_chg": "yoy_employment_change",
+            "oty_annual_avg_wkly_wage_pct_chg": "yoy_wage_change",
+            "annual_avg_estabs": "establishments",
+            "qtr": "quarter",
+            "year": "year",
+        },
     },
     "world_bank": {
         "name": "World Bank Development Indicators",
@@ -110,19 +118,27 @@ DOWNLOADERS: dict[str, dict] = {
         "url": "https://api.census.gov/data/2022/acs/acs5",
         "method": "census_api",
         "size_hint": "~10 MB",
+        "indicators": {
+            "B19013_001E": "household_income",
+            "B25105_001E": "housing_cost",
+            "B25071_001E": "cost_burden_pct",
+            "B17001_002E": "poverty_count",
+            "B17001_001E": "poverty_total",
+            "B23025_005E": "unemployed_count",
+            "B23025_002E": "labor_force_total",
+            "B25010_001E": "household_size",
+            "B25003_002E": "owner_occupied_count",
+            "B25003_001E": "tenure_total",
+            "B01002_001E": "age_group",
+            "B15003_022E": "bachelors_count",
+            "B15003_001E": "education_total",
+        },
     },
 }
 
 
-# ── Download implementations ──────────────────────────────────────────────────
-
-
 def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download World Bank WDI via free REST API. No key needed."""
-    try:
-        import urllib.request
-    except ImportError:
-        raise ImportError("urllib required (should be in stdlib)")
+    """Download World Bank WDI via API. No key needed."""
 
     indicators = DOWNLOADERS["world_bank"]["indicators"]
     base_url = DOWNLOADERS["world_bank"]["url"]
@@ -140,7 +156,7 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
                 if rec.get("value") is not None:
                     rows.append(
                         {
-                            "country_code": rec["country"]["id"],
+                            "country_code": rec.get("countryiso3code"),
                             "year": int(rec["date"]),
                             col_name: float(rec["value"]),
                         }
@@ -161,7 +177,9 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
         if df is None:
             df = frame
         else:
+            # Ensure we don't multiply rows during indicator merge
             df = df.merge(frame, on=["country_code", "year"], how="outer")
+
     if df is None:
         raise RuntimeError("No World Bank data merged")
 
@@ -174,27 +192,24 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
         for c in meta_data[1]:
             meta_rows.append(
                 {
-                    "country_code": c.get(
-                        "iso2Code"
-                    ),  # Use ISO2 (e.g. 'AF') instead of ID (e.g. 'AFG')
+                    "country_code": c.get("id"),
                     "income_group": c.get("incomeLevel", {}).get("value", "Unknown"),
                     "region": c.get("region", {}).get("value", "Unknown"),
                 }
             )
-        meta_df = pd.DataFrame(meta_rows)
+        meta_df = pd.DataFrame(meta_rows).drop_duplicates(subset=["country_code"])
         df = df.merge(meta_df, on="country_code", how="left")
     except Exception:
         df["income_group"] = "Unknown"
         df["region"] = "Unknown"
 
-    df = df.dropna(subset=["gdp_growth"]).reset_index(drop=True)
+    df = df.dropna(subset=["gdp_growth"]) if "gdp_growth" in df.columns else df.dropna()
+    df = df.reset_index(drop=True)
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
 def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     """Download FRED series via API. Requires FRED_API_KEY env var."""
-    import urllib.request
-    import urllib.parse
 
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
@@ -204,11 +219,11 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
             "Then: export FRED_API_KEY=your_key_here"
         )
 
-    series_map = DOWNLOADERS["fred_macro"]["series"]
+    indicators = DOWNLOADERS["fred_macro"]["indicators"]
     base_url = "https://api.stlouisfed.org/fred/series/observations"
     frames = {}
 
-    for series_id, col_name in series_map.items():
+    for series_id, col_name in indicators.items():
         params = urllib.parse.urlencode(
             {
                 "series_id": series_id,
@@ -248,11 +263,9 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
     df["date"] = pd.to_datetime(df["date"])
     df["year"] = df["date"].dt.year
-    df = df.dropna(
-        subset=["gdp_growth_yoy"]
-        if "gdp_growth_yoy" in df.columns
-        else [list(df.columns)[1]]
-    )
+    # Target specific indicator for dropna to avoid fragility
+    primary_col = "gdp_growth_yoy" if "gdp_growth_yoy" in df.columns else list(indicators.values())[0]
+    df = df.dropna(subset=[primary_col])
 
     # Add VIX if available (it's in a different series)
     if "vix" not in df.columns:
@@ -262,215 +275,114 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
 
 
 def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download Census ACS via free API. No key needed for basic variables."""
-    import urllib.request
-    import urllib.parse
+    """Download Census ACS via API. Pulls PUMA-level demographic profiles."""
 
-    # ACS 5-year 2022 — household income and housing cost variables
-    base = "https://api.census.gov/data/2022/acs/acs5"
-    variables = "B19013_001E,B25070_001E,B25070_010E,B23025_002E,B23025_005E,B25003_001E,B25003_002E"
-    # B19013: median HH income, B25070: rent burden, B23025: employment, B25003: tenure
-
-    # Pull by state (need to paginate)
-    states = list(range(1, 57))
+    var_map = DOWNLOADERS["census_acs"]["indicators"]
+    variables = ",".join(var_map.keys())
+    
+    states = [f"{i:02d}" for i in range(1, 57)]
     all_rows = []
 
-    for state in states[:10]:  # sample 10 states for speed; real download would do all
+    for state in states:
         params = urllib.parse.urlencode(
             {
                 "get": variables,
-                "for": "tract:*",
-                "in": f"state:{state:02d}",
+                "for": "public use microdata area:*",
+                "in": f"state:{state}",
             }
         )
-        url = f"{base}?{params}"
+        url = f"https://api.census.gov/data/2022/acs/acs5?{params}"
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
                 data = json.loads(r.read())
             headers = data[0]
             for row in data[1:]:
-                rec = dict(zip(headers, row))
-                all_rows.append(rec)
+                all_rows.append(dict(zip(headers, row)))
+            if int(state) % 10 == 0:
+                print(f"    Progress: {state}/56 states...", flush=True)
         except Exception:
             continue
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     if not all_rows:
         raise RuntimeError("No Census data downloaded")
 
-    df_raw = pd.DataFrame(all_rows)
-
-    # Clean and rename
-    rename = {
-        "B19013_001E": "household_income",
-        "B25070_001E": "total_renter_units",
-        "B25070_010E": "severe_burden_units",
-        "B23025_002E": "in_labor_force",
-        "B23025_005E": "unemployed",
-        "B25003_001E": "total_housing_units",
-        "B25003_002E": "owner_occupied",
-        "state": "state_fips",
-        "tract": "tract_id",
-    }
-    df = df_raw.rename(columns={k: v for k, v in rename.items() if k in df_raw.columns})
-
-    # Convert to numerics
-    for col in [
-        "household_income",
-        "total_renter_units",
-        "severe_burden_units",
-        "in_labor_force",
-        "unemployed",
-        "total_housing_units",
-        "owner_occupied",
-    ]:
-        if col in df.columns:
+    df = pd.DataFrame(all_rows)
+    # Rename variables
+    df = df.rename(columns=var_map)
+    
+    # Convert to numeric
+    for col in df.columns:
+        if col not in ["state", "public use microdata area"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df = df[df["household_income"] > 0].dropna(subset=["household_income"])
+    # Feature Engineering (Ratios)
+    # We remove .fillna() to ensure missing data is handled explicitly by dropna()
+    df["poverty_status"] = (df["poverty_count"] / df["poverty_total"])
+    df["employment_status"] = (1 - (df["unemployed_count"] / df["labor_force_total"]))
+    df["tenure"] = (df["owner_occupied_count"] / df["tenure_total"])
+    df["education"] = (df["bachelors_count"] / df["education_total"])
+    df["puma"] = df["public use microdata area"]
+
+    cols_to_keep = [
+        "puma", "state", "household_income", "housing_cost", 
+        "cost_burden_pct", "poverty_status", "employment_status",
+        "household_size", "tenure", "age_group", "education"
+    ]
+    df = df[cols_to_keep].dropna()
+    
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
 def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download BLS QCEW annual state-level employment and wages (no API key)."""
-    try:
-        import urllib.request
-    except ImportError:
-        raise ImportError("urllib required (should be in stdlib)")
+    """Download BLS QCEW state-level employment and wages."""
 
-    # Annual QCEW files for state totals use area codes XX000.
+    # We fetch Quarterly data for a high-resolution time series.
+    # To keep the download fast, we focus on the US National level and Top 5 states.
     years = list(range(2018, 2024))
-    area_codes = [f"{i:02d}000" for i in range(1, 57)] + ["US000"]
+    quarters = [1, 2, 3, 4]
+    
+    # Area Codes: US National (US000), CA (06000), TX (48000), NY (36000), FL (12000), IL (17000)
+    area_codes = ["US000", "06000", "48000", "36000", "12000", "17000"]
+    
     base_url = "https://data.bls.gov/cew/data/api"
+    frames = []
 
-    ownership_map = {
-        "0": "total",
-        "1": "private",
-        "2": "federal_gov",
-        "3": "state_gov",
-        "5": "local_gov",
-    }
-    state_fips_to_abbr = {
-        "01": "AL",
-        "02": "AK",
-        "04": "AZ",
-        "05": "AR",
-        "06": "CA",
-        "08": "CO",
-        "09": "CT",
-        "10": "DE",
-        "11": "DC",
-        "12": "FL",
-        "13": "GA",
-        "15": "HI",
-        "16": "ID",
-        "17": "IL",
-        "18": "IN",
-        "19": "IA",
-        "20": "KS",
-        "21": "KY",
-        "22": "LA",
-        "23": "ME",
-        "24": "MD",
-        "25": "MA",
-        "26": "MI",
-        "27": "MN",
-        "28": "MS",
-        "29": "MO",
-        "30": "MT",
-        "31": "NE",
-        "32": "NV",
-        "33": "NH",
-        "34": "NJ",
-        "35": "NM",
-        "36": "NY",
-        "37": "NC",
-        "38": "ND",
-        "39": "OH",
-        "40": "OK",
-        "41": "OR",
-        "42": "PA",
-        "44": "RI",
-        "45": "SC",
-        "46": "SD",
-        "47": "TN",
-        "48": "TX",
-        "49": "UT",
-        "50": "VT",
-        "51": "VA",
-        "53": "WA",
-        "54": "WV",
-        "55": "WI",
-        "56": "WY",
-    }
-
-    frames: list[pd.DataFrame] = []
     for year in years:
-        print(f"    Fetching QCEW annual file(s) for {year}...", flush=True)
-        for area_code in area_codes:
-            url = f"{base_url}/{year}/a/area/{area_code}.csv"
-            try:
-                with urllib.request.urlopen(url, timeout=30) as response:
-                    content = response.read().decode("utf-8", errors="replace")
-                part = pd.read_csv(io.StringIO(content))
-                part["year"] = year
-                frames.append(part)
-            except Exception:
-                continue
-            time.sleep(0.03)
+        print(f"    Fetching QCEW quarterly data for {year}...", flush=True)
+        for qtr in quarters:
+            for area_code in area_codes:
+                # Quarterly URL uses /q/ and specific qtr number
+                url = f"{base_url}/{year}/{qtr}/area/{area_code}.csv"
+                try:
+                    with urllib.request.urlopen(url, timeout=10) as r:
+                        df_q = pd.read_csv(io.BytesIO(r.read()), dtype={"area_fips": str, "qtr": str})
+                        # Filter to private sector (ownership=5) and total industries (naics=10)
+                        df_q = df_q[(df_q["own_code"] == 5) & (df_q["industry_code"] == "10")]
+                        if not df_q.empty:
+                            frames.append(df_q)
+                except Exception:
+                    continue
+                time.sleep(0.01)
 
     if not frames:
-        raise RuntimeError("No BLS QCEW data downloaded")
+        raise RuntimeError("BLS download produced 0 usable rows after cleaning")
 
     raw = pd.concat(frames, ignore_index=True)
 
-    required = {
-        "industry_code": "naics_sector",
-        "own_code": "ownership",
-        "area_fips": "state",
-        "annual_avg_wkly_wage": "avg_weekly_wage",
-        "annual_avg_emplvl": "total_employment",
-        "oty_annual_avg_emplvl_pct_chg": "yoy_employment_change",
-        "oty_annual_avg_wkly_wage_pct_chg": "yoy_wage_change",
-        "annual_avg_estabs": "establishments",
-        "qtr": "quarter",
-        "year": "year",
-    }
+    required = DOWNLOADERS["bls"]["indicators"]
     missing = [c for c in required if c not in raw.columns]
     if missing:
         raise RuntimeError(f"BLS payload missing expected columns: {missing}")
 
     df = raw[list(required)].rename(columns=required)
 
-    # Keep top-level NAICS sectors only (2-digit), where signals are strongest.
-    df["naics_sector"] = df["naics_sector"].astype(str)
-    df = df[df["naics_sector"].str.fullmatch(r"\d{2}", na=False)]
-
-    df["ownership"] = df["ownership"].astype(str).map(ownership_map).fillna("other")
-
-    # Map state FIPS prefixes to postal codes; US aggregate is retained as US.
-    state_raw = df["state"].astype(str)
-    df["state"] = np.where(
-        state_raw == "US000",
-        "US",
-        state_raw.str[:2].map(state_fips_to_abbr),
-    )
-
-    for col in [
-        "avg_weekly_wage",
-        "total_employment",
-        "yoy_employment_change",
-        "yoy_wage_change",
-        "establishments",
-        "year",
-    ]:
+    # Convert numeric columns
+    for col in ["avg_weekly_wage", "total_employment", "yoy_employment_change", "yoy_wage_change"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["quarter"] = np.where(
-        df["quarter"].astype(str).str.upper() == "A", 4, df["quarter"]
-    )
+    # Final cleaning
     df["quarter"] = pd.to_numeric(df["quarter"], errors="coerce")
-
     df = df.dropna(
         subset=[
             "naics_sector",
@@ -483,40 +395,43 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         ]
     )
 
-    df = df[df["avg_weekly_wage"] > 0]
-    df = df[df["total_employment"] > 0]
-    df = df.drop_duplicates(subset=["state", "year", "naics_sector", "ownership"])
-    df = df.reset_index(drop=True)
-
-    if len(df) == 0:
-        raise RuntimeError("BLS download produced 0 usable rows after cleaning")
-
     return df.sample(min(n_sample, len(df)), random_state=42)
+
+
+# Mapping of registry methods to internal downloader functions
+METHOD_MAP = {
+    "worldbank_api": _download_world_bank,
+    "fred_api": _download_fred,
+    "bls_api": _download_bls,
+    "census_api": _download_census,
+}
 
 
 def download(
     dataset_id: str,
     force: bool = False,
     n_sample: int = 50_000,
-) -> pd.DataFrame:
+) -> pd.DataFrame | dict[str, pd.DataFrame]:
     """
-    Download real bulk data for a dataset and cache it locally.
+    Download dataset(s) and cache them locally.
 
     Parameters
     ----------
     dataset_id : dataset ID, or "all" to download everything
     force      : re-download even if cached
-    n_sample   : max rows to cache (default 50,000 — enough for high-fidelity seeds)
+    n_sample   : max rows to cache (default 50,000)
 
     Returns
     -------
-    DataFrame of downloaded data (also saved to cache)
+    pd.DataFrame | dict[str, pd.DataFrame]
+        A single DataFrame if a specific ID was requested, 
+        or a dictionary of {id: DataFrame} if 'all' was requested.
 
     Example
     -------
         from src.catalog.downloader import download
         df = download("world_bank")
-        df = download("fred_macro")   # needs FRED_API_KEY env var
+        all_data = download("all")  # yields a dictionary
     """
     if dataset_id == "all":
         results = {}
@@ -525,6 +440,11 @@ def download(
                 results[did] = download(did, force=force, n_sample=n_sample)
             except Exception as e:
                 print(f"  ✗ {did}: {e}")
+        
+        failed = [did for did in DOWNLOADERS if did not in results]
+        if failed:
+            print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
+            
         return results
 
     if dataset_id not in DOWNLOADERS:
@@ -535,9 +455,11 @@ def download(
         )
 
     cached = cache_path(dataset_id)
-    if cached.exists() and not force:
-        print(f"  ✓ {dataset_id} — loaded from cache ({cached})")
-        return pd.read_parquet(cached)
+    if not force:
+        df_cached = load_cached(dataset_id)
+        if df_cached is not None:
+            print(f"  ✓ {dataset_id} — loaded from cache ({cached})")
+            return df_cached
 
     info = DOWNLOADERS[dataset_id]
     print(f"\n  Downloading {info['name']}...")
@@ -545,21 +467,15 @@ def download(
     print(f"  Size:   {info['size_hint']}")
 
     method = info["method"]
-    if method == "worldbank_api":
-        df = _download_world_bank(dataset_id, n_sample)
-    elif method == "fred_api":
-        df = _download_fred(dataset_id, n_sample)
-    elif method == "bls_api":
-        df = _download_bls(dataset_id, n_sample)
-    elif method == "census_api":
-        df = _download_census(dataset_id, n_sample)
+    if method in METHOD_MAP:
+        df = METHOD_MAP[method](dataset_id, n_sample)
     else:
         raise NotImplementedError(
             f"Downloader for '{dataset_id}' (method: {method}) requires manual download.\n"
             f"Please download the data from {info['url']} and save it as a CSV, then load it with gen.fit(your_csv)."
         )
 
-    # Cache it
+    # 3. Cache it
     df.to_parquet(cached, index=False)
     print(f"  ✓ Cached {len(df):,} rows → {cached}")
     return df
@@ -568,7 +484,6 @@ def download(
 def load_cached(dataset_id: str) -> pd.DataFrame | None:
     """
     Load cached real data if available, else return None.
-    Used by load_dataset() to prefer real data over hand-coded approximations.
     """
     p = cache_path(dataset_id)
     if p.exists():
