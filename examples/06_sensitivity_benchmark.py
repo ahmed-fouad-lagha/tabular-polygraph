@@ -1,12 +1,14 @@
 """
-Example 06: Linear Sensitivity vs. Structural Dilution.
+Example 06: Semantic Sensitivity vs. Statistical Dilution.
 
-This script proves that HIF catches 'Logical Viruses' (hallucinations) that
-standard joint statistical metrics (like Joint Correlation Distance) miss
+This script demonstrates that the Holistic Integrity Framework (HIF) identifies 
+'Logical Viruses' (hallucinations) that aggregate distributional metrics miss 
 when they are sparse (low-p).
+
+The Continuous Semantic Severity Penalty (CSSP) provides a deterministic signal 
+for combinatorial ruptures, even when they occupy <1% of the generated volume.
 """
 
-import os
 import sys
 from pathlib import Path
 import numpy as np
@@ -18,7 +20,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.catalog import load_dataset
 from src.fidelity import hif_score
-from scipy.spatial.distance import correlation
 
 def joint_correlation_distance(df1: pd.DataFrame, df2: pd.DataFrame) -> float:
     """Measure the distance between two correlation matrices."""
@@ -55,9 +56,9 @@ def run_sensitivity_test(p_hallucination: float = 0.01):
     jcd_val = joint_correlation_distance(real_df, syn_df)
     
     return {
-        "p": p_hallucination,
-        "hif": hif_val,
-        "jcd": jcd_val
+        "p_hallucination": p_hallucination,
+        "hif_integrity": hif_val,
+        "jcd_distance": jcd_val
     }
 
 if __name__ == "__main__":
@@ -74,11 +75,11 @@ if __name__ == "__main__":
     hif_0 = df.loc[df['p'] == 0, 'hif'].iloc[0]
     df['hif_drop'] = (hif_0 - df['hif']) / hif_0 if hif_0 > 0 else 0
     
-    print("\n" + "="*60)
-    print("SENSITIVITY ANALYSIS: HIF vs. JOINT CORRELATION DISTANCE")
-    print("="*60)
-    print(df[['p', 'hif', 'jcd', 'hif_drop']])
-    print("="*60)
+    print("\n" + "="*72)
+    print("SENSITIVITY ANALYSIS: SEMANTIC INTEGRITY VS. JOINT CORRELATION")
+    print("="*72)
+    print(df[['p_hallucination', 'hif_integrity', 'jcd_distance', 'hif_drop']])
+    print("="*72)
     
     # Save for appendix
     df.to_csv("results/sensitivity_analysis.csv", index=False)

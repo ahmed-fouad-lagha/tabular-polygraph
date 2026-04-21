@@ -1,11 +1,14 @@
 """
-Example 5: Cross-Architecture Integrity Audit for research reporting.
+Example 5: Cross-Architecture & Multi-Domain Integrity Audit.
 
-This script evaluates HIF across multiple datasets and generators:
-- Datasets: census_acs, bls (state-level subset)
+This script evaluates the Holistic Integrity Framework (HIF) across diverse 
+architectures and datasets to confirm the cross-domain robustness of the 
+Integrity Oracle.
+- Datasets: census_acs, bls, world_bank
 - Generators: GaussianCopula, VineCopula, CTGAN
 
-Goal: Confirm that HIF reliably identifies hallucinations across diverse architectures.
+Objective: Validate that the Continuous Semantic Severity Penalty (CSSP) 
+consistently identifies hallucinations across varied structural priors.
 """
 
 import argparse
@@ -156,11 +159,11 @@ if __name__ == "__main__":
 
     results = [r for r in results if r is not None]
     df_res = pd.DataFrame(results)
-    print("\n" + "=" * 60)
-    print("CROSS-ARCHITECTURE & MULTI-DOMAIN MATURITY AUDIT SUMMARY")
-    print("=" * 60)
+    print("\n" + "=" * 72)
+    print("CROSS-ARCHITECTURE & MULTI-DOMAIN INTEGRITY AUDIT SUMMARY")
+    print("=" * 72)
     print(df_res)
-    print("=" * 60)
+    print("=" * 72)
 
     df_res.to_csv("results/cross_architecture_audit.csv", index=False)
     print("\nResults saved to results/cross_architecture_audit.csv")

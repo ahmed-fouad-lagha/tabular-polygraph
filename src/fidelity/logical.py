@@ -1,18 +1,20 @@
 """
-HIF: Neurosymbolic Logical Constraint Validator for Synthetic Tabular Data.
+HIF: Hybrid Integrity Framework (The Tabular Polygraph).
 
-Trains an under-complete autoencoder on real data to extract semantic boundaries,
-and evaluates synthetic data using a Continuous Semantic Severity Penalty (CSSP).
+A neurosymbolic logical constraint validator for synthetic tabular data.
+Trains a Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC) 
+auditors on ground-truth manifolds to detect semantic hallucinations via the 
+Continuous Semantic Severity Penalty (CSSP).
 """
 
 import random
 import numpy as np
 import pandas as pd
 from typing import Any, Tuple, Dict, List
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import RidgeCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import mutual_info_score as mutual_info_score
+from sklearn.metrics import normalized_mutual_info_score
 from sklearn.decomposition import PCA
 
 
@@ -30,6 +32,10 @@ def _adaptive_binning(
                 df_binned[col] = "bin_0"
                 continue
             try:
+                # Robust binning: Try qcut, fallback to cut, fallback to unique values as strings
+                if df[col].nunique() <= n_bins:
+                    df_binned[col] = df[col].astype(str)
+                    continue
                 bins = pd.qcut(df[col], q=n_bins, labels=False, duplicates="drop")
                 df_binned[col] = bins.apply(
                     lambda x: f"bin_{int(val)}" if not pd.isna(val := x) else x
@@ -76,6 +82,30 @@ def _canonicalize_code_columns(
     return real_norm, synthetic_norm
 
 
+class ManifoldEncoder:
+    """Stateful Categorical-to-Ordinal projection for deterministic manifold analysis."""
+
+    def __init__(self):
+        self.encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        self.feature_names: List[str] = []
+        self.is_fitted = False
+
+    def fit(self, df: pd.DataFrame):
+        """Fit encoder on the reference manifold."""
+        if df.empty:
+            return
+        self.encoder.fit(df)
+        self.feature_names = list(self.encoder.get_feature_names_out())
+        self.is_fitted = True
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Project data into the reference subspace."""
+        if not self.is_fitted:
+            return pd.DataFrame(index=df.index)
+        encoded = self.encoder.transform(df)
+        return pd.DataFrame(encoded, columns=self.feature_names, index=df.index)
+
+
 class LogicalSentinelEnsemble:
     """
     Neuro-Symbolic Integrity Oracle (LSE).
@@ -91,10 +121,11 @@ class LogicalSentinelEnsemble:
         self.sentinels: Dict[str, RandomForestClassifier] = {}
         self.hubs: List[str] = []
         self.confidence_floors: Dict[str, float] = {}
-        self.is_trained = False
+        self.encoder = ManifoldEncoder()
+        self.is_trained: bool = False
 
     def _calculate_dependency_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Discover 'Dependency Hubs' using Symmetric Mutual Information."""
+        """Discover 'Manifold Hubs' using Symmetric Mutual Information."""
         cols = df.columns
         n = len(cols)
         matrix = np.eye(n)
@@ -103,31 +134,64 @@ class LogicalSentinelEnsemble:
                 if df[cols[i]].nunique() <= 1 or df[cols[j]].nunique() <= 1:
                     mi = 0.0
                 else:
-                    mi = mutual_info_score(df[cols[i]], df[cols[j]])
+                    mi = normalized_mutual_info_score(
+                        df[cols[i]], df[cols[j]], average_method="arithmetic"
+                    )
                 matrix[i, j] = mi
                 matrix[j, i] = mi
         return pd.DataFrame(matrix, index=cols, columns=cols)
 
-    def fit(self, df: pd.DataFrame, hif_epochs: int = 10, verbose: bool = True):
-        """Train Sentinels on Ground-Truth 'Laws'."""
+    def _select_diverse_hubs(self, mi_matrix: pd.DataFrame) -> List[str]:
+        """Greedy selection of hubs based on dependency sum and redundancy filter."""
+        hub_scores = mi_matrix.sum(axis=1).sort_values(ascending=False)
+        potential_hubs = hub_scores.index.tolist()
+        
+        selected: List[str] = []
+        redundancy_threshold = 0.8
+        
+        for candidate in potential_hubs:
+            if len(selected) >= self.top_n_hubs:
+                break
+            
+            # Check redundancy with already selected hubs
+            is_redundant = False
+            for active in selected:
+                correlation = mi_matrix.loc[candidate, active]
+                if correlation > redundancy_threshold:
+                    is_redundant = True
+                    break
+            
+            if not is_redundant:
+                selected.append(candidate)
+                
+        return selected
+
+    def fit(self, df: pd.DataFrame, hif_epochs: int = 10, verbose: bool = True, x_precomputed: pd.DataFrame | None = None):
+        """Train Sentinels using stateful manifold projection."""
         if len(df) < 50:
             return
 
         mi_matrix = self._calculate_dependency_matrix(df)
-        hub_scores = mi_matrix.sum(axis=1).sort_values(ascending=False)
-        self.hubs = hub_scores.head(self.top_n_hubs).index.tolist()
+        self.hubs = self._select_diverse_hubs(mi_matrix)
 
         if verbose:
-            print(f"  [HIF Hubs] Discovered {len(self.hubs)} Logical Hubs: {self.hubs}")
+            print(f"  [HIF Hubs] Selected {len(self.hubs)} Diverse Manifold Hubs: {self.hubs}")
 
-        X_full = pd.get_dummies(df, drop_first=True)
+        if x_precomputed is not None:
+            x_encoded = x_precomputed
+            self.encoder.feature_names = x_encoded.columns.tolist()
+            self.encoder.is_fitted = True
+        else:
+            self.encoder.fit(df)
+            x_encoded = self.encoder.transform(df)
 
         for hub_col in self.hubs:
+            # FEATURE-SUBSPACE ALIGNMENT: Select encoded features belonging to the manifold predictors
             other_cols = [c for c in df.columns if c != hub_col]
             prefixes = tuple(f"{c}_" for c in other_cols)
-            hub_features = [c for c in X_full.columns if c.startswith(prefixes)]
+            hub_features = [c for c in x_encoded.columns if c.startswith(prefixes)]
             
-            X = X_full[hub_features]
+            X = x_encoded[hub_features]
             y = df[hub_col]
 
             n_trees = max(10, hif_epochs * 10)
@@ -135,6 +199,7 @@ class LogicalSentinelEnsemble:
                 n_estimators=n_trees,
                 max_depth=self.max_depth,
                 random_state=self.random_state,
+                min_samples_leaf=3,
                 n_jobs=-1,
             )
             clf.fit(X, y)
@@ -142,23 +207,27 @@ class LogicalSentinelEnsemble:
 
             probs = clf.predict_proba(X)
             max_probs = np.max(probs, axis=1)
-            self.confidence_floors[hub_col] = float(np.percentile(max_probs, 0.5))
+            self.confidence_floors[hub_col] = float(np.percentile(max_probs, 1.0))
 
         self.is_trained = True
 
-    def audit(self, df: pd.DataFrame) -> Tuple[float, np.ndarray, Dict[str, Any]]:
-        """Audit synthetic rows for 'Logical Ruptures'."""
+    def audit(self, df: pd.DataFrame, x_precomputed: pd.DataFrame | None = None) -> Tuple[float, np.ndarray, Dict[str, Any]]:
+        """Audit synthetic rows for 'Logical Ruptures' using reference manifold."""
         if not self.is_trained:
             return 1.0, np.zeros(len(df)), {}
 
         row_penalties = np.zeros(len(df))
         traces = []
 
-        X_full_syn = pd.get_dummies(df, drop_first=True)
+        if x_precomputed is not None:
+            x_encoded = x_precomputed
+        else:
+            x_encoded = self.encoder.transform(df)
 
         for hub_col in self.hubs:
             clf = self.sentinels[hub_col]
-            X = X_full_syn.reindex(columns=clf.feature_names_in_, fill_value=0)
+            # Ensure feature alignment with training state
+            X = x_encoded.reindex(columns=clf.feature_names_in_, fill_value=0)
 
             probs = clf.predict_proba(X)
             classes = clf.classes_
@@ -177,7 +246,9 @@ class LogicalSentinelEnsemble:
             soft_threshold = 0.1
             penalty = np.clip((raw_diff - soft_threshold) / (1.0 - soft_threshold), 0, 1)
 
-            row_penalties = np.maximum(row_penalties, penalty)
+            # ATOMIC AGGREGATION: Use 1 - Product(1 - Penalty) for higher sensitivity
+            # This ensures that ruptures in multiple hubs compound the penalty
+            row_penalties = 1.0 - (1.0 - row_penalties) * (1.0 - penalty)
 
             ruptures = penalty > 0.5
             if ruptures.any():
@@ -206,53 +277,94 @@ class LogicalSentinelEnsemble:
         )
 
 
-class NeighborContinuityScorer:
-    """Audits continuous features against categorical manifold."""
+class NeighborInvariantContinuity:
+    """
+    Neighbor-Invariant Continuity (NIC).
+    Audits continuous features against categorical manifold using spectral reconstruction.
+    """
     def __init__(self, random_state: int = 42):
-        self.regressors: Dict[str, Ridge] = {}
+        self.regressors: Dict[str, RidgeCV] = {}
         self.scalers: Dict[str, StandardScaler] = {}
         self.z_thresholds: Dict[str, float] = {}
-        self.pca = None
+        self.pca: PCA | None = None
+        self.encoder = ManifoldEncoder()
         self.random_state = random_state
 
-    def fit(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame):
+    def fit(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame, x_precomputed: pd.DataFrame | None = None, verbose: bool = True):
+        """Fit spectral regressors on the training manifold."""
         valid_cols = [c for c in continuous_df.columns if continuous_df[c].nunique() > 1]
-        if not valid_cols: return
+        if not valid_cols:
+            return
+        
         active_df = continuous_df[valid_cols]
-        self.manifold_features = pd.get_dummies(categorical_df, drop_first=True)
-        n_comp = min(32, self.manifold_features.shape[1], self.manifold_features.shape[0])
-        if n_comp < 1: return
-        self.pca = PCA(n_components=n_comp, random_state=self.random_state)
-        latent = self.pca.fit_transform(self.manifold_features)
+        
+        if x_precomputed is not None:
+            x_encoded = x_precomputed
+            self.encoder.feature_names = x_encoded.columns.tolist()
+            self.encoder.is_fitted = True
+        else:
+            self.encoder.fit(categorical_df)
+            x_encoded = self.encoder.transform(categorical_df)
+
+        n_feat = x_encoded.shape[1]
+        n_samples = x_encoded.shape[0]
+        if n_feat < 1 or n_samples < 2:
+            return
+        
+        spectral_coverage = 0.95
+        svd_solver = "full" if n_feat < 500 else "randomized"
+        self.pca = PCA(n_components=spectral_coverage, svd_solver=svd_solver, random_state=self.random_state)
+        latent = self.pca.fit_transform(x_encoded)
+        
+        if verbose:
+            print(f"  [HIF NIC] Spectral Coverage: {n_feat} features -> {self.pca.n_components_} components")
+
         for col in active_df.columns:
             y = active_df[col].values
             scaler = StandardScaler()
             y_scaled = scaler.fit_transform(y.reshape(-1, 1)).flatten()
-            reg = Ridge(alpha=1.0, random_state=self.random_state)
+            
+            # Use RidgeCV for automated regularization optimization
+            reg = RidgeCV(alphas=np.logspace(-2, 4, 7))
             reg.fit(latent, y_scaled)
+            
             y_pred = reg.predict(latent)
             residuals = np.abs(y_scaled - y_pred)
+            
             self.regressors[col] = reg
             self.scalers[col] = scaler
             self.z_thresholds[col] = float(np.percentile(residuals, 95))
 
-    def score(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame) -> Tuple[float, np.ndarray]:
-        if self.pca is None or not self.regressors: return 1.0, np.zeros(len(continuous_df))
-        syn_dummy = pd.get_dummies(categorical_df, drop_first=True).reindex(columns=self.manifold_features.columns, fill_value=0)
-        latent = self.pca.transform(syn_dummy)
+    def score(self, categorical_df: pd.DataFrame, continuous_df: pd.DataFrame, x_precomputed: pd.DataFrame | None = None) -> Tuple[float, np.ndarray]:
+        """Score continuous features for manifold continuity violations."""
+        if self.pca is None or not self.regressors:
+            return 1.0, np.zeros(len(continuous_df))
+        
+        if x_precomputed is not None:
+            x_aligned = x_precomputed.reindex(columns=self.encoder.feature_names, fill_value=0)
+        else:
+            x_aligned = self.encoder.transform(categorical_df)
+        
+        latent = self.pca.transform(x_aligned)
         row_penalties = np.zeros(len(continuous_df))
+        
         for col in continuous_df.columns:
-            if col not in self.regressors: continue
+            if col not in self.regressors:
+                continue
+            
             y = continuous_df[col].values
             y_scaled = self.scalers[col].transform(y.reshape(-1, 1)).flatten()
             y_pred = self.regressors[col].predict(latent)
             residuals = np.abs(y_scaled - y_pred)
+            
             threshold = self.z_thresholds[col]
             if threshold > 0:
                 col_penalty = np.clip((residuals - threshold) / (threshold * 3.0), 0, 1)
             else:
                 col_penalty = np.zeros_like(residuals)
+            
             row_penalties = np.maximum(row_penalties, col_penalty)
+            
         return float(1.0 - row_penalties.mean()), row_penalties
 
 
@@ -266,30 +378,72 @@ def hif_score(
     random_state: int = 42,
     verbose: bool = True,
 ) -> dict:
+    """
+    Hybrid Integrity Framework (HIF) Entry Point.
+    Orchestrates the Tabular Polygraph via Logical Sentinel Ensemble (LSE) 
+    and Neighbor-Invariant Continuity (NIC).
+    """
     np.random.seed(int(random_state))
     random.seed(int(random_state))
-    if columns is None: columns = real.columns.intersection(synthetic.columns).tolist()
+    
+    if columns is None:
+        columns = real.columns.intersection(synthetic.columns).tolist()
+    
     valid_cols, skipped_cols = [], []
     for col in columns:
-        if pd.api.types.is_numeric_dtype(real[col]): skipped_cols.append(col)
-        else: valid_cols.append(col)
+        if pd.api.types.is_numeric_dtype(real[col]):
+            skipped_cols.append(col)
+        else:
+            valid_cols.append(col)
+            
     if not valid_cols:
-        return {"hif_score": 1.0, "row_penalties": np.zeros(len(synthetic)), "violation_rate": 0.0, "mean_penalty": 0.0, "num_violations": 0, "columns_used": []}
+        return {
+            "hif_score": 1.0,
+            "row_penalties": np.zeros(len(synthetic)),
+            "violation_rate": 0.0,
+            "mean_penalty": 0.0,
+            "num_violations": 0,
+            "columns_used": []
+        }
 
-    real_f, synthetic_f = _canonicalize_code_columns(_adaptive_binning(real[valid_cols], valid_cols), _adaptive_binning(synthetic[valid_cols], valid_cols), valid_cols)
+    # Pre-processing: Adaptive Binning and Canonicalization
+    real_f, synthetic_f = _canonicalize_code_columns(
+        _adaptive_binning(real[valid_cols], valid_cols),
+        _adaptive_binning(synthetic[valid_cols], valid_cols),
+        valid_cols
+    )
+    
+    # UNIFIED STATEFUL ENCODING: Project into categorical manifold
+    encoder = ManifoldEncoder()
+    encoder.fit(real_f)
+    x_real_cat = encoder.transform(real_f)
+    x_syn_cat = encoder.transform(synthetic_f)
+
+    # 1. Categorical Layer: Manifold Sentinels
     oracle = LogicalSentinelEnsemble(top_n_hubs=hif_hubs, max_depth=hif_depth, random_state=random_state)
-    oracle.fit(real_f, hif_epochs=hif_epochs, verbose=verbose)
-    _, cat_penalties, meta = oracle.audit(synthetic_f)
+    oracle.fit(real_f, hif_epochs=hif_epochs, verbose=verbose, x_precomputed=x_real_cat)
+    _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
 
+    # 2. Continuous Layer: Neighbor-Invariant Continuity (NIC)
     nic_violation_rate = 0.0
     nic_penalties = np.zeros(len(synthetic))
     if skipped_cols:
-        nic_auditor = NeighborContinuityScorer(random_state=random_state)
-        nic_auditor.fit(real_f[oracle.hubs], real[skipped_cols])
-        _, nic_penalties = nic_auditor.score(synthetic_f[oracle.hubs], synthetic[skipped_cols])
+        nic_auditor = NeighborInvariantContinuity(random_state=random_state)
+        # Re-use the same categorical encoding for NIC manifold
+        nic_auditor.fit(real_f[oracle.hubs], real[skipped_cols], x_precomputed=x_real_cat, verbose=verbose)
+        _, nic_penalties = nic_auditor.score(synthetic_f[oracle.hubs], synthetic[skipped_cols], x_precomputed=x_syn_cat)
         nic_violation_rate = (nic_penalties > 0.5).mean()
 
-    row_validity = np.sqrt((1.0 - cat_penalties) * (1.0 - nic_penalties))
+    # GEOMETRIC AGGREGATION: Integrative validities
+    eps = 1e-6
+    active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
+    if skipped_cols:
+        active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
+    
+    # Calculate geometric mean across active auditors
+    log_sum = sum(np.log(c) for c in active_components)
+    row_validity = np.exp(log_sum / len(active_components))
+    
     row_penalties = 1.0 - row_validity
     hif_score_val = row_validity.mean()
 
@@ -320,7 +474,8 @@ def mine_implication_rules(
     random_state: int | None = None,
 ) -> list[dict[str, Any]]:
     n_rows = len(real)
-    if n_rows == 0: return []
+    if n_rows == 0:
+        return []
     min_support_count = max(1, int(np.ceil(min_support * n_rows)))
     rules: list[dict[str, Any]] = []
     cat = pd.DataFrame(index=real.index)
@@ -331,8 +486,10 @@ def mine_implication_rules(
             try:
                 quantized = pd.qcut(col_data, 10, labels=None, duplicates="drop")
                 cat[col] = quantized.astype(str)
-            except Exception: cat[col] = col_data.astype(str)
-        else: cat[col] = col_data.astype(str)
+            except Exception:
+                cat[col] = col_data.astype(str)
+        else:
+            cat[col] = col_data.astype(str)
     frequent_items: dict[tuple[str, str], int] = {}
     for col in columns:
         counts = cat[col].value_counts()
@@ -351,7 +508,8 @@ def mine_implication_rules(
     max_k = max_antecedents + 1
     for k in range(2, max_k + 1):
         prev_frequent = frequent_sets_by_size.get(k - 1, [])
-        if not prev_frequent: break
+        if not prev_frequent:
+            break
         candidates_set = set()
         for i in range(len(prev_frequent)):
             for j in range(i + 1, len(prev_frequent)):
@@ -360,7 +518,8 @@ def mine_implication_rules(
                     if l2[-1][0] not in {item[0] for item in l1}:
                         candidates_set.add(tuple(sorted(list(l1) + [l2[-1]])))
         candidates = list(candidates_set)
-        if not candidates: break
+        if not candidates:
+            break
         MAX_CANDIDATES_PER_LEVEL = 100000
         if len(candidates) > MAX_CANDIDATES_PER_LEVEL:
             random.seed(random_state or 42)
@@ -368,7 +527,8 @@ def mine_implication_rules(
         current_frequent = []
         for cand in candidates:
             mask = item_masks[cand[0]]
-            for i in range(1, len(cand)): mask = mask & item_masks[cand[i]]
+            for i in range(1, len(cand)):
+                mask = mask & item_masks[cand[i]]
             count = int(mask.sum())
             if count >= min_support_count:
                 support_counts[cand] = count
@@ -394,7 +554,8 @@ def mine_implication_rules(
                                 "antecedent_count": support_counts[antecedent_items],
                                 "antecedent_feature": antecedents[0]["feature"] if len(antecedents) == 1 else None
                             })
-        if not current_frequent: break
+        if not current_frequent:
+            break
         frequent_sets_by_size[k] = current_frequent
     rules.sort(key=lambda x: (x["confidence"], x["lift"], x["support"]), reverse=True)
     return rules[:max_rules]
@@ -412,18 +573,57 @@ def rule_violation_score(
     max_violation_examples: int = 20,
     random_state: int | None = None,
 ) -> dict[str, Any]:
-    if not columns or max_rules < 1: return {"rule_violation_rate": 0.0, "num_rule_violations": 0, "num_rules_mined": 0, "rows_with_rule_violations": 0, "rows_evaluated": len(synthetic), "top_violated_rules": [], "violation_examples": []}
-    real_f, syn_f = _canonicalize_code_columns(_adaptive_binning(real, columns), _adaptive_binning(synthetic, columns), columns)
-    rules = mine_implication_rules(real_f, columns=columns, min_confidence=min_confidence, min_support=min_support, max_rules=max_rules, min_lift=min_lift, max_antecedents=max_antecedents, random_state=random_state)
-    if not rules: return {"rule_violation_rate": 0.0, "num_rule_violations": 0, "num_rules_mined": 0, "rows_with_rule_violations": 0, "rows_evaluated": len(syn_f), "top_violated_rules": [], "violation_examples": []}
+    rule_diagnostics: List[Dict[str, Any]] = []
+    violation_examples: List[Dict[str, Any]] = []
+    
+    if not columns or max_rules < 1:
+        return {
+            "rule_violation_rate": 0.0,
+            "num_rule_violations": 0,
+            "num_rules_mined": 0,
+            "rows_with_rule_violations": 0,
+            "rows_evaluated": len(synthetic),
+            "top_violated_rules": [],
+            "violation_examples": [],
+        }
+    
+    real_f, syn_f = _canonicalize_code_columns(
+        _adaptive_binning(real, columns), _adaptive_binning(synthetic, columns), columns
+    )
+    rules = mine_implication_rules(
+        real_f,
+        columns=columns,
+        min_confidence=min_confidence,
+        min_support=min_support,
+        max_rules=max_rules,
+        min_lift=min_lift,
+        max_antecedents=max_antecedents,
+        random_state=random_state,
+    )
+    
+    if not rules:
+        return {
+            "rule_violation_rate": 0.0,
+            "num_rule_violations": 0,
+            "num_rules_mined": 0,
+            "rows_with_rule_violations": 0,
+            "rows_evaluated": len(syn_f),
+            "top_violated_rules": [],
+            "violation_examples": [],
+        }
+    
     row_violation_mask = np.zeros(len(syn_f), dtype=bool)
     total_violations = 0
-    rule_diagnostics, violation_examples = [], []
+    
     for rule in rules:
         ants = rule["antecedents"]
         ant_mask = pd.Series(True, index=syn_f.index)
-        for ant in ants: ant_mask &= syn_f[ant["feature"]].astype(str).eq(str(ant["value"]))
-        if not ant_mask.any(): continue
+        for ant in ants:
+            ant_mask &= syn_f[ant["feature"]].astype(str).eq(str(ant["value"]))
+        
+        if not ant_mask.any():
+            continue
+        
         violates = ant_mask & (~syn_f[rule["consequent_feature"]].astype(str).eq(rule["consequent_value"]))
         row_violation_mask |= violates.to_numpy()
         v_count = int(violates.sum())
@@ -431,7 +631,22 @@ def rule_violation_score(
         if v_count > 0:
             rule_diagnostics.append({**rule, "violation_count": v_count})
             for ridx in syn_f.index[violates][:3]:
-                if len(violation_examples) >= max_violation_examples: break
-                violation_examples.append({"row_index": str(ridx), "antecedent": rule["antecedent_repr"], "expected": f"{rule['consequent_feature']}={rule['consequent_value']}", "actual": f"{rule['consequent_feature']}={syn_f.loc[ridx, rule['consequent_feature']]}"})
+                if len(violation_examples) >= max_violation_examples:
+                    break
+                violation_examples.append({
+                    "row_index": str(ridx),
+                    "antecedent": rule["antecedent_repr"],
+                    "expected": f"{rule['consequent_feature']}={rule['consequent_value']}",
+                    "actual": f"{rule['consequent_feature']}={syn_f.loc[ridx, rule['consequent_feature']]}"
+                })
+    
     rule_diagnostics.sort(key=lambda d: d["violation_count"], reverse=True)
-    return {"rule_violation_rate": round(row_violation_mask.sum() / len(syn_f), 4), "num_rule_violations": int(total_violations), "num_rules_mined": int(len(rules)), "rows_with_rule_violations": int(row_violation_mask.sum()), "rows_evaluated": int(len(syn_f)), "top_violated_rules": rule_diagnostics[:10], "violation_examples": violation_examples}
+    return {
+        "rule_violation_rate": round(row_violation_mask.sum() / len(syn_f), 4),
+        "num_rule_violations": int(total_violations),
+        "num_rules_mined": int(len(rules)),
+        "rows_with_rule_violations": int(row_violation_mask.sum()),
+        "rows_evaluated": int(len(syn_f)),
+        "top_violated_rules": rule_diagnostics[:10],
+        "violation_examples": violation_examples
+    }

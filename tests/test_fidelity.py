@@ -73,7 +73,7 @@ class TestLogicalFidelity:
         assert penalties[1] == 0.0
 
     def test_nic_scorer_manifold_continuity(self):
-        from src.fidelity.logical import NeighborContinuityScorer
+        from src.fidelity.logical import NeighborInvariantContinuity
 
         # Increase feature space for PCA(n_components=32)
         data_dict = {
@@ -85,7 +85,7 @@ class TestLogicalFidelity:
         syn_cat = real_cat.iloc[:2].copy()
         syn_num = pd.DataFrame({"val": [5.0, 50.0]})  # 50.0 is an outlier
 
-        scorer = NeighborContinuityScorer()
+        scorer = NeighborInvariantContinuity()
         scorer.fit(real_cat, real_num)
         score, penalties = scorer.score(syn_cat, syn_num)
 

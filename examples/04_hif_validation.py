@@ -1,5 +1,5 @@
 """
-Example 4: HIF metric validation for research reporting.
+Example 4: HIF Empirical Validation & Sensitivity Benchmarking.
 
 This script runs five checks to decide whether the current HIF design is
 scientifically useful:
@@ -270,7 +270,7 @@ def _evaluate_once(
     utility_feature_mode: str,
     seed: int,
 ) -> dict:
-    # Use the unified hif_score (now handles LSE + NIC internally)
+    # Use the hardened hif_score (Neurosymbolic LSE + Spectral NIC)
     hif = hif_score(
         real,
         syn,
@@ -478,7 +478,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 72)
-    print("HIF Validation")
+    print("HIF VALIDATION: MANIFOLD CROSS-AUDIT")
     print("=" * 72)
     print(f"Dataset: {args.dataset}")
     print(f"Seeds: {seeds}")
@@ -526,9 +526,8 @@ def main() -> None:
             print(
                 f"  level={level:>4.2f} | hif={metrics['hif_score']:.4f} | "
                 f"nic_vr={metrics['nic_violation_rate']:.4f} | "
-                f"rule_vr={metrics['rule_violation_rate']:.4f} | "
-                f"mm={metrics['moment_matching_score']:.2f} | "
-                f"joint={metrics['joint_score']:.2f}",
+                f"cssp_vr={metrics['hif_violation_rate']:.4f} | "
+                f"mm={metrics['moment_matching_score']:.2f}",
                 flush=True,
             )
 
