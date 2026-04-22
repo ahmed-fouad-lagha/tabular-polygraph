@@ -287,7 +287,7 @@ def _evaluate_once(
         min_support=0.005,
         max_rules=25,
         min_lift=1.0,
-        max_antecedents=1,
+        max_antecedents=2,
     )
 
     mm = mean_moment_matching_score(moment_matching_scores(real, syn, num_cols))

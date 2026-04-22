@@ -1,18 +1,21 @@
 """
 Example 5: Cross-Architecture & Multi-Domain Integrity Audit.
 
-This script evaluates the Holistic Integrity Framework (HIF) across diverse
-architectures and datasets to confirm the cross-domain robustness of the
-Integrity Oracle.
-- Datasets: census_acs, bls, world_bank
+This script evaluates the Hybrid Integrity Framework (HIF) across diverse
+architectures and datasets to produce Table 2 and Table 3 for the manuscript.
+- Datasets: census_acs, world_bank
 - Generators: GaussianCopula, VineCopula, CTGAN
 
-Objective: Validate that the Continuous Semantic Severity Penalty (CSSP)
-consistently identifies hallucinations across varied structural priors.
+Runs N_SEEDS independent experiments and reports mean ± std.
+
+Usage:
+    python examples/05_cross_domain_audit.py --rows 500 --seeds 3 --epochs 150
 """
 
 import argparse
+import json
 import sys
+import time
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -21,149 +24,188 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.catalog import load_dataset
+from src.catalog.downloader import load_cached
 from src.generators import GaussianCopulaGenerator, VineCopulaGenerator, CTGANGenerator
-from src.fidelity import hif_score
-from src.utils import numeric_columns
+from src.fidelity import fidelity_report
+from src.utils import DEFAULT_DROP_LIST
 
 
-def _get_generator(gen_type: str, epochs: int = 300):
+def _get_generator(gen_type: str, epochs: int = 150):
     if gen_type == "gaussian":
         return GaussianCopulaGenerator()
     elif gen_type == "vine":
         return VineCopulaGenerator()
     elif gen_type == "ctgan":
-        return CTGANGenerator(epochs=epochs)
+        return CTGANGenerator(epochs=epochs, batch_size=500)
     else:
         raise ValueError(f"Unknown generator type: {gen_type}")
 
 
-def run_audit(
-    dataset_id: str, gen_type: str, rows: int = 1000, seed: int = 42, epochs: int = 50
-):
-    print(f"\n[Audit] Dataset: {dataset_id} | Generator: {gen_type}")
+def load_real_data(dataset_id: str) -> pd.DataFrame:
+    df = load_cached(dataset_id)
+    if df is None:
+        from src.catalog import load_dataset
+        df = load_dataset(dataset_id, n=50000)
+    drop = [c for c in DEFAULT_DROP_LIST if c in df.columns]
+    if drop:
+        df = df.drop(columns=drop)
+    return df.dropna().reset_index(drop=True)
 
-    # 1. Load Real Data
-    try:
-        raw_df = load_dataset(dataset_id, n=50000).dropna()
-        if len(raw_df) < 100:
-            print(
-                f"  Skipping {dataset_id}: insufficient rows ({len(raw_df)}) after dropna"
-            )
-            return None
 
-        n_available = len(raw_df)
-        rows = min(rows, n_available // 2)
-        real_df = raw_df.sample(rows * 2, random_state=seed)
-        print(f"  Using {rows * 2} real records for {dataset_id}")
-    except Exception as e:
-        print(f"  Error loading {dataset_id}: {e}")
-        return None
+def run_single(real_df, gen_type, rows, seed, epochs):
+    """Run a single generate + evaluate cycle. Returns a result dict."""
+    np.random.seed(seed)
 
-    # 2. Fit and Generate Synthetic
-    try:
-        print(f"  Fitting {gen_type} generator...")
-        gen = _get_generator(gen_type, epochs=epochs)
-        gen.fit(real_df)
+    gen = _get_generator(gen_type, epochs=epochs)
+    gen.fit(real_df)
+    syn = gen.generate(rows, seed=seed)
+    syn_body = syn.drop(columns=["syn_id"], errors="ignore")
 
-        print(f"  Generating {rows} synthetic records...")
-        syn_df = gen.generate(rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
-    except Exception as e:
-        print(f"  Error fitting/generating {dataset_id} with {gen_type}: {e}")
-        return None
-
-    # 3. Evaluate Integrity (Base)
-    try:
-        print("  Evaluating HIF base integrity...")
-        base_res = hif_score(real_df, syn_df, verbose=False)
-        base_hif = base_res["hif_score"]
-    except Exception as e:
-        print(f"  Error evaluating base HIF for {dataset_id}: {e}")
-        return None
-
-    # 4. Corruption Sensitivity Check
-    try:
-        # Swap 30% of categorical values to force hallucinations
-        corrupt_syn = syn_df.copy()
-        numeric_cols = [
-            c for c in syn_df.columns if pd.api.types.is_numeric_dtype(syn_df[c])
-        ]
-        cat_cols = [c for c in syn_df.columns if c not in numeric_cols]
-
-        if not cat_cols:
-            print(
-                f"  No categorical columns in {dataset_id}, skipping corruption check."
-            )
-            corr_hif = base_hif  # Dummy
-        else:
-            for col in cat_cols:
-                mask = np.random.rand(len(corrupt_syn)) < 0.3
-                unique_vals = real_df[col].unique()
-                corrupt_syn.loc[mask, col] = np.random.choice(
-                    unique_vals, size=mask.sum()
-                )
-
-            print("  Evaluating HIF corrupted sensitivity...")
-            corr_res = hif_score(real_df, corrupt_syn, verbose=False)
-            corr_hif = corr_res["hif_score"]
-    except Exception as e:
-        print(f"  Error evaluating corrupted HIF for {dataset_id}: {e}")
-        corr_hif = base_hif  # Fallback
-
-    # 4. Corruption Sensitivity Check
-    # Swap 30% of categorical values to force hallucinations
-    corrupt_syn = syn_df.copy()
-    cat_cols = [c for c in syn_df.columns if c not in numeric_columns(syn_df)]
-    for col in cat_cols:
-        mask = np.random.rand(len(corrupt_syn)) < 0.3
-        corrupt_syn.loc[mask, col] = np.random.choice(
-            real_df[col].unique(), size=mask.sum()
-        )
-
-    print("  Evaluating HIF corrupted sensitivity...")
-    corr_res = hif_score(real_df, corrupt_syn, verbose=False)
-    corr_hif = corr_res["hif_score"]
-
-    delta = base_hif - corr_hif
-    print(
-        f"  Results: Base={base_hif:.4f} | Corrupted={corr_hif:.4f} | Delta={delta:.4f}"
+    report = fidelity_report(
+        real_df,
+        syn_body,
+        dataset_type="cross_sectional",
+        include_downstream=False,
+        random_state=seed,
+        rule_min_confidence=0.95,
+        rule_min_support=0.005,
+        rule_max_rules=25,
+        rule_min_lift=1.0,
+        rule_max_antecedents=2,
     )
 
+    s = report["summary"]
+    lg = report.get("logical", {})
+
     return {
-        "dataset": dataset_id,
-        "generator": gen_type,
-        "base_hif": base_hif,
-        "corrupted_hif": corr_hif,
-        "delta": delta,
-        "status": "PASS" if delta > 0.01 else "FAIL",
+        "ks_score": report["distribution_fit"]["mean_score"],
+        "mm_score": report["moment_matching"]["mean_score"],
+        "joint_score": s.get("joint_score", 0),
+        "hif_score_pct": lg.get("hif_score_pct", 0),
+        "violation_rate_pct": lg.get("hif_violation_rate_pct", 0),
+        "rule_violation_rate_pct": lg.get("rule_violation_rate_pct", 0),
+        "nic_violation_rate_pct": lg.get("nic_violation_rate_pct", 0),
+        "rules_mined": lg.get("num_rules_mined", 0),
+        "num_violations": lg.get("num_hif_violations", 0),
+        "fidelity_pillar": s["pillars"]["fidelity"],
+        "logic_pillar": s["pillars"]["logic"],
+        "privacy_pillar": s["pillars"]["privacy"],
+        "hybrid_integrity": s["hybrid_integrity"],
     }
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--rows", type=int, default=1000)
-    parser.add_argument("--epochs", type=int, default=50)  # Faster for testing
+def main():
+    parser = argparse.ArgumentParser(
+        description="Cross-Architecture Maturity Audit for NeurIPS manuscript tables."
+    )
+    parser.add_argument("--rows", type=int, default=500)
+    parser.add_argument("--seeds", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=150)
+    parser.add_argument("--output-dir", type=str, default="results")
     args = parser.parse_args()
 
-    datasets = ["census_acs", "bls", "world_bank"]
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    datasets = ["census_acs"]
     generators = ["gaussian", "vine", "ctgan"]
 
-    results = []
-    for ds in datasets:
-        for gen in generators:
-            try:
-                res = run_audit(ds, gen, rows=args.rows, epochs=args.epochs)
-                results.append(res)
-            except Exception as e:
-                print(f"  Error auditing {ds} with {gen}: {e}")
+    print("=" * 70)
+    print("  CROSS-ARCHITECTURE MATURITY AUDIT")
+    print("=" * 70)
+    print(f"  Rows per experiment: {args.rows}")
+    print(f"  Seeds: {args.seeds}")
+    print(f"  CTGAN epochs: {args.epochs}")
+    print()
 
-    results = [r for r in results if r is not None]
-    df_res = pd.DataFrame(results)
-    print("\n" + "=" * 72)
-    print("CROSS-ARCHITECTURE & MULTI-DOMAIN INTEGRITY AUDIT SUMMARY")
-    print("=" * 72)
-    print(df_res)
-    print("=" * 72)
+    all_results = []
 
-    df_res.to_csv("results/cross_architecture_audit.csv", index=False)
-    print("\nResults saved to results/cross_architecture_audit.csv")
+    for dataset_id in datasets:
+        print(f"\n{'━' * 70}")
+        print(f"  Dataset: {dataset_id}")
+        print(f"{'━' * 70}")
+
+        real_df = load_real_data(dataset_id)
+        print(f"  Real data: {len(real_df)} rows × {len(real_df.columns)} cols")
+
+        for gen_type in generators:
+            gen_label = {
+                "gaussian": "Gaussian Copula",
+                "vine": "Vine Copula",
+                "ctgan": "CTGAN (Neural)",
+            }[gen_type]
+
+            print(f"\n  ── {gen_label} ──")
+
+            for seed in range(42, 42 + args.seeds):
+                print(f"    Seed {seed}...", end="", flush=True)
+                t0 = time.time()
+                try:
+                    result = run_single(real_df, gen_type, args.rows, seed, args.epochs)
+                    result["dataset"] = dataset_id
+                    result["generator"] = gen_label
+                    result["seed"] = seed
+                    all_results.append(result)
+                    elapsed = time.time() - t0
+                    print(
+                        f" KS={result['ks_score']:.1f}%  "
+                        f"HIF={result['hif_score_pct']:.2f}%  "
+                        f"ViolRate={result['violation_rate_pct']:.1f}%  "
+                        f"Rules={result['rules_mined']}  "
+                        f"({elapsed:.0f}s)"
+                    )
+                except Exception as e:
+                    print(f" ERROR: {e}")
+
+    # ── Summary Tables ────────────────────────────────────────────────────
+    df = pd.DataFrame(all_results)
+
+    print("\n\n" + "=" * 70)
+    print("  TABLE 2: Cross-Architecture Maturity Audit (for manuscript)")
+    print("=" * 70)
+
+    header = f"  {'Architecture':<22} {'KS (↑)':<16} {'HIF Score (↑)':<20} {'Halluc. Rate':<16}"
+    print(header)
+    print("  " + "-" * 70)
+
+    for gen_name in df["generator"].unique():
+        g = df[df["generator"] == gen_name]
+        ks_m, ks_s = g["ks_score"].mean() / 100, g["ks_score"].std() / 100
+        hif_m, hif_s = g["hif_score_pct"].mean() / 100, g["hif_score_pct"].std() / 100
+        vr_m, vr_s = g["violation_rate_pct"].mean(), g["violation_rate_pct"].std()
+
+        print(
+            f"  {gen_name:<22} "
+            f"{ks_m:.3f}±{ks_s:.3f}    "
+            f"{hif_m:.4f}±{hif_s:.4f}      "
+            f"{vr_m:.1f}±{vr_s:.1f}%"
+        )
+
+    print()
+    print("  4-Pillar Breakdown (mean across seeds):")
+    print(f"  {'Architecture':<22} {'Fidelity':<12} {'Logic':<12} {'Privacy':<12} {'Hybrid':<12}")
+    print("  " + "-" * 60)
+    for gen_name in df["generator"].unique():
+        g = df[df["generator"] == gen_name]
+        print(
+            f"  {gen_name:<22} "
+            f"{g['fidelity_pillar'].mean():.2f}%    "
+            f"{g['logic_pillar'].mean():.2f}%    "
+            f"{g['privacy_pillar'].mean():.2f}%    "
+            f"{g['hybrid_integrity'].mean():.2f}%"
+        )
+
+    # Save raw results
+    out_path = out_dir / "architecture_audit.json"
+    with open(out_path, "w") as f:
+        json.dump(all_results, f, indent=2, default=str)
+
+    csv_path = out_dir / "architecture_audit.csv"
+    df.to_csv(csv_path, index=False)
+
+    print(f"\n  Raw results saved → {out_path}")
+    print(f"  CSV results saved → {csv_path}")
+
+
+if __name__ == "__main__":
+    main()

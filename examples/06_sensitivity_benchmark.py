@@ -43,15 +43,16 @@ def run_sensitivity_test(p_hallucination: float = 0.01):
     # We use the real data itself as the 'perfect' synthetic data
     syn_df = real_df.copy()
 
-    # 3. Inject 'Impossible Tracts' (HIF Hallucinations)
-    # Law: owner_occupied + total_renter_units <= total_housing_units
-    # Corruption: set owner_occupied = total_housing_units * 2
+    # 3. Inject Semantic Hallucinations
+    # Corrupt categorical columns by randomly swapping values
     n_corrupt = int(len(syn_df) * p_hallucination)
-    corrupt_idx = np.random.choice(syn_df.index, size=n_corrupt, replace=False)
-
-    syn_df.loc[corrupt_idx, "owner_occupied"] = (
-        syn_df.loc[corrupt_idx, "total_housing_units"] * 2
-    )
+    if n_corrupt > 0:
+        rng = np.random.default_rng(42)
+        cat_cols = [c for c in syn_df.columns if not pd.api.types.is_numeric_dtype(syn_df[c])]
+        corrupt_idx = rng.choice(syn_df.index, size=n_corrupt, replace=False)
+        for col in cat_cols:
+            pool = real_df[col].dropna().unique()
+            syn_df.loc[corrupt_idx, col] = rng.choice(pool, size=n_corrupt, replace=True)
 
     # 4. Measure Metrics
     print("  Evaluating HIF...")
@@ -79,8 +80,8 @@ if __name__ == "__main__":
     df = pd.DataFrame(results)
 
     # Normalize for comparison (Inverse HIF change vs JCD change)
-    hif_0 = df.loc[df["p"] == 0, "hif"].iloc[0]
-    df["hif_drop"] = (hif_0 - df["hif"]) / hif_0 if hif_0 > 0 else 0
+    hif_0 = df.loc[df["p_hallucination"] == 0, "hif_integrity"].iloc[0]
+    df["hif_drop"] = (hif_0 - df["hif_integrity"]) / hif_0 if hif_0 > 0 else 0
 
     print("\n" + "=" * 72)
     print("SENSITIVITY ANALYSIS: SEMANTIC INTEGRITY VS. JOINT CORRELATION")
