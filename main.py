@@ -197,10 +197,18 @@ def _load_generator(
 
     if fit_n is None:
         seed_df = load_cached(dataset_id)
-        if seed_df is None or len(seed_df) < 100:
+        if seed_df is None:
             raise ValueError(
-                f"Dataset '{dataset_id}' not cached. Download real data first: python main.py download {dataset_id}"
+                f"Dataset '{dataset_id}' not found in cache.\n"
+                f"Run: python main.py download {dataset_id}"
             )
+        
+        if len(seed_df) < 10:
+            raise ValueError(
+                f"Dataset '{dataset_id}' is too small to fit a generator ({len(seed_df)} rows).\n"
+                "Please download a larger sample using: python main.py download --force --sample 1000"
+            )
+        
         seed_df = seed_df.reset_index(drop=True)
     else:
         seed_df = load_dataset(dataset_id, n=fit_n)

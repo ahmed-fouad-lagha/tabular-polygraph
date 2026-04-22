@@ -91,7 +91,7 @@ hallucinations = syn.sort_values('hallucination_score', ascending=False).head(5)
 print(hallucinations)
 ```
 
-## Research & Reproducibility
+## Reproducibility
 
 To replicate the results presented in our manuscript, we provide a dedicated validation suite that benchmarks HIF against common distributional metrics using a mixed-mode corruption protocol.
 
