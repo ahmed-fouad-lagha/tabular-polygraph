@@ -202,13 +202,13 @@ def _load_generator(
                 f"Dataset '{dataset_id}' not found in cache.\n"
                 f"Run: python main.py download {dataset_id}"
             )
-        
+
         if len(seed_df) < 10:
             raise ValueError(
                 f"Dataset '{dataset_id}' is too small to fit a generator ({len(seed_df)} rows).\n"
                 "Please download a larger sample using: python main.py download --force --sample 1000"
             )
-        
+
         seed_df = seed_df.reset_index(drop=True)
     else:
         seed_df = load_dataset(dataset_id, n=fit_n)
@@ -540,10 +540,9 @@ def _print_generate_report(report):
 def _save_generated_output(syn, output_path: str):
     from src.io import write
 
-    output = Path(output_path)
-    write(syn, output)
+    final_path = write(syn, output_path)
     print()
-    ok(f"Saved → {_c(str(output), C.CYAN)}  ({output.stat().st_size // 1024} KB)")
+    ok(f"Saved → {_c(str(final_path), C.CYAN)}  ({final_path.stat().st_size // 1024} KB)")
     print()
 
 
@@ -990,7 +989,7 @@ def main():
         action="store_true",
         help="Run moment calibration after generation",
     )
-    p.add_argument("--seed", type=int, default=None, metavar="INT")
+    p.add_argument("--seed", type=int, default=42, metavar="INT")
     p.add_argument(
         "--hif-epochs",
         type=int,

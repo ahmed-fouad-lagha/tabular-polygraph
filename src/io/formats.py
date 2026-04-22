@@ -43,6 +43,15 @@ def write(
     Returns the Path written to.
     """
     path = Path(path)
+    if not path.suffix:
+        # Default to .csv if no extension provided
+        ext = ".csv"
+        if fmt:
+            # Map format back to canonical extension
+            inv_map = {v: k for k, v in _EXT_MAP.items()}
+            ext = inv_map.get(fmt, ".csv")
+        path = path.with_suffix(ext)
+    
     fmt = fmt or _infer_format(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -168,6 +177,8 @@ _EXT_MAP = {
 
 def _infer_format(path: Path) -> str:
     ext = path.suffix.lower()
+    if not ext:
+        return "csv"
     if ext not in _EXT_MAP:
         raise ValueError(
             f"Cannot infer format from extension '{ext}'. "
