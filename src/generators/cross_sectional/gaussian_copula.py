@@ -150,7 +150,7 @@ class GaussianCopulaGenerator(BaseGenerator):
                     prior = self._priors.get(col)
                     if prior is not None and m._params.get("kind") in (
                         "norm",
-                        "lognormal",
+                        "lognorm",
                     ):
                         n = len(data[col].dropna())
                         p = m._params

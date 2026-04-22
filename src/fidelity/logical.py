@@ -381,7 +381,6 @@ class NeighborInvariantContinuity:
             # Use RidgeCV for automated regularization optimization
             reg = RidgeCV(alphas=np.logspace(-2, 4, 7))
             reg.fit(latent, y_scaled)
-            self.regressors[col] = (reg, scaler)
             if verbose:
                 print("Done.")
 

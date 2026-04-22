@@ -259,8 +259,6 @@ def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
     drop_cols = list(set(drop_cols + list(DEFAULT_DROP_LIST)))
 
     real_drop = [c for c in drop_cols if c in real.columns]
-
-    real_drop = [c for c in drop_cols if c in real.columns]
     syn_drop = [c for c in drop_cols if c in syn.columns]
     if real_drop:
         real = real.drop(columns=real_drop)
@@ -430,6 +428,11 @@ def _compute_generate_report(seed_df, syn, gen_type, seed=42):
             dataset_type=dataset_type,
             include_downstream=False,
             random_state=seed,
+            rule_min_confidence=0.95,
+            rule_min_support=0.005,
+            rule_max_rules=25,
+            rule_min_lift=1.0,
+            rule_max_antecedents=2,
         )
     except Exception as fe:
         warn(f"Fidelity report skipped: {fe}")
@@ -1098,9 +1101,9 @@ def main():
     p.add_argument(
         "--rule-max-antecedents",
         type=int,
-        default=1,
+        default=2,
         metavar="N",
-        help="Maximum antecedent size for mined logical rules (default: 1)",
+        help="Maximum antecedent size for mined logical rules (default: 2)",
     )
     p.set_defaults(func=cmd_evaluate)
 
