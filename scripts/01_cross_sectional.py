@@ -4,7 +4,7 @@ Example 1: Cross-Sectional Model Training
 Generate synthetic census-like tabular data, run downstream evaluation,
 and audit privacy.
 
-Run: python examples/01_cross_sectional.py
+Run: python scripts/01_cross_sectional.py
 """
 
 import sys
@@ -81,10 +81,10 @@ def main():
     # ── Save outputs ──────────────────────────────────────────────────────────
     from src.io import write
 
-    write(train, "examples/output_census_train.csv")
-    write(eval_sample, "examples/output_census_eval.csv")
-    print(f"\n  Saved: examples/output_census_train.csv   ({len(train):,} rows)")
-    print(f"         examples/output_census_eval.csv    ({len(eval_sample):,} rows)")
+    write(train, "results/_census_train.csv")
+    write(eval_sample, "results/_census_eval.csv")
+    print(f"\n  Saved: results/_census_train.csv   ({len(train):,} rows)")
+    print(f"         results/_census_eval.csv    ({len(eval_sample):,} rows)")
     print("\nDone.")
 
 

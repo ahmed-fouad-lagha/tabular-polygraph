@@ -5,7 +5,7 @@ Generate baseline and stressed macroeconomic time series.
 Compare fidelity across scenarios. Useful for stress testing,
 regime-switching models, and recession-probability classifiers.
 
-Run: python examples/02_macro_scenarios.py
+Run: python scripts/02_macro_scenarios.py
 """
 
 import sys
@@ -88,10 +88,10 @@ def main():
     )
 
     # ── Save ──────────────────────────────────────────────────────────────────
-    write(baseline, "examples/output_macro_baseline.csv")
+    write(baseline, "results/output_macro_baseline.csv")
     for name, df in results.items():
-        write(df, f"examples/output_macro_{name}.csv")
-    print(f"\n  Saved baseline + {len(results)} scenario files to examples/")
+        write(df, f"results/output_macro_{name}.csv")
+    print(f"\n  Saved baseline + {len(results)} scenario files to scripts/")
     print("\nDone.")
 
 

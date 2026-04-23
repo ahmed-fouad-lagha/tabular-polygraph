@@ -9,7 +9,7 @@ architectures and datasets to produce Table 2 and Table 3 for the manuscript.
 Runs N_SEEDS independent experiments and reports mean ± std.
 
 Usage:
-    python examples/05_cross_domain_audit.py --rows 500 --seeds 3 --epochs 150
+    python scripts/05_cross_domain_audit.py --rows 500 --seeds 3 --epochs 150
 """
 
 import argparse

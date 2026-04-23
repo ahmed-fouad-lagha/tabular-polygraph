@@ -587,11 +587,11 @@ def hif_score(
 def mine_implication_rules(
     real: pd.DataFrame,
     columns: list[str],
-    min_confidence: float = 0.98,
-    min_support: float = 0.01,
-    max_rules: int = 200,
+    min_confidence: float = 0.95,
+    min_support: float = 0.005,
+    max_rules: int = 25,
     min_lift: float = 1.0,
-    max_antecedents: int = 1,
+    max_antecedents: int = 2,
     random_state: int | None = None,
 ) -> list[dict[str, Any]]:
     n_rows = len(real)
@@ -741,11 +741,11 @@ def rule_violation_score(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     columns: list[str],
-    min_confidence: float = 0.98,
-    min_support: float = 0.01,
-    max_rules: int = 200,
+    min_confidence: float = 0.95,
+    min_support: float = 0.005,
+    max_rules: int = 25,
     min_lift: float = 1.0,
-    max_antecedents: int = 1,
+    max_antecedents: int = 2,
     max_violation_examples: int = 20,
     random_state: int | None = None,
 ) -> dict[str, Any]:

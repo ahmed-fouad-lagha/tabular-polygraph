@@ -99,7 +99,7 @@ To replicate the results presented in our manuscript, we provide a dedicated val
 Run the following script to reproduce the **Spearman Monotonicity (rho = -1.0)** and HIF sensitivity scores.
 
 ```bash
-python examples/04_hif_validation.py \
+python scripts/04_hif_validation.py \
   --dataset census_acs \
   --rows 2000 \
   --seeds 42,43,44,45,46 \

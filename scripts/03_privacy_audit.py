@@ -8,7 +8,7 @@ Demonstrates the TAMIS (Targeted Adversarial Masking and Inference Suite) workfl
 - Differential privacy noise addition
 - Interpreting TAMIS risk levels and recommendations
 
-Run: python examples/03_privacy_audit.py
+Run: python scripts/03_privacy_audit.py
 """
 
 import sys

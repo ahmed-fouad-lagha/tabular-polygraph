@@ -10,7 +10,7 @@ scientifically useful:
 5) Practical separability vs distributional metrics
 
 Run:
-    python examples/04_hif_validation.py \
+    python scripts/04_hif_validation.py \
       --dataset census_acs \
       --rows 2000 \
       --seeds 42,43,44,45,46 \

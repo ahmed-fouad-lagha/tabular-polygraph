@@ -274,7 +274,7 @@ def _rule_params_from_args(args) -> dict:
         "rule_min_support": float(getattr(args, "rule_min_support", 0.005)),
         "rule_max_rules": int(getattr(args, "rule_max_rules", 25)),
         "rule_min_lift": float(getattr(args, "rule_min_lift", 1.0)),
-        "rule_max_antecedents": int(getattr(args, "rule_max_antecedents", 1)),
+        "rule_max_antecedents": int(getattr(args, "rule_max_antecedents", 2)),
     }
 
     if not (0.0 <= params["rule_min_confidence"] <= 1.0):

@@ -115,6 +115,7 @@ def stylized_facts_score(
         }
 
     results["_summary"] = {
+        "applicable": True,
         "mean_score": round(float(np.mean(scores)), 1) if scores else 0.0,
         "columns_tested": len(scores),
     }
