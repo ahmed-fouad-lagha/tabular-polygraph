@@ -18,10 +18,14 @@ import sys
 import time
 from pathlib import Path
 
-# Terminal colours
+from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
+from tabular_polygraph.generators.panel import PanelDecompositionGenerator
+from tabular_polygraph.generators.time_series import VARGenerator
 
 
 class C:
+    """Helper class for terminal colours."""
+
     GREEN = "\033[92m"
     CYAN = "\033[96m"
     YELLOW = "\033[93m"
@@ -185,9 +189,6 @@ def _load_generator(
     """Load and fit a generator for the given dataset."""
     from tabular_polygraph.catalog import load_dataset
     from tabular_polygraph.catalog.downloader import load_cached
-    from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
-    from tabular_polygraph.generators.panel import PanelDecompositionGenerator
-    from tabular_polygraph.generators.time_series import VARGenerator
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
