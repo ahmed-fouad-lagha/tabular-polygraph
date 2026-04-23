@@ -15,9 +15,9 @@ Usage
 
 CLI
 ---
-    src download fred_macro
-    src download all
-    src download status
+    python main.py download fred_macro
+    python main.py download all
+    python main.py download status
 
 Sources
 -------
@@ -41,7 +41,11 @@ import pandas as pd
 
 def _cache_dir() -> Path:
     """Get the cache directory and ensure it exists."""
-    base = Path(os.environ.get("SRC_CACHE", Path.home() / ".src" / "cache"))
+    base = Path(
+        os.environ.get(
+            "TABULAR_POLYGRAPH_CACHE", Path.home() / ".tabular_polygraph" / "cache"
+        )
+    )
     base.mkdir(parents=True, exist_ok=True)
     return base
 

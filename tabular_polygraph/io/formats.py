@@ -1,5 +1,5 @@
 """
-src.io.formats
+tabular_polygraph.io.formats
 ----------------------
 Read/write synthetic data in all supported formats.
 

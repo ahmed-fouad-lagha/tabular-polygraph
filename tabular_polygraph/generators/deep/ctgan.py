@@ -1,5 +1,5 @@
 """
-src.generators.deep.ctgan
+tabular_polygraph.generators.deep.ctgan
 ---------------------------------
 Stub for CTGAN (Conditional Tabular GAN) deep generator.
 
@@ -9,7 +9,7 @@ CTGAN significantly outperforms Gaussian Copula on:
   - Complex non-linear inter-column relationships
 
 Installation of the deep extra required:
-    pip install src[deep]   # installs ctgan, torch
+    pip install .[deep]   # installs ctgan, torch
 
 This stub raises an informative error until the deep extra is installed,
 and documents the interface so the upgrade path is clear.
@@ -28,7 +28,7 @@ class CTGANGenerator(BaseGenerator):
     """
     CTGAN deep tabular generator.
 
-    Requires: pip install src[deep]
+    Requires: pip install .[deep]
 
     Usage (same interface as GaussianCopulaGenerator):
         gen = CTGANGenerator(epochs=300, batch_size=500)
@@ -49,7 +49,7 @@ class CTGANGenerator(BaseGenerator):
         except ImportError:
             raise ImportError(
                 "CTGAN is not installed.\n"
-                "Run: pip install src[deep]\n\n"
+                "Run: pip install .[deep]\n\n"
                 "This installs ctgan and its PyTorch dependency (~2 GB).\n"
                 "If you don't need deep learning quality, GaussianCopulaGenerator\n"
                 "achieves 96–98% fidelity with no additional dependencies."

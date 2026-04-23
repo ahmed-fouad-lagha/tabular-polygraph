@@ -1,5 +1,5 @@
 """
-src.io.validators
+tabular_polygraph.io.validators
 --------------------------
 Schema validation for real data before it's passed to a generator.
 

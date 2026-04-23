@@ -1,5 +1,5 @@
 """
-src.generators.cross_sectional.gaussian_copula
+tabular_polygraph.generators.cross_sectional.gaussian_copula
 ------------------------------------------------------
 Gaussian Copula generator for cross-sectional tabular data.
 

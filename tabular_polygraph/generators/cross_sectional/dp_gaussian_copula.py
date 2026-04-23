@@ -1,5 +1,5 @@
 """
-src.generators.cross_sectional.dp_gaussian_copula
+tabular_polygraph.generators.cross_sectional.dp_gaussian_copula
 ----------------------------------------------------------
 Differentially Private Gaussian Copula generator.
 

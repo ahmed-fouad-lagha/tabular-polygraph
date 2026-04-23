@@ -1,5 +1,5 @@
 """
-src.generators.base
+tabular_polygraph.generators.base
 --------------------------
 Abstract base class that every generator must implement.
 Enforces a consistent interface across cross-sectional, time-series,

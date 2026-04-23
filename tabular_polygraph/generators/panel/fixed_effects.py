@@ -1,5 +1,5 @@
 """
-src.generators.panel.fixed_effects
+tabular_polygraph.generators.panel.fixed_effects
 ------------------------------------------
 Panel data generator using a fixed-effects decomposition.
 

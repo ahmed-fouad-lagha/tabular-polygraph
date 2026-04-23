@@ -48,7 +48,7 @@ class TestCustomGeneration:
         assert "market" in syn.columns
 
     def test_cli_list_shows_all_datasets(self):
-        """src list should show all catalog datasets."""
+        """The list command should show all catalog datasets."""
         from tabular_polygraph.catalog import DATASETS, list_datasets
 
         df = list_datasets()

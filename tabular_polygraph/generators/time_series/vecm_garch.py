@@ -1,5 +1,5 @@
 """
-src.generators.time_series.vecm_garch
+tabular_polygraph.generators.time_series.vecm_garch
 ----------------------------------------------
 VECM + GARCH time series generator for financial and macro data.
 
@@ -51,7 +51,7 @@ def _require_statsmodels():
     except ImportError:
         raise ImportError(
             "statsmodels is required for VECMGARCHGenerator.\n"
-            "Install it with: pip install src[timeseries]\n"
+            "Install it with: pip install .[timeseries]\n"
             "  or: pip install statsmodels arch"
         ) from None
 

@@ -1,5 +1,5 @@
 """
-src.generators.cross_sectional.vine_copula
+tabular_polygraph.generators.cross_sectional.vine_copula
 --------------------------------------------------
 Vine (Pair) Copula generator for cross-sectional data.
 
@@ -45,7 +45,7 @@ def _require_pyvine():
     except ImportError:
         raise ImportError(
             "pyvinecopulib is required for VineCopulaGenerator.\n"
-            "Install it with: pip install src[vine]\n"
+            "Install it with: pip install .[vine]\n"
             "  or: pip install pyvinecopulib"
         ) from None
 

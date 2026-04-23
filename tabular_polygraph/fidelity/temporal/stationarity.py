@@ -1,5 +1,5 @@
 """
-src.fidelity.temporal.stationarity
+tabular_polygraph.fidelity.temporal.stationarity
 ------------------------------------------
 Tests whether real and synthetic time series share the same
 stationarity properties.

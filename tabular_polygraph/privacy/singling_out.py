@@ -1,5 +1,5 @@
 """
-src.privacy.singling_out
+tabular_polygraph.privacy.singling_out
 ---------------------------------
 Singling-out attack: can an adversary uniquely identify an individual
 in the real dataset using only the synthetic data?

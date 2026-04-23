@@ -1,5 +1,5 @@
 """
-src.fidelity.temporal.cointegration
+tabular_polygraph.fidelity.temporal.cointegration
 -------------------------------------------
 Engle-Granger cointegration test between column pairs.
 Checks whether synthetic series preserve long-run equilibrium relationships

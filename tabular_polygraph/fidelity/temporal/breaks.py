@@ -1,5 +1,5 @@
 """
-src.fidelity.temporal.breaks
+tabular_polygraph.fidelity.temporal.breaks
 -------------------------------------
 Structural break detection using a Chow-test inspired scan.
 

@@ -1,5 +1,5 @@
 """
-src.privacy.audit
+tabular_polygraph.privacy.audit
 --------------------------
 TAMIS Privacy Oracle: Targeted Adversarial Masking and Inference Suite.
 Full privacy audit: runs all privacy tests and returns a structured report.

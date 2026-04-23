@@ -1,5 +1,5 @@
 """
-src.generators.time_series.var
+tabular_polygraph.generators.time_series.var
 --------------------------------------
 Vector Autoregression (VAR) generator for multivariate time series data.
 

@@ -1,5 +1,5 @@
 """
-src.privacy.linkability
+tabular_polygraph.privacy.linkability
 --------------------------------
 Linkability attack: can an adversary link a synthetic record back to
 a specific real individual by matching on shared attributes?

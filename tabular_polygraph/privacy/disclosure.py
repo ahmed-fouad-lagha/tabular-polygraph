@@ -1,5 +1,5 @@
 """
-src.privacy.disclosure
+tabular_polygraph.privacy.disclosure
 -------------------------------
 Membership inference attack: can an adversary determine whether a
 specific real record was used to train the generator?

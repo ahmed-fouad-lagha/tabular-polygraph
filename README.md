@@ -55,14 +55,14 @@ python main.py list
 Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy.
 
 ```bash
-# 1. Download sample data (cached in ~/.src/cache/)
+# 1. Download sample data (cached in ~/.tabular_polygraph/cache/)
 python main.py download census_acs
 
 # 2. Generate synthetic data using a Gaussian Copula
 python main.py generate census_acs --rows 100 --output synthetic.csv
 
 # 3. Audit for Hallucinations (Semantic Integrity)
-python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
+python main.py evaluate ~/.tabular_polygraph/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
 ```
 
 ## Python API

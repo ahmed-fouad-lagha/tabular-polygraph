@@ -1,5 +1,5 @@
 """
-src.privacy.dp
+tabular_polygraph.privacy.dp
 ----------------------
 Differential Privacy (ε-DP) noise addition and budget tracking.
 

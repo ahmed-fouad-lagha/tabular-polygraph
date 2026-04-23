@@ -8,9 +8,7 @@ def VineCopulaGenerator(*args, **kwargs):
 
         return _V(*args, **kwargs)
     except ImportError:
-        raise ImportError(
-            "VineCopulaGenerator requires: pip install src[vine]"
-        ) from None
+        raise ImportError("VineCopulaGenerator requires: pip install .[vine]") from None
 
 
 __all__ = [
