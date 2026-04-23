@@ -44,7 +44,7 @@ The HIF Hybrid Integrity Framework provides:
 ```bash
 git clone https://github.com/ahmed-fouad-lagha/tabular-polygraph.git
 cd tabular-polygraph
-pip install -r requirements.txt
+pip install -e .
 
 # Verify environment
 python main.py list
@@ -69,9 +69,9 @@ python main.py evaluate ~/.src/cache/census_acs.parquet synthetic.csv --type cro
 
 ```python
 import pandas as pd
-from src.catalog import load_dataset
-from src.fidelity import fidelity_report
-from src.fidelity.logical import hif_score
+from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.fidelity.logical import hif_score
 
 # 1. Load Data
 real = load_dataset("census_acs")

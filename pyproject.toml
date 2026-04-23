@@ -27,10 +27,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
+test = [
     "pytest>=7",
-    "pytest-cov",
-    "pre-commit",
+    "pytest-cov"
+]
+lint = [
+    "pre-commit"
+]
+dev = [
+    "tabular-polygraph[test,lint]",
     "build",
     "twine"
 ]
