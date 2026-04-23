@@ -13,13 +13,13 @@ from pathlib import Path
 # ruff: noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.generators import GaussianCopulaGenerator
-from src.catalog import load_dataset
-from src.fidelity import fidelity_report
-from src.privacy import privacy_audit
-from src.calibration.priors import get_priors
+
+from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.privacy import privacy_audit
+from tabular_polygraph.calibration.priors import get_priors
 
 
 def main():
@@ -79,7 +79,7 @@ def main():
     print(f"      Recommendation   : {v['recommendation']}")
 
     # ── Save outputs ──────────────────────────────────────────────────────────
-    from src.io import write
+    from tabular_polygraph.io import write
 
     write(train, "results/_census_train.csv")
     write(eval_sample, "results/_census_eval.csv")

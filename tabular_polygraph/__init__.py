@@ -1,10 +1,10 @@
 """
 Quick start:
-    from src.generators import GaussianCopulaGenerator
-    from src.catalog    import load_dataset
-    from src.fidelity   import fidelity_report
-    from src.privacy    import privacy_audit
-    from src.calibration import apply_scenario
+    from tabular_polygraph.generators import GaussianCopulaGenerator
+    from tabular_polygraph.catalog    import load_dataset
+    from tabular_polygraph.fidelity   import fidelity_report
+    from tabular_polygraph.privacy    import privacy_audit
+    from tabular_polygraph.calibration import apply_scenario
 """
 
 from .generators.base import BaseGenerator

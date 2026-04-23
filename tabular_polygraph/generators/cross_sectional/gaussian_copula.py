@@ -113,7 +113,7 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     Usage
     -----
-        from src.generators.cross_sectional import GaussianCopulaGenerator
+        from tabular_polygraph.generators.cross_sectional import GaussianCopulaGenerator
 
         gen = GaussianCopulaGenerator()
         gen.fit(real_df)

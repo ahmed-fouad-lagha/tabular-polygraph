@@ -16,10 +16,10 @@ import pandas as pd
 
 # ruff: noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.catalog import load_dataset
-from src.fidelity import hif_score
+
+from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.fidelity import hif_score
 
 
 def joint_correlation_distance(df1: pd.DataFrame, df2: pd.DataFrame) -> float:

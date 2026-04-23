@@ -9,7 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 from scipy import stats
-from src.utils import numeric_columns, to_numeric_array
+from tabular_polygraph.utils import numeric_columns, to_numeric_array
 
 
 def moment_matching_scores(

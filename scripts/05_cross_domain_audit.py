@@ -22,12 +22,12 @@ import pandas as pd
 
 # ruff: noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.catalog.downloader import load_cached
-from src.generators import GaussianCopulaGenerator, VineCopulaGenerator, CTGANGenerator
-from src.fidelity import fidelity_report
-from src.utils import DEFAULT_DROP_LIST
+
+from tabular_polygraph.catalog.downloader import load_cached
+from tabular_polygraph.generators import GaussianCopulaGenerator, VineCopulaGenerator, CTGANGenerator
+from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
 
 def _get_generator(gen_type: str, epochs: int = 150):
@@ -44,7 +44,7 @@ def _get_generator(gen_type: str, epochs: int = 150):
 def load_real_data(dataset_id: str) -> pd.DataFrame:
     df = load_cached(dataset_id)
     if df is None:
-        from src.catalog import load_dataset
+        from tabular_polygraph.catalog import load_dataset
         df = load_dataset(dataset_id, n=50000)
     drop = [c for c in DEFAULT_DROP_LIST if c in df.columns]
     if drop:

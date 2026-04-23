@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from src.fidelity.logical import hif_score
+from tabular_polygraph.fidelity.logical import hif_score
 
 
 def test_hif_sensitivity_to_hallucination():

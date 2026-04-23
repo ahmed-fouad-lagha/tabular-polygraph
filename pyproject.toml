@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tabular-polygraph"
+version = "0.1.0"
+description = "HIF: Hybrid Integrity Framework for Synthetic Tabular Data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Ahmed Fouad Lagha" }
+]
+dependencies = [
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "scipy>=1.9",
+    "pyarrow>=12",
+    "openpyxl>=3.1",
+    "pyreadstat>=1.2",
+    "xgboost",
+    "scikit-learn",
+    "torch",
+    "seaborn",
+    "matplotlib"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "pre-commit",
+    "build",
+    "twine"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tabular_polygraph*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["tabular_polygraph", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tabular_polygraph"]

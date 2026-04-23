@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-from src.generators import GaussianCopulaGenerator
+from tabular_polygraph.generators import GaussianCopulaGenerator
 
 
 class TestMarginalFidelity:
     def test_scores_in_range(self, census_acs):
-        from src.fidelity.marginal import moment_matching_scores
+        from tabular_polygraph.fidelity.marginal import moment_matching_scores
 
         gen = GaussianCopulaGenerator()
         gen.fit(census_acs)
@@ -16,7 +16,7 @@ class TestMarginalFidelity:
             assert 0 <= score <= 100
 
     def test_identical_data_scores_100(self, census_acs):
-        from src.fidelity.marginal import moment_matching_scores
+        from tabular_polygraph.fidelity.marginal import moment_matching_scores
 
         scores = moment_matching_scores(census_acs, census_acs)
         for score in scores.values():
@@ -25,7 +25,7 @@ class TestMarginalFidelity:
 
 class TestLogicalFidelity:
     def test_hif_handles_single_category_feature(self):
-        from src.fidelity.logical import hif_score
+        from tabular_polygraph.fidelity.logical import hif_score
 
         real = pd.DataFrame({"cat": ["A"] * 20})
         syn = pd.DataFrame({"cat": ["A"] * 20})
@@ -37,7 +37,7 @@ class TestLogicalFidelity:
         assert result["mean_penalty"] == 0.0
 
     def test_hif_small_dataset_train_with_verbose(self):
-        from src.fidelity.logical import hif_score
+        from tabular_polygraph.fidelity.logical import hif_score
 
         real = pd.DataFrame(
             {
@@ -51,7 +51,7 @@ class TestLogicalFidelity:
         assert 0.0 <= result["hif_score"] <= 1.0
 
     def test_lse_oracle_trains_and_audits(self):
-        from src.fidelity.logical import LogicalSentinelEnsemble
+        from tabular_polygraph.fidelity.logical import LogicalSentinelEnsemble
 
         # Increase data diversity for better Sentinel training
         real = pd.DataFrame(
@@ -73,7 +73,7 @@ class TestLogicalFidelity:
         assert penalties[1] == 0.0
 
     def test_nic_scorer_manifold_continuity(self):
-        from src.fidelity.logical import NeighborInvariantContinuity
+        from tabular_polygraph.fidelity.logical import NeighborInvariantContinuity
 
         # Increase feature space for PCA(n_components=32)
         data_dict = {
@@ -93,7 +93,7 @@ class TestLogicalFidelity:
         assert penalties[1] > 0.5
 
     def test_rule_violation_score_penalizes_corruption(self):
-        from src.fidelity.logical import rule_violation_score
+        from tabular_polygraph.fidelity.logical import rule_violation_score
 
         real = pd.DataFrame(
             {
@@ -126,7 +126,7 @@ class TestLogicalFidelity:
 
 class TestJointFidelity:
     def test_correlation_score_range(self, census_acs):
-        from src.fidelity.joint import correlation_distance_score
+        from tabular_polygraph.fidelity.joint import correlation_distance_score
 
         gen = GaussianCopulaGenerator()
         gen.fit(census_acs)
@@ -136,7 +136,7 @@ class TestJointFidelity:
         assert 0 <= score <= 100
 
     def test_pairwise_report_returns_dict(self, census_acs):
-        from src.fidelity.joint import pairwise_correlation_report
+        from tabular_polygraph.fidelity.joint import pairwise_correlation_report
 
         gen = GaussianCopulaGenerator()
         gen.fit(census_acs)
@@ -149,7 +149,7 @@ class TestJointFidelity:
 
 class TestDownstreamFidelity:
     def test_tstr_scales_each_training_split_independently(self, monkeypatch):
-        from src.fidelity import downstream
+        from tabular_polygraph.fidelity import downstream
 
         real = pd.DataFrame(
             {
@@ -183,7 +183,7 @@ class TestDownstreamFidelity:
 
 class TestTemporalFidelity:
     def test_stationarity_agreement(self, fred_macro, syn_macro):
-        from src.fidelity.temporal.stationarity import stationarity_score
+        from tabular_polygraph.fidelity.temporal.stationarity import stationarity_score
 
         result = stationarity_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert "_summary" in result
@@ -191,21 +191,21 @@ class TestTemporalFidelity:
         assert 0 <= rate <= 100
 
     def test_cointegration_agreement(self, fred_macro, syn_macro):
-        from src.fidelity.temporal.cointegration import cointegration_score
+        from tabular_polygraph.fidelity.temporal.cointegration import cointegration_score
 
         result = cointegration_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert "_summary" in result
         assert 0 <= result["_summary"]["agreement_rate"] <= 100
 
     def test_breaks_score(self, fred_macro, syn_macro):
-        from src.fidelity.temporal.breaks import breaks_score
+        from tabular_polygraph.fidelity.temporal.breaks import breaks_score
 
         result = breaks_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert "_summary" in result
         assert 0 <= result["_summary"]["break_match_rate"] <= 100
 
     def test_causality_score(self, fred_macro, syn_macro):
-        from src.fidelity.causality import causality_score
+        from tabular_polygraph.fidelity.causality import causality_score
 
         result = causality_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert "_summary" in result
@@ -214,7 +214,7 @@ class TestTemporalFidelity:
 
 class TestFidelityReport:
     def test_cross_sectional_report_keys(self, census_acs):
-        from src.fidelity import fidelity_report
+        from tabular_polygraph.fidelity import fidelity_report
 
         gen = GaussianCopulaGenerator()
         gen.fit(census_acs)
@@ -232,7 +232,7 @@ class TestFidelityReport:
             assert key in report
 
     def test_temporal_section_for_time_series(self, fred_macro, syn_macro):
-        from src.fidelity import fidelity_report
+        from tabular_polygraph.fidelity import fidelity_report
 
         report = fidelity_report(
             fred_macro, syn_macro.drop(columns=["syn_id"]), dataset_type="time_series"
@@ -244,7 +244,7 @@ class TestFidelityReport:
         assert "causality" in report["temporal"]
 
     def test_format_report_returns_string(self, census_acs):
-        from src.fidelity import fidelity_report, format_report
+        from tabular_polygraph.fidelity import fidelity_report, format_report
 
         gen = GaussianCopulaGenerator()
         gen.fit(census_acs)

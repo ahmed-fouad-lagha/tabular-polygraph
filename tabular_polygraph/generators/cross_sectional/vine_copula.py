@@ -18,7 +18,7 @@ Requirements
 
 Usage
 -----
-    from src.generators.cross_sectional import VineCopulaGenerator
+    from tabular_polygraph.generators.cross_sectional import VineCopulaGenerator
 
     gen = VineCopulaGenerator()
     gen.fit(real_df)

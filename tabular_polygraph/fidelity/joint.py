@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
-from src.utils import numeric_columns
+from tabular_polygraph.utils import numeric_columns
 
 
 def correlation_distance_score(

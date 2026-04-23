@@ -25,7 +25,7 @@ Requirements
 
 Usage
 -----
-    from src.generators.time_series import VECMGARCHGenerator
+    from tabular_polygraph.generators.time_series import VECMGARCHGenerator
 
     gen = VECMGARCHGenerator(lags=2, time_col="year")
     gen.fit(real_macro_df)
@@ -63,7 +63,7 @@ class VECMGARCHGenerator(BaseGenerator):
 
     Usage
     -----
-        from src.generators.time_series import VECMGARCHGenerator
+        from tabular_polygraph.generators.time_series import VECMGARCHGenerator
 
         gen = VECMGARCHGenerator(lags=2, time_col="year")
         gen.fit(load_dataset("fred_macro"))

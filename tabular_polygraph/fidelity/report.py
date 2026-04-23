@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 import numpy as np
 import pandas as pd
-from src.utils import numeric_columns, DEFAULT_DROP_LIST
+from tabular_polygraph.utils import numeric_columns, DEFAULT_DROP_LIST
 
 from .marginal import (
     moment_matching_scores,

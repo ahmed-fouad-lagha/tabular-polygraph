@@ -30,7 +30,7 @@ class VARGenerator(BaseGenerator):
 
     Usage
     -----
-        from src.generators.time_series import VARGenerator
+        from tabular_polygraph.generators.time_series import VARGenerator
 
         gen = VARGenerator(lags=2, time_col="year")
         gen.fit(real_df)

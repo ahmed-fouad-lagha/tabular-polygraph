@@ -147,7 +147,7 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     Load real data for a dataset via API downloader.
 
     All datasets are real, downloadable public data. To use, first download:
-        from src.catalog.downloader import download
+        from tabular_polygraph.catalog.downloader import download
         download("fred_macro")   # requires FRED_API_KEY env var
         download("bls")
         download("world_bank")
@@ -165,7 +165,7 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
         raise ValueError(
             f"Unknown dataset '{dataset_id}'.\n"
             f"Available real datasets: {available}\n"
-            f"Download real data: from src.catalog.downloader import download"
+            f"Download real data: from tabular_polygraph.catalog.downloader import download"
         )
 
     # Always load from cache if available

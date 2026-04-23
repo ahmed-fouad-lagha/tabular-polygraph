@@ -73,7 +73,7 @@ def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def all_seeds():
-    from src.catalog import load_dataset, DATASETS
+    from tabular_polygraph.catalog import load_dataset, DATASETS
 
     result = {}
     for did in DATASETS:
@@ -101,7 +101,7 @@ def census_acs(all_seeds):
 
 @pytest.fixture(scope="module")
 def syn_macro(fred_macro):
-    from src.generators.time_series import VARGenerator
+    from tabular_polygraph.generators.time_series import VARGenerator
 
     gen = VARGenerator(lags=2, time_col="year")
     gen.fit(fred_macro)
@@ -110,7 +110,7 @@ def syn_macro(fred_macro):
 
 @pytest.fixture(scope="module")
 def syn_wb(world_bank):
-    from src.generators.panel import FixedEffectsGenerator
+    from tabular_polygraph.generators.panel import FixedEffectsGenerator
 
     gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
     gen.fit(world_bank)

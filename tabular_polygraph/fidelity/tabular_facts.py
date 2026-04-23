@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy import stats
-from src.utils import numeric_columns
+from tabular_polygraph.utils import numeric_columns
 
 
 def tabular_stylized_facts(

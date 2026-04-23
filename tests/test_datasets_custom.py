@@ -7,7 +7,7 @@ class TestCustomGeneration:
     def test_python_api_custom_fit(self):
         """Users can fit on any DataFrame and generate synthetic data."""
         import pandas as pd
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         # Create a simple custom dataset for generation tests
         custom = pd.DataFrame(
@@ -28,7 +28,7 @@ class TestCustomGeneration:
     def test_python_api_custom_columns(self):
         """Works on arbitrary columns — not just built-in datasets."""
         import pandas as pd
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         custom = pd.DataFrame(
             {
@@ -47,7 +47,7 @@ class TestCustomGeneration:
 
     def test_cli_list_shows_all_datasets(self):
         """src list should show all catalog datasets."""
-        from src.catalog import list_datasets, DATASETS
+        from tabular_polygraph.catalog import list_datasets, DATASETS
 
         df = list_datasets()
         assert len(df) == len(DATASETS)

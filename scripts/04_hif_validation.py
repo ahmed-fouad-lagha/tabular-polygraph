@@ -31,20 +31,20 @@ from scipy.stats import spearmanr
 
 # ruff: noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.catalog import load_dataset
-from src.catalog.downloader import load_cached
-from src.generators import GaussianCopulaGenerator
-from src.fidelity import (
+
+from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.catalog.downloader import load_cached
+from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.fidelity import (
     correlation_distance_score,
     hif_score,
     mean_moment_matching_score,
     moment_matching_scores,
 )
-from src.fidelity.downstream import tstr_score
-from src.fidelity.logical import rule_violation_score
-from src.utils import numeric_columns
+from tabular_polygraph.fidelity.downstream import tstr_score
+from tabular_polygraph.fidelity.logical import rule_violation_score
+from tabular_polygraph.utils import numeric_columns
 
 
 def _parse_int_list(text: str) -> list[int]:

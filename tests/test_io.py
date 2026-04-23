@@ -14,7 +14,7 @@ def _sample_df() -> pd.DataFrame:
 
 
 def test_csv_roundtrip(tmp_path):
-    from src.io import read, write
+    from tabular_polygraph.io import read, write
 
     df = _sample_df()
     path = tmp_path / "sample.csv"
@@ -25,7 +25,7 @@ def test_csv_roundtrip(tmp_path):
 
 
 def test_json_roundtrip(tmp_path):
-    from src.io import read, write
+    from tabular_polygraph.io import read, write
 
     df = _sample_df()
     path = tmp_path / "sample.json"
@@ -36,7 +36,7 @@ def test_json_roundtrip(tmp_path):
 
 
 def test_stata_roundtrip(tmp_path):
-    from src.io import read, write
+    from tabular_polygraph.io import read, write
 
     df = _sample_df()
     path = tmp_path / "sample.dta"
@@ -47,14 +47,14 @@ def test_stata_roundtrip(tmp_path):
 
 
 def test_unsupported_format_raises(tmp_path):
-    from src.io import write
+    from tabular_polygraph.io import write
 
     with pytest.raises(ValueError):
         write(_sample_df(), Path(tmp_path) / "sample.xyz")
 
 
 def test_validate_catches_nulls():
-    from src.io import validate
+    from tabular_polygraph.io import validate
 
     df = pd.DataFrame({"a": [1, None, None, None, None], "b": [1, 2, 3, 4, 5]})
     result = validate(df, min_rows=3)
@@ -63,7 +63,7 @@ def test_validate_catches_nulls():
 
 
 def test_validate_warns_constant_column():
-    from src.io import validate
+    from tabular_polygraph.io import validate
 
     df = pd.DataFrame({"a": [1] * 100, "b": range(100)})
     result = validate(df)
@@ -71,7 +71,7 @@ def test_validate_warns_constant_column():
 
 
 def test_validate_warns_high_cardinality():
-    from src.io import validate
+    from tabular_polygraph.io import validate
 
     df = pd.DataFrame(
         {
@@ -84,7 +84,7 @@ def test_validate_warns_high_cardinality():
 
 
 def test_supported_formats_list():
-    from src.io import supported_formats
+    from tabular_polygraph.io import supported_formats
 
     fmts = supported_formats()
     assert "csv" in fmts

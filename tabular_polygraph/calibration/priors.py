@@ -16,9 +16,9 @@ published statistics (CFPB reports, Fed H.8, BLS bulletins, etc.).
 
 Usage
 -----
-    from src.calibration.priors import PriorSet, DATASET_PRIORS
-    from src.generators import GaussianCopulaGenerator
-    from src.catalog import load_dataset
+    from tabular_polygraph.calibration.priors import PriorSet, DATASET_PRIORS
+    from tabular_polygraph.generators import GaussianCopulaGenerator
+    from tabular_polygraph.catalog import load_dataset
 
     # Use a built-in prior set
     priors = DATASET_PRIORS["fred_macro"]
@@ -26,7 +26,7 @@ Usage
     gen.fit(load_dataset("fred_macro").sample(100))   # only 100 rows — priors stabilise estimates
 
     # Define a custom prior set
-    from src.calibration.priors import Prior, PriorSet
+    from tabular_polygraph.calibration.priors import Prior, PriorSet
     priors = PriorSet({
         "loan_amount":      Prior("lognormal", mu=12.1, sigma=0.7),
         "applicant_income": Prior("lognormal", mu=11.2, sigma=0.6),

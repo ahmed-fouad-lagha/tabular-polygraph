@@ -29,7 +29,7 @@ class FixedEffectsGenerator(BaseGenerator):
 
     Usage
     -----
-        from src.generators.panel import FixedEffectsGenerator
+        from tabular_polygraph.generators.panel import FixedEffectsGenerator
 
         gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
         gen.fit(real_df)

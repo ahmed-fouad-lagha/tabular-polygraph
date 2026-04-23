@@ -15,7 +15,7 @@ Methodology (shadow model approach, simplified):
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from src.utils import numeric_columns, normalize
+from tabular_polygraph.utils import numeric_columns, normalize
 
 
 def _min_dist_to_synthetic(

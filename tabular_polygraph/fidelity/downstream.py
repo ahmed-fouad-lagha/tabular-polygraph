@@ -12,7 +12,7 @@ Supports: classification (default_12m, action_taken) and regression tasks.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from src.utils import numeric_columns
+from tabular_polygraph.utils import numeric_columns
 
 
 def _gini(y_true: np.ndarray, y_score: np.ndarray) -> float:

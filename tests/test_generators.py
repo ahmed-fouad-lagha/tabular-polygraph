@@ -5,20 +5,20 @@ import pytest
 
 class TestBaseGenerator:
     def test_abstract_cannot_instantiate(self):
-        from src.generators.base import BaseGenerator
+        from tabular_polygraph.generators.base import BaseGenerator
 
         with pytest.raises(TypeError):
             BaseGenerator()
 
     def test_require_fitted_guard(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         gen = GaussianCopulaGenerator()
         with pytest.raises(RuntimeError, match="not been fitted"):
             gen.generate(10)
 
     def test_fit_sample_fluent(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
             {
@@ -31,7 +31,7 @@ class TestBaseGenerator:
         assert len(out) == 50
 
     def test_repr_before_after_fit(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
             {
@@ -48,7 +48,7 @@ class TestBaseGenerator:
 
 class TestGaussianCopula:
     def test_reproducible_with_seed_on_custom_data(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
             {
@@ -65,7 +65,7 @@ class TestGaussianCopula:
         pd.testing.assert_frame_equal(syn1, syn2)
 
     def test_all_cross_sectional_datasets(self, all_seeds):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         gen = GaussianCopulaGenerator()
         gen.fit(all_seeds["census_acs"])
@@ -74,7 +74,7 @@ class TestGaussianCopula:
         assert "syn_id" in out.columns
 
     def test_different_seeds_differ(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
             {
@@ -91,7 +91,7 @@ class TestGaussianCopula:
         assert not out1["loan_amount"].equals(out2["loan_amount"])
 
     def test_correlation_matrix_property(self):
-        from src.generators import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
             {
@@ -127,7 +127,7 @@ class TestVARGenerator:
                 )
 
     def test_bls_var_generation(self, all_seeds):
-        from src.generators.time_series import VARGenerator
+        from tabular_polygraph.generators.time_series import VARGenerator
 
         gen = VARGenerator(lags=2, time_col="quarter")
         gen.fit(all_seeds["bls"])

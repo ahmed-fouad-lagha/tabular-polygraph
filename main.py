@@ -183,12 +183,12 @@ def _load_generator(
     fit_rows: int | None = None,
 ):
     """Load and fit a generator for the given dataset."""
-    from src.utils import DEFAULT_DROP_LIST
-    from src.catalog import load_dataset
-    from src.catalog.downloader import load_cached
-    from src.generators import GaussianCopulaGenerator
-    from src.generators.time_series import VARGenerator
-    from src.generators.panel import FixedEffectsGenerator
+    from tabular_polygraph.utils import DEFAULT_DROP_LIST
+    from tabular_polygraph.catalog import load_dataset
+    from tabular_polygraph.catalog.downloader import load_cached
+    from tabular_polygraph.generators import GaussianCopulaGenerator
+    from tabular_polygraph.generators.time_series import VARGenerator
+    from tabular_polygraph.generators.panel import FixedEffectsGenerator
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
     fit_n = fit_rows
@@ -242,7 +242,7 @@ def _load_eval_frames(real_path: str, syn_path: str):
         if not p.exists():
             raise FileNotFoundError(str(p))
 
-    from src.io import read
+    from tabular_polygraph.io import read
 
     info(f"Loading real:      {real_path}")
     real = read(real_path)
@@ -252,7 +252,7 @@ def _load_eval_frames(real_path: str, syn_path: str):
 
 
 def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
-    from src.utils import DEFAULT_DROP_LIST
+    from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     drop_cols = _parse_drop_cols(drop_cols_arg) or []
     # Automatically add default blocklist
@@ -342,8 +342,8 @@ def _fit_custom_input_generator(input_file: str, drop_cols: list[str]):
     if not Path(input_file).exists():
         raise FileNotFoundError(input_file)
 
-    from src.io import read, validate as validate_df
-    from src.generators import GaussianCopulaGenerator
+    from tabular_polygraph.io import read, validate as validate_df
+    from tabular_polygraph.generators import GaussianCopulaGenerator
 
     seed_df = read(input_file)
     seed_df = _drop_existing_columns(seed_df, drop_cols)
@@ -391,7 +391,7 @@ def _run_scenario_if_requested(syn, args):
     if not getattr(args, "scenario", None):
         return syn
 
-    from src.calibration import apply_scenario
+    from tabular_polygraph.calibration import apply_scenario
 
     info(f"Applying scenario: {args.scenario}  (intensity={args.intensity})")
     syn = apply_scenario(syn, args.scenario, intensity=args.intensity)
@@ -403,7 +403,7 @@ def _run_calibration_if_requested(syn, seed_df, args):
     if not getattr(args, "calibrate", False):
         return syn
 
-    from src.calibration import match_moments
+    from tabular_polygraph.calibration import match_moments
 
     info("Running moment calibration...")
     syn_body = syn.drop(columns=["syn_id"], errors="ignore")
@@ -414,7 +414,7 @@ def _run_calibration_if_requested(syn, seed_df, args):
 
 
 def _compute_generate_report(seed_df, syn, gen_type, seed=42):
-    from src.fidelity import fidelity_report
+    from tabular_polygraph.fidelity import fidelity_report
 
     info("Running fidelity report...")
     dataset_type = {"var": "time_series", "panel": "panel"}.get(
@@ -541,7 +541,7 @@ def _print_generate_report(report):
 
 
 def _save_generated_output(syn, output_path: str):
-    from src.io import write
+    from tabular_polygraph.io import write
 
     final_path = write(syn, output_path)
     print()
@@ -553,7 +553,7 @@ def _save_generated_output(syn, output_path: str):
 
 
 def cmd_list(args):
-    from src.catalog import list_datasets
+    from tabular_polygraph.catalog import list_datasets
 
     df = list_datasets(vertical=args.vertical if hasattr(args, "vertical") else None)
     header(
@@ -574,7 +574,7 @@ def cmd_list(args):
 
 
 def cmd_info(args):
-    from src.catalog import get_dataset_info
+    from tabular_polygraph.catalog import get_dataset_info
 
     try:
         meta = get_dataset_info(args.dataset)
@@ -634,7 +634,7 @@ def cmd_generate(args):
 
 
 def cmd_evaluate(args):
-    from src.fidelity import fidelity_report, format_report
+    from tabular_polygraph.fidelity import fidelity_report, format_report
 
     header("Fidelity evaluation", f"{args.real}  vs  {args.synthetic}")
 
@@ -692,8 +692,8 @@ def cmd_audit(args):
             err(f"File not found: {p}")
             sys.exit(1)
 
-    from src.io import read
-    from src.privacy import privacy_audit, format_audit
+    from tabular_polygraph.io import read
+    from tabular_polygraph.privacy import privacy_audit, format_audit
 
     info(f"Loading real:      {args.real}")
     real = read(args.real)
@@ -749,7 +749,7 @@ def cmd_audit(args):
 
 
 def cmd_scenario_list(args):
-    from src.calibration import list_scenarios
+    from tabular_polygraph.calibration import list_scenarios
 
     header("Built-in scenarios")
     df = list_scenarios()
@@ -765,8 +765,8 @@ def cmd_scenario_list(args):
 
 
 def cmd_scenario_apply(args):
-    from src.calibration import apply_scenario
-    from src.io import read, write
+    from tabular_polygraph.calibration import apply_scenario
+    from tabular_polygraph.io import read, write
 
     header(f"Applying scenario: {args.scenario}", f"intensity={args.intensity}")
 
@@ -806,7 +806,7 @@ def cmd_scenario_apply(args):
 
 
 def cmd_validate(args):
-    from src.io import read, validate
+    from tabular_polygraph.io import read, validate
 
     header(f"Validating: {args.file}")
 
@@ -858,7 +858,7 @@ def cmd_validate(args):
 
 
 def cmd_download(args):
-    from src.catalog.downloader import download, status, DOWNLOADERS, is_cached
+    from tabular_polygraph.catalog.downloader import download, status, DOWNLOADERS, is_cached
 
     if args.dataset == "status":
         header("Download status")

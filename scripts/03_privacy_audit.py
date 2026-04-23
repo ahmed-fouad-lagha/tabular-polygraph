@@ -17,12 +17,12 @@ from pathlib import Path
 # ruff: noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.generators import GaussianCopulaGenerator
-from src.catalog import load_dataset
-from src.privacy import privacy_audit, format_audit
-from src.privacy.dp import PrivacyBudget, laplace_mechanism
+
+from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.privacy import privacy_audit, format_audit
+from tabular_polygraph.privacy.dp import PrivacyBudget, laplace_mechanism
 
 
 def main():

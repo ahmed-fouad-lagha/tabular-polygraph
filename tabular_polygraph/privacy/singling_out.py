@@ -13,7 +13,7 @@ Methodology (simplified generalised singling-out):
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from src.utils import categorical_columns
+from tabular_polygraph.utils import categorical_columns
 
 
 def singling_out_risk(

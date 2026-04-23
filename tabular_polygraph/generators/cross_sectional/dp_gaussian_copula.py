@@ -24,7 +24,7 @@ Requirements
 
 Usage
 -----
-    from src.generators.cross_sectional import DPGaussianCopulaGenerator
+    from tabular_polygraph.generators.cross_sectional import DPGaussianCopulaGenerator
 
     gen = DPGaussianCopulaGenerator(epsilon=1.0, delta=1e-5)
     gen.fit(real_df)

@@ -1,5 +1,5 @@
 import numpy as np
-from src.fidelity.report import _summary_section
+from tabular_polygraph.fidelity.report import _summary_section
 
 
 def test_weighted_geometric_mean_sensitivity():

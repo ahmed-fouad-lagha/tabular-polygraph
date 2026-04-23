@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from src.generators import GaussianCopulaGenerator
+from tabular_polygraph.generators import GaussianCopulaGenerator
 
 
 def _privacy_seed() -> pd.DataFrame:
@@ -15,7 +15,7 @@ def _privacy_seed() -> pd.DataFrame:
 
 
 def test_no_exact_copies():
-    from src.privacy.audit import privacy_audit
+    from tabular_polygraph.privacy.audit import privacy_audit
 
     real = _privacy_seed()
     gen = GaussianCopulaGenerator()
@@ -27,7 +27,7 @@ def test_no_exact_copies():
 
 
 def test_membership_inference_auc_in_range():
-    from src.privacy.disclosure import membership_inference_risk
+    from tabular_polygraph.privacy.disclosure import membership_inference_risk
 
     real = _privacy_seed()
     gen = GaussianCopulaGenerator()
@@ -46,7 +46,7 @@ def test_membership_inference_auc_in_range():
 
 
 def test_audit_verdict_keys():
-    from src.privacy import privacy_audit
+    from tabular_polygraph.privacy import privacy_audit
 
     real = _privacy_seed()
     gen = GaussianCopulaGenerator()
@@ -67,7 +67,7 @@ def test_audit_verdict_keys():
 
 
 def test_format_audit_returns_string():
-    from src.privacy import privacy_audit, format_audit
+    from tabular_polygraph.privacy import privacy_audit, format_audit
 
     real = _privacy_seed()
     gen = GaussianCopulaGenerator()
@@ -80,7 +80,7 @@ def test_format_audit_returns_string():
 
 
 def test_budget_exhaustion_raises():
-    from src.privacy.dp import PrivacyBudget, laplace_mechanism
+    from tabular_polygraph.privacy.dp import PrivacyBudget, laplace_mechanism
 
     budget = PrivacyBudget(epsilon=0.5)
     with pytest.raises(RuntimeError, match="exhausted"):
@@ -88,7 +88,7 @@ def test_budget_exhaustion_raises():
 
 
 def test_privatise_histogram():
-    from src.privacy.dp import privatise_histogram
+    from tabular_polygraph.privacy.dp import privatise_histogram
 
     counts = {"A": 100, "B": 50, "C": 25}
     result = privatise_histogram(counts, epsilon=2.0, seed=42)
@@ -97,7 +97,7 @@ def test_privatise_histogram():
 
 
 def test_budget_log_tracks_labels():
-    from src.privacy.dp import PrivacyBudget, laplace_mechanism
+    from tabular_polygraph.privacy.dp import PrivacyBudget, laplace_mechanism
 
     budget = PrivacyBudget(epsilon=5.0)
     laplace_mechanism(1.0, 1.0, 1.0, budget=budget, label="mean_query")
