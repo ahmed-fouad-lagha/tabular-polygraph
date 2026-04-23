@@ -109,7 +109,7 @@ class TestPriors:
         ps = get_priors("fred_macro")
         samples = ps.sample_prior_data(n=100, seed=0)
         assert isinstance(samples, dict)
-        for col, arr in samples.items():
+        for _col, arr in samples.items():
             assert len(arr) == 100
             assert np.isfinite(arr).all()
 

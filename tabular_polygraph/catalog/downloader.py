@@ -26,16 +26,17 @@ All sources are public, and require no authentication except FRED
 """
 
 from __future__ import annotations
-import os
-import json
-import time
+
 import io
+import json
+import os
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import urllib.request
-import urllib.parse
 
 
 def _cache_dir() -> Path:
@@ -173,7 +174,7 @@ def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame
 
     # Merge all indicators on country_code + year
     df = None
-    for col_name, frame in frames.items():
+    for _col_name, frame in frames.items():
         if df is None:
             df = frame
         else:
@@ -253,7 +254,7 @@ def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         raise RuntimeError("No FRED data downloaded")
 
     df = None
-    for col_name, frame in frames.items():
+    for _col_name, frame in frames.items():
         if df is None:
             df = frame
         else:
@@ -301,7 +302,7 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
                 data = json.loads(r.read())
             headers = data[0]
             for row in data[1:]:
-                all_rows.append(dict(zip(headers, row)))
+                all_rows.append(dict(zip(headers, row, strict=False)))
             if int(state) % 10 == 0:
                 print(f"    Progress: {state}/56 states...", flush=True)
         except Exception:
@@ -515,7 +516,7 @@ def load_cached(dataset_id: str) -> pd.DataFrame | None:
 def status() -> pd.DataFrame:
     """Show which datasets have been downloaded and cached."""
     rows = []
-    for did, info in DOWNLOADERS.items():
+    for did, _info in DOWNLOADERS.items():
         p = cache_path(did)
         if p.exists():
             df = pd.read_parquet(p)

@@ -9,8 +9,8 @@ The Continuous Semantic Severity Penalty (CSSP) provides a deterministic signal
 for combinatorial ruptures, even when they occupy <1% of the generated volume.
 """
 
-import sys
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -48,11 +48,15 @@ def run_sensitivity_test(p_hallucination: float = 0.01):
     n_corrupt = int(len(syn_df) * p_hallucination)
     if n_corrupt > 0:
         rng = np.random.default_rng(42)
-        cat_cols = [c for c in syn_df.columns if not pd.api.types.is_numeric_dtype(syn_df[c])]
+        cat_cols = [
+            c for c in syn_df.columns if not pd.api.types.is_numeric_dtype(syn_df[c])
+        ]
         corrupt_idx = rng.choice(syn_df.index, size=n_corrupt, replace=False)
         for col in cat_cols:
             pool = real_df[col].dropna().unique()
-            syn_df.loc[corrupt_idx, col] = rng.choice(pool, size=n_corrupt, replace=True)
+            syn_df.loc[corrupt_idx, col] = rng.choice(
+                pool, size=n_corrupt, replace=True
+            )
 
     # 4. Measure Metrics
     print("  Evaluating HIF...")

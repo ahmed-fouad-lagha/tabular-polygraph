@@ -22,7 +22,7 @@ class TestBaseGenerator:
 
         df = pd.DataFrame(
             {
-                "x": [i for i in range(120)],
+                "x": list(range(120)),
                 "y": [i * 0.5 for i in range(120)],
                 "grp": (["A", "B", "C"] * 40),
             }
@@ -35,7 +35,7 @@ class TestBaseGenerator:
 
         df = pd.DataFrame(
             {
-                "x": [i for i in range(100)],
+                "x": list(range(100)),
                 "y": [100 + i for i in range(100)],
                 "grp": (["A", "B"] * 50),
             }
@@ -95,7 +95,7 @@ class TestGaussianCopula:
 
         df = pd.DataFrame(
             {
-                "a": [i for i in range(150)],
+                "a": list(range(150)),
                 "b": [i * 1.5 + 10 for i in range(150)],
                 "c": [200 - i for i in range(150)],
             }

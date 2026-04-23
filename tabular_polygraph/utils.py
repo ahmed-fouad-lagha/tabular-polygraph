@@ -1,6 +1,4 @@
 """
-src.utils
----------
 Shared utilities and helpers used across calibration, fidelity, generators, and privacy modules.
 
 Provides:
@@ -10,9 +8,11 @@ Provides:
 """
 
 from __future__ import annotations
-import pandas as pd
-import numpy as np
+
 from typing import TypeAlias
+
+import numpy as np
+import pandas as pd
 
 # Type aliases
 FloatArray: TypeAlias = np.ndarray  # 1D or 2D float array

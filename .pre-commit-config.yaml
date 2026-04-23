@@ -26,4 +26,4 @@ repos:
       - id: mypy
         additional_dependencies: [types-PyYAML, types-requests]
         pass_filenames: false
-        args: ["src", "--ignore-missing-imports"]
+        args: ["tabular_polygraph", "--ignore-missing-imports"]

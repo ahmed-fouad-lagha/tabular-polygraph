@@ -10,9 +10,11 @@ pairwise_mi_score    : Average mutual information ratio across column pairs.
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+
 from tabular_polygraph.utils import numeric_columns
 
 

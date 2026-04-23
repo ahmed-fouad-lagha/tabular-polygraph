@@ -1,8 +1,8 @@
 """Dataset metadata and cached loading for downloadable datasets."""
 
 from __future__ import annotations
-import pandas as pd
 
+import pandas as pd
 
 DATASETS: dict[str, dict] = {
     "fred_macro": {

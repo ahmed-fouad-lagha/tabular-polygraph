@@ -1,4 +1,5 @@
 import numpy as np
+
 from tabular_polygraph.fidelity.report import _summary_section
 
 

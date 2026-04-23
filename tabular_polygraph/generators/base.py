@@ -7,8 +7,10 @@ panel and deep generators.
 """
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
+
 import pandas as pd
 
 
@@ -39,6 +41,7 @@ class BaseGenerator(ABC):
         self._meta: dict = {}  # arbitrary metadata subclasses may store
         self._init(**kwargs)
 
+    @abstractmethod
     def _init(self, **kwargs: Any) -> None:
         """Optional hook for subclass __init__ logic without overriding __init__."""
         pass

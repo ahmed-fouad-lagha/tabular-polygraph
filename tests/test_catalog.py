@@ -1,11 +1,17 @@
 import pytest
-from tabular_polygraph.catalog.downloader import DOWNLOADERS, cache_path, is_cached, load_cached
+
+from tabular_polygraph.catalog.downloader import (
+    DOWNLOADERS,
+    cache_path,
+    is_cached,
+    load_cached,
+)
 
 
 class TestCatalogRegistry:
     def test_registry_completeness(self):
         """Ensure every registered downloader has mandatory metadata."""
-        for did, info in DOWNLOADERS.items():
+        for _did, info in DOWNLOADERS.items():
             assert "name" in info
             assert "source" in info
             assert "method" in info

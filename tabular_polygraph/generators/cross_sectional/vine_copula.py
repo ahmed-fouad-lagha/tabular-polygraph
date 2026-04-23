@@ -26,8 +26,10 @@ Usage
 """
 
 from __future__ import annotations
-from typing import Any
+
 import warnings
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -45,7 +47,7 @@ def _require_pyvine():
             "pyvinecopulib is required for VineCopulaGenerator.\n"
             "Install it with: pip install src[vine]\n"
             "  or: pip install pyvinecopulib"
-        )
+        ) from None
 
 
 class VineCopulaGenerator(BaseGenerator):
@@ -212,7 +214,7 @@ class VineCopulaGenerator(BaseGenerator):
             return {}
         report = {}
         for i, ci in enumerate(self._numeric_cols):
-            for j, cj in enumerate(self._numeric_cols[i + 1 :], i + 1):
+            for _j, cj in enumerate(self._numeric_cols[i + 1 :], i + 1):
                 # Get the bicop for this pair from the first tree
                 try:
                     bicop = self._vine.get_pair_copula(0, i)

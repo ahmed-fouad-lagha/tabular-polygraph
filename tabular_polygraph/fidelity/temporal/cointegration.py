@@ -7,6 +7,7 @@ present in the real data (e.g. fed_funds_rate ↔ t10y_rate).
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 

@@ -11,7 +11,6 @@ Demonstrates the TAMIS (Targeted Adversarial Masking and Inference Suite) workfl
 Run: python scripts/03_privacy_audit.py
 """
 
-import sys
 from pathlib import Path
 
 # ruff: noqa: E402
@@ -19,9 +18,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.generators import GaussianCopulaGenerator
 from tabular_polygraph.catalog import load_dataset
-from tabular_polygraph.privacy import privacy_audit, format_audit
+from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.privacy import format_audit, privacy_audit
 from tabular_polygraph.privacy.dp import PrivacyBudget, laplace_mechanism
 
 

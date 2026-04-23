@@ -1,5 +1,6 @@
 import os
 import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -73,7 +74,7 @@ def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def all_seeds():
-    from tabular_polygraph.catalog import load_dataset, DATASETS
+    from tabular_polygraph.catalog import DATASETS, load_dataset
 
     result = {}
     for did in DATASETS:

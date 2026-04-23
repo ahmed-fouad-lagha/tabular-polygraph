@@ -1,6 +1,6 @@
 from .moment_matching import match_moments, moment_report
-from .scenario import apply_scenario, list_scenarios, SCENARIOS
-from .priors import Prior, PriorSet, get_priors, blend_with_prior, DATASET_PRIORS
+from .priors import DATASET_PRIORS, Prior, PriorSet, blend_with_prior, get_priors
+from .scenario import SCENARIOS, apply_scenario, list_scenarios
 
 __all__ = [
     "match_moments",

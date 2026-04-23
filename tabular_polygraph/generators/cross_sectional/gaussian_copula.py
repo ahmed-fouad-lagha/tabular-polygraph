@@ -23,10 +23,6 @@ from scipy import stats
 
 from ..base import BaseGenerator
 
-
-
-
-
 # ── Marginal models ───────────────────────────────────────────────────────────
 
 
@@ -43,11 +39,13 @@ class _NumericMarginal:
         skewness = float(stats.skew(arr))
         if skewness > 1.0 and self._min > 0:
             s, loc, scale = stats.lognorm.fit(arr, floc=0)
-            self._params = dict(kind="lognorm", s=s, loc=loc, scale=scale)
+            self._params = {"kind": "lognorm", "s": s, "loc": loc, "scale": scale}
         else:
-            self._params = dict(
-                kind="norm", loc=float(arr.mean()), scale=float(arr.std()) or 1.0
-            )
+            self._params = {
+                "kind": "norm",
+                "loc": float(arr.mean()),
+                "scale": float(arr.std()) or 1.0,
+            }
         return self
 
     def to_uniform(self, series: pd.Series) -> np.ndarray:
@@ -142,6 +140,7 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     def fit(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return self._fit_impl(data)

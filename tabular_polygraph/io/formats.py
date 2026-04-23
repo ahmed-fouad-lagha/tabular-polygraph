@@ -17,10 +17,11 @@ Supported input formats (for real data ingestion):
 """
 
 from __future__ import annotations
+
 from pathlib import Path
 from typing import Callable
-import pandas as pd
 
+import pandas as pd
 
 # ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ def write(
             inv_map = {v: k for k, v in _EXT_MAP.items()}
             ext = inv_map.get(fmt, ".csv")
         path = path.with_suffix(ext)
-    
+
     fmt = fmt or _infer_format(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -87,7 +88,7 @@ def _write_arrow(df, path, **kw):
         table = pa.Table.from_pandas(df)
         feather.write_feather(table, str(path))
     except ImportError:
-        raise ImportError("Arrow format requires: pip install pyarrow")
+        raise ImportError("Arrow format requires: pip install pyarrow") from None
 
 
 def _write_json(df, path, **kw):
@@ -106,7 +107,7 @@ def _write_excel(df, path, **kw):
     try:
         df.to_excel(path, index=False, engine="openpyxl", **kw)
     except ImportError:
-        raise ImportError("Excel format requires: pip install openpyxl")
+        raise ImportError("Excel format requires: pip install openpyxl") from None
 
 
 # ── Read ──────────────────────────────────────────────────────────────────────
@@ -148,14 +149,14 @@ def _read_arrow(path, **kw) -> pd.DataFrame:
 
         return feather.read_feather(str(path)).to_pandas()
     except ImportError:
-        raise ImportError("Arrow format requires: pip install pyarrow")
+        raise ImportError("Arrow format requires: pip install pyarrow") from None
 
 
 def _read_sas(path, **kw) -> pd.DataFrame:
     try:
         return pd.read_sas(str(path), format="sas7bdat", encoding="latin-1", **kw)
     except Exception as e:
-        raise RuntimeError(f"Could not read SAS file: {e}")
+        raise RuntimeError(f"Could not read SAS file: {e}") from e
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

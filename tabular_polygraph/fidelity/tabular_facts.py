@@ -10,9 +10,11 @@ common tabular data (income, housing, science, etc.):
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from scipy import stats
+
 from tabular_polygraph.utils import numeric_columns
 
 

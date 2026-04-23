@@ -7,9 +7,9 @@ values while preserving the correlation structure from the fitted generator.
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
-
 
 SCENARIOS: dict[str, dict] = {
     "recession": {

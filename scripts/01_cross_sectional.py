@@ -7,7 +7,6 @@ and audit privacy.
 Run: python scripts/01_cross_sectional.py
 """
 
-import sys
 from pathlib import Path
 
 # ruff: noqa: E402
@@ -15,11 +14,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.calibration.priors import get_priors
 from tabular_polygraph.catalog import load_dataset
 from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.generators import GaussianCopulaGenerator
 from tabular_polygraph.privacy import privacy_audit
-from tabular_polygraph.calibration.priors import get_priors
 
 
 def main():

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from tabular_polygraph.generators import GaussianCopulaGenerator
 
 
@@ -191,7 +192,9 @@ class TestTemporalFidelity:
         assert 0 <= rate <= 100
 
     def test_cointegration_agreement(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity.temporal.cointegration import cointegration_score
+        from tabular_polygraph.fidelity.temporal.cointegration import (
+            cointegration_score,
+        )
 
         result = cointegration_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
         assert "_summary" in result

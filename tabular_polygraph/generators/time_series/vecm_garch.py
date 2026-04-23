@@ -33,8 +33,10 @@ Usage
 """
 
 from __future__ import annotations
-from typing import Any
+
 import warnings
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -51,7 +53,7 @@ def _require_statsmodels():
             "statsmodels is required for VECMGARCHGenerator.\n"
             "Install it with: pip install src[timeseries]\n"
             "  or: pip install statsmodels arch"
-        )
+        ) from None
 
 
 class VECMGARCHGenerator(BaseGenerator):
@@ -110,8 +112,8 @@ class VECMGARCHGenerator(BaseGenerator):
 
     def fit(self, data: pd.DataFrame) -> "VECMGARCHGenerator":
         _require_statsmodels()
-        from statsmodels.tsa.vector_ar.vecm import VECM
         from statsmodels.tsa.stattools import adfuller
+        from statsmodels.tsa.vector_ar.vecm import VECM
 
         self._record_schema(data)
         df = data.copy()

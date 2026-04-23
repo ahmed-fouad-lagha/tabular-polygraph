@@ -8,7 +8,6 @@ regime-switching models, and recession-probability classifiers.
 Run: python scripts/02_macro_scenarios.py
 """
 
-import sys
 from pathlib import Path
 
 # ruff: noqa: E402
@@ -16,10 +15,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.generators.time_series import VARGenerator
-from tabular_polygraph.catalog import load_dataset
 from tabular_polygraph.calibration import apply_scenario, list_scenarios
+from tabular_polygraph.catalog import load_dataset
 from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.generators.time_series import VARGenerator
 from tabular_polygraph.io import write
 
 

@@ -7,9 +7,11 @@ It does not change the correlation structure, only marginal moments.
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from scipy import stats
+
 from tabular_polygraph.utils import numeric_columns, to_numeric_array
 
 

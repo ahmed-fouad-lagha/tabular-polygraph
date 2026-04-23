@@ -12,6 +12,7 @@ generation pipeline must use these mechanisms throughout.
 """
 
 from __future__ import annotations
+
 import numpy as np
 
 
@@ -120,4 +121,4 @@ def privatise_histogram(
         noisy /= total
     if budget is not None:
         budget.consume(epsilon, label="histogram")
-    return dict(zip(keys, noisy.tolist()))
+    return dict(zip(keys, noisy.tolist(), strict=False))

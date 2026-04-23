@@ -12,11 +12,11 @@ Commands:
 """
 
 from __future__ import annotations
+
 import argparse
 import sys
 import time
 from pathlib import Path
-
 
 # Terminal colours
 
@@ -183,12 +183,12 @@ def _load_generator(
     fit_rows: int | None = None,
 ):
     """Load and fit a generator for the given dataset."""
-    from tabular_polygraph.utils import DEFAULT_DROP_LIST
     from tabular_polygraph.catalog import load_dataset
     from tabular_polygraph.catalog.downloader import load_cached
     from tabular_polygraph.generators import GaussianCopulaGenerator
-    from tabular_polygraph.generators.time_series import VARGenerator
     from tabular_polygraph.generators.panel import FixedEffectsGenerator
+    from tabular_polygraph.generators.time_series import VARGenerator
+    from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
     fit_n = fit_rows
@@ -342,8 +342,9 @@ def _fit_custom_input_generator(input_file: str, drop_cols: list[str]):
     if not Path(input_file).exists():
         raise FileNotFoundError(input_file)
 
-    from tabular_polygraph.io import read, validate as validate_df
     from tabular_polygraph.generators import GaussianCopulaGenerator
+    from tabular_polygraph.io import read
+    from tabular_polygraph.io import validate as validate_df
 
     seed_df = read(input_file)
     seed_df = _drop_existing_columns(seed_df, drop_cols)
@@ -545,7 +546,9 @@ def _save_generated_output(syn, output_path: str):
 
     final_path = write(syn, output_path)
     print()
-    ok(f"Saved → {_c(str(final_path), C.CYAN)}  ({final_path.stat().st_size // 1024} KB)")
+    ok(
+        f"Saved → {_c(str(final_path), C.CYAN)}  ({final_path.stat().st_size // 1024} KB)"
+    )
     print()
 
 
@@ -693,7 +696,7 @@ def cmd_audit(args):
             sys.exit(1)
 
     from tabular_polygraph.io import read
-    from tabular_polygraph.privacy import privacy_audit, format_audit
+    from tabular_polygraph.privacy import format_audit, privacy_audit
 
     info(f"Loading real:      {args.real}")
     real = read(args.real)
@@ -858,7 +861,12 @@ def cmd_validate(args):
 
 
 def cmd_download(args):
-    from tabular_polygraph.catalog.downloader import download, status, DOWNLOADERS, is_cached
+    from tabular_polygraph.catalog.downloader import (
+        DOWNLOADERS,
+        download,
+        is_cached,
+        status,
+    )
 
     if args.dataset == "status":
         header("Download status")

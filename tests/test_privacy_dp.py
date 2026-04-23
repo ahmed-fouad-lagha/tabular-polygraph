@@ -1,5 +1,6 @@
-import pytest
 import pandas as pd
+import pytest
+
 from tabular_polygraph.generators import GaussianCopulaGenerator
 
 
@@ -67,7 +68,7 @@ def test_audit_verdict_keys():
 
 
 def test_format_audit_returns_string():
-    from tabular_polygraph.privacy import privacy_audit, format_audit
+    from tabular_polygraph.privacy import format_audit, privacy_audit
 
     real = _privacy_seed()
     gen = GaussianCopulaGenerator()

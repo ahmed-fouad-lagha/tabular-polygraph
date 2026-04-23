@@ -14,9 +14,9 @@ Usage:
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -25,8 +25,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 from tabular_polygraph.catalog.downloader import load_cached
-from tabular_polygraph.generators import GaussianCopulaGenerator, VineCopulaGenerator, CTGANGenerator
 from tabular_polygraph.fidelity import fidelity_report
+from tabular_polygraph.generators import (
+    CTGANGenerator,
+    GaussianCopulaGenerator,
+    VineCopulaGenerator,
+)
 from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
 
@@ -45,6 +49,7 @@ def load_real_data(dataset_id: str) -> pd.DataFrame:
     df = load_cached(dataset_id)
     if df is None:
         from tabular_polygraph.catalog import load_dataset
+
         df = load_dataset(dataset_id, n=50000)
     drop = [c for c in DEFAULT_DROP_LIST if c in df.columns]
     if drop:
@@ -183,7 +188,9 @@ def main():
 
     print()
     print("  4-Pillar Breakdown (mean across seeds):")
-    print(f"  {'Architecture':<22} {'Fidelity':<12} {'Logic':<12} {'Privacy':<12} {'Hybrid':<12}")
+    print(
+        f"  {'Architecture':<22} {'Fidelity':<12} {'Logic':<12} {'Privacy':<12} {'Hybrid':<12}"
+    )
     print("  " + "-" * 60)
     for gen_name in df["generator"].unique():
         g = df[df["generator"] == gen_name]

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from tabular_polygraph.fidelity.logical import hif_score
 
 

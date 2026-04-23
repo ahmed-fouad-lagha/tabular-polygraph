@@ -33,14 +33,16 @@ Usage
 """
 
 from __future__ import annotations
-from typing import TypeAlias
+
 import warnings
+from typing import TypeAlias
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 from ..base import BaseGenerator
-from .gaussian_copula import _NumericMarginal, _CategoricalMarginal
+from .gaussian_copula import _CategoricalMarginal, _NumericMarginal
 
 warnings.filterwarnings("ignore")
 
@@ -142,16 +144,18 @@ class DPGaussianCopulaGenerator(BaseGenerator):
                     sigma2 = np.log(1 + private_var / max(private_mean**2, 1e-9))
                     sigma2 = max(sigma2, 1e-6)
                     mu = np.log(max(private_mean, 1e-9)) - sigma2 / 2
-                    numeric_m._params = dict(
-                        kind="lognorm",
-                        s=float(np.sqrt(sigma2)),
-                        loc=0.0,
-                        scale=float(np.exp(mu)),
-                    )
+                    numeric_m._params = {
+                        "kind": "lognorm",
+                        "s": float(np.sqrt(sigma2)),
+                        "loc": 0.0,
+                        "scale": float(np.exp(mu)),
+                    }
                 else:
-                    numeric_m._params = dict(
-                        kind="norm", loc=private_mean, scale=private_std
-                    )
+                    numeric_m._params = {
+                        "kind": "norm",
+                        "loc": private_mean,
+                        "scale": private_std,
+                    }
 
                 numeric_m._min = float(arr.min())
                 numeric_m._max = float(arr.max())

@@ -4,22 +4,25 @@ Returns a structured dict suitable for JSON serialisation or CLI display.
 """
 
 from __future__ import annotations
+
 import time
+
 import numpy as np
 import pandas as pd
-from tabular_polygraph.utils import numeric_columns, DEFAULT_DROP_LIST
 
-from .marginal import (
-    moment_matching_scores,
-    mean_moment_matching_score,
-    ks_distribution_scores,
-    mean_ks_score,
-)
-from .joint import correlation_distance_score, pairwise_correlation_report
-from .stylized_facts import stylized_facts_score
-from .tabular_facts import tabular_stylized_facts
+from tabular_polygraph.utils import DEFAULT_DROP_LIST, numeric_columns
+
 from .causality import causality_score
 from .downstream import tstr_score
+from .joint import correlation_distance_score, pairwise_correlation_report
+from .marginal import (
+    ks_distribution_scores,
+    mean_ks_score,
+    mean_moment_matching_score,
+    moment_matching_scores,
+)
+from .stylized_facts import stylized_facts_score
+from .tabular_facts import tabular_stylized_facts
 
 
 def _shared_columns(
@@ -63,9 +66,9 @@ def _temporal_section(
     if not do_temporal:
         return None
 
-    from .temporal.stationarity import stationarity_score
-    from .temporal.cointegration import cointegration_score
     from .temporal.breaks import breaks_score
+    from .temporal.cointegration import cointegration_score
+    from .temporal.stationarity import stationarity_score
 
     return {
         "stationarity": stationarity_score(real, synthetic, cols),
@@ -105,7 +108,7 @@ def _logical_section(
     logical_validity = 100.0
 
     try:
-        from .logical import hif_score, rule_violation_score
+        from .logical import hif_score
 
         hif_result = hif_score(
             real,

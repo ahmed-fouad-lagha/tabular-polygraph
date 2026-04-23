@@ -8,6 +8,7 @@ points as the real series — important for macro data with recessions/crises.
 """
 
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 

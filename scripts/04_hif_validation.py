@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -35,7 +34,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 from tabular_polygraph.catalog import load_dataset
 from tabular_polygraph.catalog.downloader import load_cached
-from tabular_polygraph.generators import GaussianCopulaGenerator
 from tabular_polygraph.fidelity import (
     correlation_distance_score,
     hif_score,
@@ -44,6 +42,7 @@ from tabular_polygraph.fidelity import (
 )
 from tabular_polygraph.fidelity.downstream import tstr_score
 from tabular_polygraph.fidelity.logical import rule_violation_score
+from tabular_polygraph.generators import GaussianCopulaGenerator
 from tabular_polygraph.utils import numeric_columns
 
 

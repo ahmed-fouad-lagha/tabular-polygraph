@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
-from pathlib import Path
 
 
 def _sample_df() -> pd.DataFrame:

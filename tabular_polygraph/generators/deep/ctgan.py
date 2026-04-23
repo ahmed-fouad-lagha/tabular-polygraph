@@ -16,8 +16,11 @@ and documents the interface so the upgrade path is clear.
 """
 
 from __future__ import annotations
+
 from typing import Any
+
 import pandas as pd
+
 from ..base import BaseGenerator
 
 
@@ -50,7 +53,7 @@ class CTGANGenerator(BaseGenerator):
                 "This installs ctgan and its PyTorch dependency (~2 GB).\n"
                 "If you don't need deep learning quality, GaussianCopulaGenerator\n"
                 "achieves 96–98% fidelity with no additional dependencies."
-            )
+            ) from None
 
     def fit(self, data: pd.DataFrame) -> "CTGANGenerator":
         self._require_ctgan()

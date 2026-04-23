@@ -8,15 +8,15 @@ Continuous Semantic Severity Penalty (CSSP).
 """
 
 import random
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Any, Tuple, Dict, List
-from sklearn.linear_model import RidgeCV
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import normalized_mutual_info_score
 from sklearn.decomposition import PCA
-
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import RidgeCV
+from sklearn.metrics import normalized_mutual_info_score
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 _ANTE_JOIN = " & "
 
@@ -222,8 +222,12 @@ class LogicalSentinelEnsemble:
             y = df[hub_col]
 
             if verbose:
-                print(f"  [HIF Sentinels] Training Sentinel for Hub '{hub_col}' ({X.shape[1]} features)...", end="", flush=True)
-            
+                print(
+                    f"  [HIF Sentinels] Training Sentinel for Hub '{hub_col}' ({X.shape[1]} features)...",
+                    end="",
+                    flush=True,
+                )
+
             n_trees = max(10, hif_epochs * 10)
             clf = RandomForestClassifier(
                 n_estimators=n_trees,
@@ -359,8 +363,12 @@ class NeighborInvariantContinuity:
         # SPEED HARDENING: Use a fixed component limit for fast spectral reconstruction
         n_comp = min(n_samples, n_feat, 100)
         if verbose:
-            print(f"  [HIF NIC] Spectral Reconstruction ({n_feat} -> {n_comp} target)...", end="", flush=True)
-        
+            print(
+                f"  [HIF NIC] Spectral Reconstruction ({n_feat} -> {n_comp} target)...",
+                end="",
+                flush=True,
+            )
+
         self.pca = PCA(
             n_components=n_comp,
             svd_solver="randomized",
@@ -496,7 +504,9 @@ def hif_score(
         top_n_hubs=hif_hubs, max_depth=hif_depth, random_state=random_state
     )
     if verbose:
-        print("  [HIF Audit] Auditing Sentinel Logical Consistency...", end="", flush=True)
+        print(
+            "  [HIF Audit] Auditing Sentinel Logical Consistency...", end="", flush=True
+        )
     oracle.fit(real_f, hif_epochs=hif_epochs, verbose=verbose, x_precomputed=x_real_cat)
     _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
     if verbose:
@@ -507,7 +517,11 @@ def hif_score(
     nic_penalties = np.zeros(len(synthetic))
     if skipped_cols:
         if verbose:
-            print("  [HIF NIC] Training Neighbor-Invariant Continuity Auditor...", end="", flush=True)
+            print(
+                "  [HIF NIC] Training Neighbor-Invariant Continuity Auditor...",
+                end="",
+                flush=True,
+            )
         nic_auditor = NeighborInvariantContinuity(random_state=random_state)
         # Re-use the same categorical encoding for NIC manifold
         nic_auditor.fit(
@@ -525,7 +539,9 @@ def hif_score(
 
     # 3. Structural Layer: Logical Rules (Hard Constraints)
     if verbose:
-        print("  [HIF Rules] Mining and checking Implication Rules...", end="", flush=True)
+        print(
+            "  [HIF Rules] Mining and checking Implication Rules...", end="", flush=True
+        )
     rule_result = rule_violation_score(
         real,
         synthetic,
@@ -541,7 +557,7 @@ def hif_score(
     rule_penalties = np.zeros(len(synthetic))
     if rule_result["num_rule_violations"] > 0:
         rule_penalties = rule_result.get("row_violation_mask", np.zeros(len(synthetic)))
-    
+
     if verbose:
         print(f"Done ({rule_result['num_rules_mined']} rules).")
 
@@ -551,8 +567,8 @@ def hif_score(
     active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
     if skipped_cols:
         active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
-    
-    # Layer 3 (Rules) as a Kill Switch: 
+
+    # Layer 3 (Rules) as a Kill Switch:
     # If a rule is violated (penalty=1.0), validity becomes eps (near-zero)
     active_components.append(np.clip(1.0 - rule_penalties, eps, 1.0))
 
@@ -648,7 +664,7 @@ def mine_implication_rules(
                 if feat not in feature_groups:
                     feature_groups[feat] = []
                 feature_groups[feat].append(item)
-            
+
             feat_list = list(feature_groups.keys())
             for i in range(len(feat_list)):
                 for j in range(i + 1, len(feat_list)):
@@ -658,7 +674,7 @@ def mine_implication_rules(
                             cand = tuple(sorted(list(prefix) + [item_a, item_b]))
                             candidates_set.add(cand)
         # SORT CANDIDATES for determinism before potential sampling
-        candidates = sorted(list(candidates_set))
+        candidates = sorted(candidates_set)
         if not candidates:
             break
 
@@ -674,22 +690,22 @@ def mine_implication_rules(
             mask = item_masks[cand[0]]
             for i in range(1, len(cand)):
                 mask = mask & item_masks[cand[i]]
-            
+
             count = int(mask.sum())
             if count >= min_support_count:
                 support_counts[cand] = count
                 current_frequent.append(cand)
-                
+
                 # Rule generation
                 for i in range(len(cand)):
                     consequent_item = cand[i]
                     antecedent_items = tuple(cand[:i] + cand[i + 1 :])
-                    
+
                     # Safety check for missing antecedents in support_counts
                     ant_count = support_counts.get(antecedent_items)
                     if ant_count is None or ant_count == 0:
                         continue
-                        
+
                     confidence = count / ant_count
                     if confidence >= min_confidence:
                         consequent_support = support_counts[(consequent_item,)] / n_rows

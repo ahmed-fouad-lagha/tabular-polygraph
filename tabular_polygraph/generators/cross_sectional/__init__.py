@@ -1,5 +1,5 @@
-from .gaussian_copula import GaussianCopulaGenerator
 from .dp_gaussian_copula import DPGaussianCopulaGenerator
+from .gaussian_copula import GaussianCopulaGenerator
 
 
 def VineCopulaGenerator(*args, **kwargs):
@@ -8,7 +8,9 @@ def VineCopulaGenerator(*args, **kwargs):
 
         return _V(*args, **kwargs)
     except ImportError:
-        raise ImportError("VineCopulaGenerator requires: pip install src[vine]")
+        raise ImportError(
+            "VineCopulaGenerator requires: pip install src[vine]"
+        ) from None
 
 
 __all__ = [

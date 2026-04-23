@@ -16,14 +16,15 @@ The overall verdict is the maximum risk level across all tests.
 """
 
 from __future__ import annotations
+
 import time
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
-from .singling_out import singling_out_risk
-from .linkability import linkability_risk
 from .disclosure import membership_inference_risk
-
+from .linkability import linkability_risk
+from .singling_out import singling_out_risk
 
 _RISK_ORDER = {"very_low": 0, "low": 1, "medium": 2, "high": 3, "very_high": 4}
 _RISK_LABEL = {0: "very_low", 1: "low", 2: "medium", 3: "high", 4: "very_high"}

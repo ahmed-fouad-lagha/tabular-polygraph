@@ -7,7 +7,9 @@ def VECMGARCHGenerator(*args, **kwargs):
 
         return _V(*args, **kwargs)
     except ImportError:
-        raise ImportError("VECMGARCHGenerator requires: pip install src[timeseries]")
+        raise ImportError(
+            "VECMGARCHGenerator requires: pip install src[timeseries]"
+        ) from None
 
 
 __all__ = ["VARGenerator", "VECMGARCHGenerator"]
