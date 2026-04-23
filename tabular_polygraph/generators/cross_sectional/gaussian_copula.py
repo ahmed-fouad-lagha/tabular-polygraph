@@ -173,16 +173,19 @@ class GaussianCopulaGenerator(BaseGenerator):
         normal = stats.norm.ppf(np.clip(uniform, 1e-6, 1 - 1e-6))
 
         # Estimate correlation, ensure PSD
-        corr = np.corrcoef(normal.T)
-        eigvals = np.linalg.eigvalsh(corr)
-        if eigvals.min() < 0:
-            corr += (-eigvals.min() + 1e-8) * np.eye(len(self._columns))
-        self._corr = corr
+        if len(self._columns) == 0:
+            self._corr = np.eye(0)
+        else:
+            corr = np.corrcoef(normal.T)
+            # Ensure it's 2D (np.corrcoef can return a scalar for 1D input in some cases)
+            corr = np.atleast_2d(corr)
+            eigvals = np.linalg.eigvalsh(corr)
+            if eigvals.min() < 0:
+                corr += (-eigvals.min() + 1e-8) * np.eye(len(self._columns))
+            self._corr = corr
 
         self._fitted = True
         return self
-
-    # ── sample ────────────────────────────────────────────────────────────────
 
     def generate(
         self,

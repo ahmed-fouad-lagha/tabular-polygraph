@@ -34,7 +34,7 @@ jobs:
         run: pre-commit run --all-files
 
   test:
-    name: Tests (Python 3.12 · Ubuntu)
+    name: Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +60,7 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=80
 
-      - name: Upload coverage report
+      - name: Coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml

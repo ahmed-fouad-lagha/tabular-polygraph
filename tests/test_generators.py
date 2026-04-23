@@ -133,3 +133,46 @@ class TestVARGenerator:
         gen.fit(all_seeds["bls"])
         out = gen.generate(100, seed=1)
         assert len(out) == 100
+
+
+class TestPanelDecompositionGenerator:
+    def test_basic_panel_generation(self):
+        from tabular_polygraph.generators.panel import PanelDecompositionGenerator
+
+        df = pd.DataFrame(
+            {
+                "country": ["US", "US", "CA", "CA", "MX", "MX"],
+                "year": [2020, 2021, 2020, 2021, 2020, 2021],
+                "gdp": [100.0, 102.0, 50.0, 51.0, 30.0, 30.5],
+                "sector": ["tech", "tech", "oil", "oil", "agri", "agri"],
+            }
+        )
+        gen = PanelDecompositionGenerator(entity_col="country", time_col="year")
+        gen.fit(df)
+        syn = gen.generate(20, seed=42)
+
+        assert len(syn) == 20
+        assert "country" in syn.columns
+        assert "year" in syn.columns
+        assert "gdp" in syn.columns
+        assert "sector" in syn.columns
+        assert "syn_id" in syn.columns
+
+    def test_fallback_logic(self):
+        from tabular_polygraph.generators.panel import PanelDecompositionGenerator
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4, 5],
+                "y": [10, 20, 30, 40, 50],
+            }
+        )
+        # Should fall back to ENT-XXXX IDs since entity_col/time_col are missing
+        gen = PanelDecompositionGenerator(
+            entity_col="missing_entity", time_col="missing_time"
+        )
+        gen.fit(df)
+        syn = gen.generate(10, seed=1)
+        assert len(syn) == 10
+        assert "missing_entity" in syn.columns
+        assert syn["missing_entity"].iloc[0].startswith("ENT-")
