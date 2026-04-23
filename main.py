@@ -185,8 +185,8 @@ def _load_generator(
     """Load and fit a generator for the given dataset."""
     from tabular_polygraph.catalog import load_dataset
     from tabular_polygraph.catalog.downloader import load_cached
-    from tabular_polygraph.generators import GaussianCopulaGenerator
-    from tabular_polygraph.generators.panel import FixedEffectsGenerator
+    from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
+    from tabular_polygraph.generators.panel import PanelDecompositionGenerator
     from tabular_polygraph.generators.time_series import VARGenerator
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
@@ -224,12 +224,13 @@ def _load_generator(
         # Just generic info that we've cleaned the dataset
         pass
 
+    gen: BaseGenerator
     if generator_type == "var":
         time_col = "year" if "year" in seed_df.columns else None
         gen = VARGenerator(lags=2, time_col=time_col)
     elif generator_type == "panel":
         entity_col, time_col = _infer_panel_columns(seed_df)
-        gen = FixedEffectsGenerator(entity_col=entity_col, time_col=time_col)
+        gen = PanelDecompositionGenerator(entity_col=entity_col, time_col=time_col)
     else:
         gen = GaussianCopulaGenerator()
 

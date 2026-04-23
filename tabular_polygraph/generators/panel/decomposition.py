@@ -1,5 +1,5 @@
 """
-tabular_polygraph.generators.panel.fixed_effects
+tabular_polygraph.generators.panel.decomposition
 ------------------------------------------
 Panel data generator using a fixed-effects decomposition.
 
@@ -25,15 +25,15 @@ from ..cross_sectional.gaussian_copula import GaussianCopulaGenerator
 warnings.filterwarnings("ignore")
 
 
-class FixedEffectsGenerator(BaseGenerator):
+class PanelDecompositionGenerator(BaseGenerator):
     """
     Panel data generator with entity and time fixed effects.
 
     Usage
     -----
-        from tabular_polygraph.generators.panel import FixedEffectsGenerator
+        from tabular_polygraph.generators.panel import PanelDecompositionGenerator
 
-        gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
+        gen = PanelDecompositionGenerator(entity_col="country_code", time_col="year")
         gen.fit(real_df)
         syn = gen.generate(n=1000)
     """
@@ -66,7 +66,7 @@ class FixedEffectsGenerator(BaseGenerator):
 
     # ── fit ───────────────────────────────────────────────────────────────────
 
-    def fit(self, data: pd.DataFrame) -> "FixedEffectsGenerator":
+    def fit(self, data: pd.DataFrame) -> "PanelDecompositionGenerator":
         self._record_schema(data)
         df = data.copy()
 

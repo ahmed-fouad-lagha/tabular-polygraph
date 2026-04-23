@@ -1,3 +1,3 @@
-from .fixed_effects import FixedEffectsGenerator
+from .decomposition import PanelDecompositionGenerator
 
-__all__ = ["FixedEffectsGenerator"]
+__all__ = ["PanelDecompositionGenerator"]

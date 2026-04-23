@@ -111,8 +111,8 @@ def syn_macro(fred_macro):
 
 @pytest.fixture(scope="module")
 def syn_wb(world_bank):
-    from tabular_polygraph.generators.panel import FixedEffectsGenerator
+    from tabular_polygraph.generators.panel import PanelDecompositionGenerator
 
-    gen = FixedEffectsGenerator(entity_col="country_code", time_col="year")
+    gen = PanelDecompositionGenerator(entity_col="country_code", time_col="year")
     gen.fit(world_bank)
     return gen.generate(300, seed=42)
