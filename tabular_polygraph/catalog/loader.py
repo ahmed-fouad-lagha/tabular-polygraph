@@ -178,5 +178,5 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
         )
     else:
         raise ValueError(
-            f"Dataset '{dataset_id}' not cached. Download real data first: python main.py download {dataset_id}"
+            f"Dataset '{dataset_id}' not cached. Download real data first: tabular-polygraph download {dataset_id}"
         )

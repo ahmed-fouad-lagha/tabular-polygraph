@@ -15,9 +15,9 @@ Usage
 
 CLI
 ---
-    python main.py download fred_macro
-    python main.py download all
-    python main.py download status
+    tabular-polygraph download fred_macro
+    tabular-polygraph download all
+    tabular-polygraph download status
 
 Sources
 -------

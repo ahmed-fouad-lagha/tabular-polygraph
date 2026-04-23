@@ -40,6 +40,9 @@ dev = [
     "twine"
 ]
 
+[project.scripts]
+tabular-polygraph = "tabular_polygraph.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["tabular_polygraph*"]

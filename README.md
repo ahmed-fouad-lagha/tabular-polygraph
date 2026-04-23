@@ -47,7 +47,7 @@ cd tabular-polygraph
 pip install -e .
 
 # Verify environment
-python main.py list
+tabular-polygraph list
 ```
 
 ## Quick Start
@@ -56,13 +56,13 @@ Evaluate synthetic data against real ground truth. The evaluate command generate
 
 ```bash
 # 1. Download sample data (cached in ~/.tabular_polygraph/cache/)
-python main.py download census_acs
+tabular-polygraph download census_acs
 
-# 2. Generate synthetic data using a Gaussian Copula
-python main.py generate census_acs --rows 100 --output synthetic.csv
+# 2. Generate synthetic data
+tabular-polygraph generate census_acs --rows 100 --output synthetic.csv
 
 # 3. Audit for Hallucinations (Semantic Integrity)
-python main.py evaluate ~/.tabular_polygraph/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
+tabular-polygraph evaluate ~/.tabular_polygraph/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
 ```
 
 ## Python API

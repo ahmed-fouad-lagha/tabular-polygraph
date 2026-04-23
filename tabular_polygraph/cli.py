@@ -201,13 +201,13 @@ def _load_generator(
         if seed_df is None:
             raise ValueError(
                 f"Dataset '{dataset_id}' not found in cache.\n"
-                f"Run: python main.py download {dataset_id}"
+                f"Run: tabular-polygraph download {dataset_id}"
             )
 
         if len(seed_df) < 10:
             raise ValueError(
                 f"Dataset '{dataset_id}' is too small to fit a generator ({len(seed_df)} rows).\n"
-                "Please download a larger sample using: python main.py download --force --sample 1000"
+                "Please download a larger sample using: tabular-polygraph download --force --sample 1000"
             )
 
         seed_df = seed_df.reset_index(drop=True)
@@ -308,8 +308,8 @@ def _prepare_generate_request(args):
     dataset_id = getattr(args, "dataset", None)
 
     if not input_file and not dataset_id:
-        err("Provide a dataset ID (e.g. python3 main.py generate fred_macro)")
-        err("or your own file (e.g. python3 main.py generate --input data.csv)")
+        err("Provide a dataset ID (e.g. tabular-polygraph generate fred_macro)")
+        err("or your own file (e.g. tabular-polygraph generate --input data.csv)")
         sys.exit(1)
 
     if input_file:
@@ -573,8 +573,8 @@ def cmd_list(args):
             print(f"    {_c(row['id'], C.BOLD):<28} {row['name']:<40}")
 
     print()
-    dim("  python3 main.py info <id>    full metadata + columns")
-    dim("  python3 main.py generate <id>    generate synthetic data")
+    dim("  tabular-polygraph info <id>    full metadata + columns")
+    dim("  tabular-polygraph generate <id>    generate synthetic data")
     print()
 
 
@@ -764,7 +764,7 @@ def cmd_scenario_list(args):
         print(f"    {row['columns_affected']} columns affected")
     print()
     dim(
-        "  Usage: python3 main.py scenario apply <name> --input data.csv --output stressed.csv"
+        "  Usage: tabular-polygraph scenario apply <name> --input data.csv --output stressed.csv"
     )
     print()
 
@@ -877,8 +877,8 @@ def cmd_download(args):
             icon = _c("✓", C.GREEN) if "cached" in row["status"] else _c("○", C.GRAY)
             print(f"    {icon} {row['dataset']:<28} {row['rows']:<12} {row['size']}")
         print()
-        dim("  Run: python3 main.py download <id>   to download real data")
-        dim("  Run: python3 main.py download all    to download everything")
+        dim("  Run: tabular-polygraph download <id>   to download real data")
+        dim("  Run: tabular-polygraph download all    to download everything")
         print()
         return
 
@@ -918,8 +918,7 @@ def cmd_download(args):
 
 
 def main():
-
-    parser = argparse.ArgumentParser(prog="python3 main.py", add_help=False)
+    parser = argparse.ArgumentParser(prog="tabular-polygraph", add_help=False)
     parser.add_argument("--help", "-h", action="help")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
@@ -1180,18 +1179,17 @@ def main():
         parser.print_help()
         print()
         dim("  Examples:")
-        dim("    python3 main.py list")
-        dim("    python3 main.py generate fred_macro --rows 5000 --scenario recession")
-        dim("    python3 main.py generate world_bank --rows 3000 --generator panel")
+        dim("    tabular-polygraph list --vertical 'Real Estate'")
+        dim("    tabular-polygraph generate fred_macro --rows 500 --output syn.csv")
         dim(
-            "    python3 main.py evaluate real.csv synthetic.csv --type time_series --target gdp_growth_yoy"
+            "    tabular-polygraph evaluate real.csv synthetic.csv --type time_series --target gdp_growth_yoy"
         )
-        dim("    python3 main.py audit real.csv synthetic.csv --attacks 500")
-        dim("    python3 main.py scenario list")
+        dim("    tabular-polygraph audit real.csv synthetic.csv --attacks 500")
+        dim("    tabular-polygraph scenario list")
         dim(
-            "    python3 main.py scenario apply recession --input syn.csv --output stressed.csv"
+            "    tabular-polygraph scenario apply recession --input syn.csv --output stressed.csv"
         )
-        dim("    python3 main.py validate my_data.csv")
+        dim("    tabular-polygraph validate my_data.csv")
         print()
         sys.exit(0)
 
