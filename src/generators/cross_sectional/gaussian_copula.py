@@ -16,14 +16,15 @@ of real rows and no individual-level information.
 """
 
 from __future__ import annotations
-import warnings
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 from ..base import BaseGenerator
 
-warnings.filterwarnings("ignore")
+
+
 
 
 # ── Marginal models ───────────────────────────────────────────────────────────
@@ -140,6 +141,12 @@ class GaussianCopulaGenerator(BaseGenerator):
     # ── fit ───────────────────────────────────────────────────────────────────
 
     def fit(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return self._fit_impl(data)
+
+    def _fit_impl(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
         self._record_schema(data)
 
         # Fit marginals, applying prior regularisation where provided

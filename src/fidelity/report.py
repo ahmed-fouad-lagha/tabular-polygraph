@@ -25,11 +25,13 @@ from .downstream import tstr_score
 def _shared_columns(
     real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str] | None
 ) -> list[str]:
-    # DEFAULT_DROP_LIST: Exclude non-statistical identifiers automatically
+    # DEFAULT_DROP_LIST: Exclude non-statistical identifiers automatically.
+    # Case-insensitive match ensures 'SYN_ID', 'Tract_ID', etc. are dropped.
+    drop_lower = {s.lower() for s in DEFAULT_DROP_LIST}
     return columns or [
         c
         for c in real.columns
-        if c in synthetic.columns and c.lower() not in DEFAULT_DROP_LIST
+        if c in synthetic.columns and c.lower() not in drop_lower
     ]
 
 

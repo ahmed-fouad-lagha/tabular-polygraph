@@ -537,14 +537,9 @@ def hif_score(
         max_antecedents=rule_max_antecedents,
         random_state=random_state,
     )
-    # Convert rule violations to binary penalty (0 or 1)
-    # We use a row_violation_mask from rule_result
-    # To get the mask, we need to ensure rule_violation_score returns it or calculate it
-    # I will modify rule_violation_score to return the mask
+    # Convert rule violations to row-level binary penalties via the pre-computed mask
     rule_penalties = np.zeros(len(synthetic))
     if rule_result["num_rule_violations"] > 0:
-        # We need the row-wise indicators. I'll check if they are in rule_result.
-        # Based on my previous view, they are not. I'll add them.
         rule_penalties = rule_result.get("row_violation_mask", np.zeros(len(synthetic)))
     
     if verbose:
@@ -580,6 +575,7 @@ def hif_score(
         "violation_threshold": 0.5,
         "nic_violation_rate": round(float(nic_violation_rate), 4),
         "rule_violation_rate": round(float(rule_result["rule_violation_rate"]), 4),
+        "num_rule_violations": rule_result["num_rule_violations"],
         "num_rules_mined": rule_result["num_rules_mined"],
         "top_violated_rules": rule_result["top_violated_rules"],
         "violation_examples": rule_result["violation_examples"],
