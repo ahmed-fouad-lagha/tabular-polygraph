@@ -49,6 +49,7 @@ def validate(
     duplicate_threshold: float = 0.05,
     max_cardinality: int = 500,
     min_rows: int = 50,
+    min_cols: int = 1,
 ) -> ValidationResult:
     """
     Validate a real DataFrame before generator fitting.
@@ -62,6 +63,7 @@ def validate(
     duplicate_threshold : maximum allowed duplicate row fraction (default 0.05)
     max_cardinality     : max unique values in a categorical column (default 500)
     min_rows            : minimum required rows (default 50)
+    min_cols            : minimum required columns (default 1)
 
     Returns
     -------
@@ -78,6 +80,9 @@ def validate(
 
     if n_rows < min_rows:
         errors.append(f"Too few rows: {n_rows} (minimum {min_rows})")
+
+    if n_cols < min_cols:
+        errors.append(f"Too few columns: {n_cols} (minimum {min_cols})")
 
     if n_cols == 0:
         errors.append("DataFrame has no columns")

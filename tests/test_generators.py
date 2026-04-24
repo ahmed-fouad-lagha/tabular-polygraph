@@ -30,6 +30,15 @@ class TestBaseGenerator:
         out = GaussianCopulaGenerator().fit_sample(df, 50, seed=1)
         assert len(out) == 50
 
+    def test_base_aliases(self):
+        from tabular_polygraph.generators import GaussianCopulaGenerator
+
+        df = pd.DataFrame({"a": [1, 2, 3] * 50})
+        gen = GaussianCopulaGenerator()
+        gen.fit(df)
+        assert len(gen.sample(10)) == 10
+        assert len(gen.fit_sample(df, 10)) == 10
+
     def test_repr_before_after_fit(self):
         from tabular_polygraph.generators import GaussianCopulaGenerator
 
@@ -176,3 +185,68 @@ class TestPanelDecompositionGenerator:
         assert len(syn) == 10
         assert "missing_entity" in syn.columns
         assert syn["missing_entity"].iloc[0].startswith("ENT-")
+
+
+class TestAdvancedGenerators:
+    def test_vine_copula_smoke(self):
+        try:
+            import pyvinecopulalib  # noqa: F401
+        except ImportError:
+            pytest.skip("pyvinecopulalib not installed")
+
+        from tabular_polygraph.generators import VineCopulaGenerator
+
+        df = pd.DataFrame(
+            {
+                "a": np.random.randn(100),
+                "b": np.random.randn(100),
+                "c": np.random.choice(["X", "Y"], 100),
+            }
+        )
+        gen = VineCopulaGenerator()
+        gen.fit(df)
+        syn = gen.generate(10)
+        assert len(syn) == 10
+        assert all(col in syn.columns for col in df.columns)
+
+    def test_dp_gaussian_copula_smoke(self):
+        try:
+            import diffprivlib  # noqa: F401
+        except ImportError:
+            pytest.skip("diffprivlib not installed")
+
+        from tabular_polygraph.generators.cross_sectional import (
+            DPGaussianCopulaGenerator,
+        )
+
+        df = pd.DataFrame(
+            {
+                "a": np.random.randn(100),
+                "b": np.random.randn(100),
+                "c": np.random.choice(["X", "Y"], 100),
+            }
+        )
+        gen = DPGaussianCopulaGenerator(epsilon=1.0)
+        gen.fit(df)
+        syn = gen.generate(10)
+        assert len(syn) == 10
+
+    def test_vecm_garch_smoke(self):
+        try:
+            import statsmodels  # noqa: F401
+        except ImportError:
+            pytest.skip("statsmodels not installed")
+
+        from tabular_polygraph.generators.time_series import VECMGARCHGenerator
+
+        df = pd.DataFrame(
+            {
+                "a": np.cumsum(np.random.randn(100)) + 10,
+                "b": np.cumsum(np.random.randn(100)) + 10,
+            }
+        )
+        # VECM requires 2D numeric data
+        gen = VECMGARCHGenerator(use_garch=False)
+        gen.fit(df)
+        syn = gen.generate(10)
+        assert len(syn) == 10

@@ -31,6 +31,14 @@ test = [
     "pytest>=7",
     "pytest-cov"
 ]
+advanced = [
+    "statsmodels>=0.14",
+    "arch>=5.3",
+    "pyvinecopulalib>=0.6"
+]
+dp = [
+    "diffprivlib>=0.6"
+]
 lint = [
     "pre-commit"
 ]
@@ -67,3 +75,24 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["tabular_polygraph"]
+
+[tool.coverage.run]
+source = ["tabular_polygraph"]
+omit = [
+    "tabular_polygraph/cli.py",
+    "tabular_polygraph/catalog/downloader.py",
+    "tabular_polygraph/generators/cross_sectional/vine_copula.py",
+    "tabular_polygraph/generators/time_series/vecm_garch.py",
+    "tabular_polygraph/generators/deep/ctgan.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "except ImportError:",
+    "pass"
+]

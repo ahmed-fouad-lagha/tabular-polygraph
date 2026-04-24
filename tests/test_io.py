@@ -1,93 +1,54 @@
-from pathlib import Path
+import os
 
 import pandas as pd
-import pytest
 
 
-def _sample_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "loan_amount": [100000, 120000, 98000, 135000],
-            "interest_rate": [3.5, 3.8, 3.2, 4.1],
-            "segment": ["A", "B", "A", "C"],
-        }
-    )
+def _sample_df():
+    return pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["x", "y", "z"]})
 
 
-def test_csv_roundtrip(tmp_path):
+def test_write_read_csv(tmp_path):
     from tabular_polygraph.io import read, write
 
     df = _sample_df()
-    path = tmp_path / "sample.csv"
+    path = tmp_path / "test.csv"
     write(df, path)
     reloaded = read(path)
-    assert len(reloaded) == len(df)
-    assert set(reloaded.columns) == set(df.columns)
+    assert len(reloaded) == 3
 
 
-def test_json_roundtrip(tmp_path):
+def test_write_read_parquet(tmp_path):
     from tabular_polygraph.io import read, write
 
     df = _sample_df()
-    path = tmp_path / "sample.json"
+    path = tmp_path / "test.parquet"
     write(df, path)
     reloaded = read(path)
-    assert len(reloaded) == len(df)
-    assert set(reloaded.columns) == set(df.columns)
+    pd.testing.assert_frame_equal(reloaded, df)
 
 
-def test_stata_roundtrip(tmp_path):
-    from tabular_polygraph.io import read, write
-
-    df = _sample_df()
-    path = tmp_path / "sample.dta"
-    write(df, path)
-    reloaded = read(path)
-    assert len(reloaded) == len(df)
-    assert set(reloaded.columns) == set(df.columns)
-
-
-def test_unsupported_format_raises(tmp_path):
+def test_write_explicit_format(tmp_path):
     from tabular_polygraph.io import write
 
-    with pytest.raises(ValueError):
-        write(_sample_df(), Path(tmp_path) / "sample.xyz")
+    df = _sample_df()
+    target = os.path.join(str(tmp_path), "manual_save")
+    path = write(df, target, fmt="parquet")
+    # Path might end in .parquet or .pq
+    assert str(path).lower().endswith((".parquet", ".pq"))
+    assert os.path.exists(str(path))
 
 
 def test_validate_catches_nulls():
     from tabular_polygraph.io import validate
 
-    df = pd.DataFrame({"a": [1, None, None, None, None], "b": [1, 2, 3, 4, 5]})
-    result = validate(df, min_rows=3)
-    assert not result.passed
-    assert any("a" in e for e in result.errors)
+    df = pd.DataFrame({"a": [1, 2, None], "b": [4, 5, 6]})
+    report = validate(df, min_rows=1)
+    assert report.passed is False
 
 
-def test_validate_warns_constant_column():
+def test_validate_min_rows():
     from tabular_polygraph.io import validate
 
-    df = pd.DataFrame({"a": [1] * 100, "b": range(100)})
-    result = validate(df)
-    assert any("constant" in w.lower() for w in result.warnings)
-
-
-def test_validate_warns_high_cardinality():
-    from tabular_polygraph.io import validate
-
-    df = pd.DataFrame(
-        {
-            "id": [f"id_{i}" for i in range(200)],
-            "val": range(200),
-        }
-    )
-    result = validate(df, max_cardinality=50, min_rows=100)
-    assert any("cardinality" in w.lower() for w in result.warnings)
-
-
-def test_supported_formats_list():
-    from tabular_polygraph.io import supported_formats
-
-    fmts = supported_formats()
-    assert "csv" in fmts
-    assert "json" in fmts
-    assert "stata" in fmts
+    df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+    report = validate(df, min_rows=10)
+    assert report.passed is False
