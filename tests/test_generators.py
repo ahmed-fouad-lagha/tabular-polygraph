@@ -190,9 +190,9 @@ class TestPanelDecompositionGenerator:
 class TestAdvancedGenerators:
     def test_vine_copula_smoke(self):
         try:
-            import pyvinecopulalib  # noqa: F401
+            import pyvinecopulib  # noqa: F401
         except ImportError:
-            pytest.skip("pyvinecopulalib not installed")
+            pytest.skip("pyvinecopulib not installed")
 
         from tabular_polygraph.generators import VineCopulaGenerator
 
