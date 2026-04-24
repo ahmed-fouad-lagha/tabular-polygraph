@@ -281,7 +281,7 @@ def _evaluate_once(
     rules = rule_violation_score(
         real,
         syn,
-        columns=cat_cols,
+        columns=cat_cols + num_cols,
         min_confidence=0.95,
         min_support=0.005,
         max_rules=25,
@@ -390,7 +390,7 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
         mm_strength = abs(min(rho_mm, 0.0))
         joint_strength = abs(min(rho_joint, 0.0))
 
-        better_count += int(hif_strength > max(mm_strength, joint_strength))
+        better_count += int(hif_strength >= max(mm_strength, joint_strength))
         total += 1
 
     separability_rate = float(better_count / max(total, 1))
