@@ -12,11 +12,33 @@ from tabular_polygraph.fidelity.logical import (
 
 def test_adaptive_binning():
     df = pd.DataFrame(
-        {"a": [1, 1, 1, 1], "b": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "c": ["x", "y"] * 5}
+        {
+            "a": [1] * 10,
+            "b": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            "c": ["x", "y"] * 5,
+        }
     )
     binned = _adaptive_binning(df, ["a", "b"])
     assert binned["a"].iloc[0] == "bin_0"
     assert "bin_" in str(binned["b"].iloc[0])
+
+
+def test_adaptive_binning_constant():
+    df = pd.DataFrame({"a": [1, 1, 1, 1, 1]})
+    binned = _adaptive_binning(df, ["a"])
+    assert (binned["a"] == "bin_0").all()
+
+
+def test_mine_rules_numeric_quantization():
+    # Test the branch where numeric columns with many unique values are quantized
+    df = pd.DataFrame({"A": np.linspace(0, 100, 100), "B": ["x", "y"] * 50})
+    rules = mine_implication_rules(
+        df, columns=["A", "B"], min_confidence=0.1, min_support=0.01
+    )
+    # Check if 'A' was processed (it should be in some rules if correlations exist)
+    assert any(
+        "A" in r["antecedent_repr"] or r["consequent_feature"] == "A" for r in rules
+    )
 
 
 def test_mine_implication_rules():
