@@ -1,7 +1,7 @@
 """
 Example 06: Semantic Sensitivity vs. Statistical Dilution.
 
-This script demonstrates that the Holistic Integrity Framework (HIF) identifies
+This script demonstrates that the Hybrid Integrity Framework (HIF) identifies
 'Logical Viruses' (hallucinations) that aggregate distributional metrics miss
 when they are sparse (low-p).
 

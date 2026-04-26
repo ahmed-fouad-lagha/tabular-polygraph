@@ -75,7 +75,7 @@ def main():
     report = fidelity_report(seed, syn_body, dataset_type="time_series")
     s = report["summary"]
     t = report["temporal"]
-    print(f"      Overall fidelity       : {s['overall_fidelity']}%")
+    print(f"      Hybrid Integrity       : {s['hybrid_integrity']}%")
     print(
         f"      Stationarity agreement : {t['stationarity']['_summary']['agreement_rate']}%"
     )

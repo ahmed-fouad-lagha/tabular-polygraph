@@ -112,7 +112,7 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = ["census_acs"]
+    datasets = ["census_acs", "world_bank"]
     generators = ["gaussian", "vine", "ctgan"]
 
     print("=" * 70)
@@ -169,38 +169,46 @@ def main():
     print("  TABLE 2: Cross-Architecture Maturity Audit (for manuscript)")
     print("=" * 70)
 
-    header = f"  {'Architecture':<22} {'KS (↑)':<16} {'HIF Score (↑)':<20} {'Halluc. Rate':<16}"
-    print(header)
-    print("  " + "-" * 70)
+    for dataset_id in df["dataset"].unique():
+        print(f"\n  DATASET: {dataset_id}")
+        print("  " + "=" * 70)
+        header = f"  {'Architecture':<22} {'KS (↑)':<16} {'HIF Score (↑)':<20} {'Halluc. Rate':<16}"
+        print(header)
+        print("  " + "-" * 70)
 
-    for gen_name in df["generator"].unique():
-        g = df[df["generator"] == gen_name]
-        ks_m, ks_s = g["ks_score"].mean() / 100, g["ks_score"].std() / 100
-        hif_m, hif_s = g["hif_score_pct"].mean() / 100, g["hif_score_pct"].std() / 100
-        vr_m, vr_s = g["violation_rate_pct"].mean(), g["violation_rate_pct"].std()
+        d_df = df[df["dataset"] == dataset_id]
+        for gen_name in d_df["generator"].unique():
+            g = d_df[d_df["generator"] == gen_name]
+            ks_m, ks_s = g["ks_score"].mean() / 100, g["ks_score"].std() / 100
+            hif_m, hif_s = (
+                g["hif_score_pct"].mean() / 100,
+                g["hif_score_pct"].std() / 100,
+            )
+            vr_m, vr_s = g["violation_rate_pct"].mean(), g["violation_rate_pct"].std()
 
+            print(
+                f"  {gen_name:<22} "
+                f"{ks_m:.3f}±{ks_s:.3f}    "
+                f"{hif_m:.4f}±{hif_s:.4f}      "
+                f"{vr_m:.1f}±{vr_s:.1f}%"
+            )
+
+    for dataset_id in df["dataset"].unique():
+        print(f"\n  4-Pillar Breakdown: {dataset_id}")
         print(
-            f"  {gen_name:<22} "
-            f"{ks_m:.3f}±{ks_s:.3f}    "
-            f"{hif_m:.4f}±{hif_s:.4f}      "
-            f"{vr_m:.1f}±{vr_s:.1f}%"
+            f"  {'Architecture':<22} {'Fidelity':<12} {'Logic':<12} {'Privacy':<12} {'Hybrid':<12}"
         )
-
-    print()
-    print("  4-Pillar Breakdown (mean across seeds):")
-    print(
-        f"  {'Architecture':<22} {'Fidelity':<12} {'Logic':<12} {'Privacy':<12} {'Hybrid':<12}"
-    )
-    print("  " + "-" * 60)
-    for gen_name in df["generator"].unique():
-        g = df[df["generator"] == gen_name]
-        print(
-            f"  {gen_name:<22} "
-            f"{g['fidelity_pillar'].mean():.2f}%    "
-            f"{g['logic_pillar'].mean():.2f}%    "
-            f"{g['privacy_pillar'].mean():.2f}%    "
-            f"{g['hybrid_integrity'].mean():.2f}%"
-        )
+        print("  " + "-" * 60)
+        d_df = df[df["dataset"] == dataset_id]
+        for gen_name in d_df["generator"].unique():
+            g = d_df[d_df["generator"] == gen_name]
+            print(
+                f"  {gen_name:<22} "
+                f"{g['fidelity_pillar'].mean():.2f}%    "
+                f"{g['logic_pillar'].mean():.2f}%    "
+                f"{g['privacy_pillar'].mean():.2f}%    "
+                f"{g['hybrid_integrity'].mean():.2f}%"
+            )
 
     # Save raw results
     out_path = out_dir / "architecture_audit.json"

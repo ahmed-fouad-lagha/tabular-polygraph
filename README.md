@@ -96,7 +96,7 @@ print(hallucinations)
 To replicate the results presented in our manuscript, we provide a dedicated validation suite that benchmarks HIF against common distributional metrics using a mixed-mode corruption protocol.
 
 ### Replicating Accuracy and Monotonicity
-Our evaluation demonstrates that the Holistic Integrity Framework (HIF) provides a superior signal for semantic decay compared to statistical metrics. We report a **Spearman Monotonicity (rho = -1.0)** across corruption levels, ensuring that HIF scores strictly decrease as data integrity is compromised. Furthermore, HIF shows a strong **Downstream Utility Correlation ($r > 0.87$)**, proving that it serves as a reliable proxy for the performance of models trained on synthetic data.
+Our evaluation demonstrates that the Hybrid Integrity Framework (HIF) provides a superior signal for semantic decay compared to statistical metrics. We report a **Spearman Monotonicity (rho = -1.0)** across corruption levels, ensuring that HIF scores strictly decrease as data integrity is compromised. Furthermore, HIF shows a strong **Downstream Utility Correlation ($r > 0.90$)**, proving that it serves as a reliable proxy for the performance of models trained on synthetic data.
 
 Run the following script to reproduce these benchmarks:
 

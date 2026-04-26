@@ -58,7 +58,7 @@ def main():
         seed, syn_body, target_col="employment_status", include_downstream=True
     )
     s = report["summary"]
-    print(f"      Overall fidelity : {s['overall_fidelity']}%")
+    print(f"      Hybrid Integrity : {s['hybrid_integrity']}%")
     print(f"      Moment matching  : {s['moment_matching_score']}%")
     print(f"      KS distribution  : {s['ks_score']}%")
     print(f"      Joint score      : {s['joint_score']}%")
