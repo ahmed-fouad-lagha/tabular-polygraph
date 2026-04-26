@@ -242,8 +242,12 @@ class LogicalSentinelEnsemble:
                 print("Done.")
 
             probs = clf.predict_proba(X)
-            max_probs = np.max(probs, axis=1)
-            self.confidence_floors[hub_col] = float(np.percentile(max_probs, 1.0))
+            classes = clf.classes_
+            y_str = y.astype(str).values
+            probs_true = np.zeros(len(y))
+            for idx, cls in enumerate(classes):
+                probs_true[y_str == str(cls)] = probs[y_str == str(cls), idx]
+            self.confidence_floors[hub_col] = float(np.percentile(probs_true, 1.0))
 
         self.is_trained = True
 
