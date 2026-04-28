@@ -42,7 +42,7 @@ The HIF Hybrid Integrity Framework provides:
 ## Setup
 
 ```bash
-git clone https://github.com/ahmed-fouad-lagha/tabular-polygraph.git
+git clone https://github.com/xxxx/tabular-polygraph.git
 cd tabular-polygraph
 pip install -e .
 
