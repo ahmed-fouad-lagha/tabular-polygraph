@@ -148,11 +148,39 @@ def _antecedent_features_from_rule(rule: dict) -> set[str]:
 
     ant_repr = rule.get("antecedent_repr")
     if ant_repr:
-        for clause in str(ant_repr).split(" AND "):
-            if "=" in clause:
-                features.add(clause.split("=", 1)[0].strip())
-
+        # Simple split by & and =
+        parts = str(ant_repr).split(" & ")
+        for p in parts:
+            if "=" in p:
+                features.add(p.split("=")[0].strip())
     return features
+
+
+def _calculate_tvd(p: pd.Series, q: pd.Series) -> float:
+    """Total Variation Distance between two categorical distributions."""
+    all_cats = sorted(set(p.index) | set(q.index))
+    p_v = p.reindex(all_cats, fill_value=0.0).values
+    q_v = q.reindex(all_cats, fill_value=0.0).values
+    return 0.5 * np.sum(np.abs(p_v - q_v))
+
+
+def _representation_audit(
+    syn_full: pd.DataFrame,
+    syn_filtered: pd.DataFrame,
+    sensitive_cols: list[str],
+) -> dict[str, float]:
+    """Audit demographic drift after filtering by Integrity Frontier."""
+    results = {}
+    if sensitive_cols and syn_filtered.empty:
+        return dict.fromkeys(sensitive_cols, 1.0)
+
+    for col in sensitive_cols:
+        if col not in syn_full.columns:
+            continue
+        p = syn_full[col].value_counts(normalize=True)
+        q = syn_filtered[col].value_counts(normalize=True)
+        results[f"tvd_{col}"] = _calculate_tvd(p, q)
+    return results
 
 
 def _rule_involved_features(rule: dict) -> set[str]:
@@ -278,6 +306,15 @@ def _evaluate_once(
         verbose=False,
     )
 
+    # Integrity Frontier: High-integrity subset (e.g., Row Penalty < 0.5)
+    syn_filtered = syn[hif["row_penalties"] < 0.5]
+
+    # Sensitive attributes for Fairness Audit
+    sensitive_candidates = ["SEX", "RAC1P", "race", "gender", "age_bin"]
+    sensitive_cols = [c for c in sensitive_candidates if c in syn.columns]
+    fairness_results = _representation_audit(syn, syn_filtered, sensitive_cols)
+    mean_tvd = np.mean(list(fairness_results.values())) if fairness_results else 0.0
+
     rules = rule_violation_score(
         real,
         syn,
@@ -325,6 +362,7 @@ def _evaluate_once(
         "joint_score": float(joint),
         "utility_ratio": utility_ratio,
         "dominant_feature_share": float(_feature_dominance_share(rules)),
+        "mean_representation_tvd": float(mean_tvd),
     }
 
 
@@ -406,6 +444,7 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
         "seed_stability": mean_hif_std <= 0.05,
         "feature_dominance": dominance_max <= 0.5,
         "practical_separability": separability_rate >= 0.6,
+        "representation_stability": float(df["mean_representation_tvd"].mean()) <= 0.1,
     }
 
     return {
@@ -423,6 +462,7 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
             "dominant_feature_share_mean": dominance_mean,
             "dominant_feature_share_max": dominance_max,
             "separability_rate": separability_rate,
+            "mean_representation_tvd": float(df["mean_representation_tvd"].mean()),
         },
     }
 
