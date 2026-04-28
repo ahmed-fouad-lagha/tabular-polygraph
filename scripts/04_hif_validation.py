@@ -27,6 +27,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 # ruff: noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -181,6 +185,52 @@ def _representation_audit(
         q = syn_filtered[col].value_counts(normalize=True)
         results[f"tvd_{col}"] = _calculate_tvd(p, q)
     return results
+
+
+def _audit_privacy(
+    train_df: pd.DataFrame, holdout_df: pd.DataFrame, syn_df: pd.DataFrame
+) -> float:
+    """Quantitative Privacy Audit via Membership Inference Attack (MIA).
+    Measures if training records are closer to synthetic data than holdout records.
+    Returns ROC-AUC (0.5 = No Leakage, 1.0 = Perfect Memorization).
+    """
+    if syn_df.empty:
+        return 0.5
+
+    # Use numeric columns for distance calculation (standard practice for MIA)
+    cols = [c for c in train_df.columns if pd.api.types.is_numeric_dtype(train_df[c])]
+    if not cols:
+        return 0.5
+
+    scaler = StandardScaler()
+
+    # Sample for efficiency while maintaining statistical significance
+    n_test = min(1000, len(train_df), len(holdout_df))
+    n_syn = min(2000, len(syn_df))
+
+    train_sample = train_df[cols].sample(n_test, random_state=42).fillna(0)
+    holdout_sample = holdout_df[cols].sample(n_test, random_state=42).fillna(0)
+    syn_sample = syn_df[cols].sample(n_syn, random_state=42).fillna(0)
+
+    combined_test = pd.concat([train_sample, holdout_sample])
+    labels = np.array([1] * n_test + [0] * n_test)  # 1=Train, 0=Holdout
+
+    scaler.fit(combined_test)
+    test_norm = scaler.transform(combined_test)
+    syn_norm = scaler.transform(syn_sample)
+
+    # Find Distance to Closest Record (DCR) in synthetic set
+    nn = NearestNeighbors(n_neighbors=1, algorithm="auto").fit(syn_norm)
+    distances, _ = nn.kneighbors(test_norm)
+
+    # Attacker hypothesis: closer to synthetic set = more likely to be a training member
+    # So score = -distance (smaller distance -> higher probability)
+    scores = -distances.flatten()
+    try:
+        auc = roc_auc_score(labels, scores)
+        return float(auc)
+    except Exception:
+        return 0.5
 
 
 def _rule_involved_features(rule: dict) -> set[str]:
@@ -534,19 +584,24 @@ def main() -> None:
         f"Real rows: {len(real):,} | Numeric cols: {len(num_cols)} | Categorical cols: {len(cat_cols)}"
     )
 
+    # Split for Privacy Audit: Train generator on half, use other half as Holdout for MIA
+    real_train, real_holdout = train_test_split(real, train_size=0.5, random_state=42)
+    print(f"Privacy split: {len(real_train)} train, {len(real_holdout)} holdout")
+
     rows: list[dict] = []
     for seed in seeds:
         print(f"\n[seed={seed}] fitting + generating base synthetic...", flush=True)
-        base_syn = _generate_synthetic(real, args.rows, seed)
+        # Train on the split train_df
+        base_syn = _generate_synthetic(real_train, args.rows, seed)
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))
             # Apply Mixed Corruption: Both categorical and continuous
-            syn = _corrupt_categorical(base_syn, real, cat_cols, level, rng)
-            syn = _corrupt_continuous(syn, real, num_cols, level, rng)
+            syn = _corrupt_categorical(base_syn, real_train, cat_cols, level, rng)
+            syn = _corrupt_continuous(syn, real_train, num_cols, level, rng)
 
             metrics = _evaluate_once(
-                real=real,
+                real=real_train,
                 syn=syn,
                 cat_cols=cat_cols,
                 num_cols=num_cols,
@@ -554,6 +609,9 @@ def main() -> None:
                 utility_feature_mode=args.utility_feature_mode,
                 seed=seed,
             )
+
+            # Quantitative Privacy Audit (MIA)
+            metrics["mia_auc"] = _audit_privacy(real_train, real_holdout, syn)
             rows.append(
                 {
                     "dataset": args.dataset,
