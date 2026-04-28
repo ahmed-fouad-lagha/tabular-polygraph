@@ -3,8 +3,8 @@ HIF: Hybrid Integrity Framework (The Tabular Polygraph).
 
 A neurosymbolic logical constraint validator for synthetic tabular data.
 Trains a Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC)
-auditors on ground-truth manifolds to detect semantic hallucinations via the
-Continuous Semantic Severity Penalty (CSSP).
+auditors on ground-truth manifolds to detect semantic hallucinations via
+multiplicative manifold integrity penalties.
 """
 
 import random
@@ -262,6 +262,7 @@ class LogicalSentinelEnsemble:
         traces = []
 
         if x_precomputed is not None:
+            # Ensure we only use features corresponding to our hubs/context
             x_encoded = x_precomputed
         else:
             x_encoded = self.encoder.transform(df)
@@ -290,7 +291,7 @@ class LogicalSentinelEnsemble:
                 (raw_diff - soft_threshold) / (1.0 - soft_threshold), 0, 1
             )
 
-            # ATOMIC AGGREGATION: Use 1 - Product(1 - Penalty) for higher sensitivity
+            # ATOMIC AGGREGATION: Multiplicative manifold penalty
             # This ensures that ruptures in multiple hubs compound the penalty
             row_penalties = 1.0 - (1.0 - row_penalties) * (1.0 - penalty)
 
@@ -353,8 +354,6 @@ class NeighborInvariantContinuity:
 
         if x_precomputed is not None:
             x_encoded = x_precomputed
-            self.encoder.feature_names = x_encoded.columns.tolist()
-            self.encoder.is_fitted = True
         else:
             self.encoder.fit(categorical_df)
             x_encoded = self.encoder.transform(categorical_df)
@@ -414,9 +413,8 @@ class NeighborInvariantContinuity:
             return 1.0, np.zeros(len(continuous_df))
 
         if x_precomputed is not None:
-            x_aligned = x_precomputed.reindex(
-                columns=self.encoder.feature_names, fill_value=0
-            )
+            # Use the full categorical context for maximum regression robustness
+            x_aligned = x_precomputed
         else:
             x_aligned = self.encoder.transform(categorical_df)
 
@@ -546,9 +544,10 @@ def hif_score(
         print(
             "  [HIF Rules] Mining and checking Implication Rules...", end="", flush=True
         )
+    # Pass pre-binned data to avoid redundant processing
     rule_result = rule_violation_score(
-        real,
-        synthetic,
+        real_f,
+        synthetic_f,
         columns=columns,
         min_confidence=rule_min_confidence,
         min_support=rule_min_support,
@@ -556,6 +555,7 @@ def hif_score(
         min_lift=rule_min_lift,
         max_antecedents=rule_max_antecedents,
         random_state=random_state,
+        pre_binned=True,
     )
     # Convert rule violations to row-level binary penalties via the pre-computed mask
     rule_penalties = np.zeros(len(synthetic))
@@ -585,6 +585,7 @@ def hif_score(
 
     num_violations = (row_penalties > 0.5).sum()
     violation_rate = float(num_violations / len(row_penalties))
+    cat_violation_rate = (cat_penalties > 0.5).mean()
 
     return {
         "hif_score": round(float(hif_score_val), 4),
@@ -593,6 +594,7 @@ def hif_score(
         "mean_penalty": round(float(row_penalties.mean()), 4),
         "num_violations": int(num_violations),
         "violation_threshold": 0.5,
+        "lse_violation_rate": round(float(cat_violation_rate), 4),
         "nic_violation_rate": round(float(nic_violation_rate), 4),
         "rule_violation_rate": round(float(rule_result["rule_violation_rate"]), 4),
         "num_rule_violations": rule_result["num_rule_violations"],
@@ -768,6 +770,7 @@ def rule_violation_score(
     max_antecedents: int = 2,
     max_violation_examples: int = 20,
     random_state: int | None = None,
+    pre_binned: bool = False,
 ) -> dict[str, Any]:
     rule_diagnostics: List[Dict[str, Any]] = []
     violation_examples: List[Dict[str, Any]] = []
@@ -783,9 +786,14 @@ def rule_violation_score(
             "violation_examples": [],
         }
 
-    real_f, syn_f = _canonicalize_code_columns(
-        _adaptive_binning(real, columns), _adaptive_binning(synthetic, columns), columns
-    )
+    if pre_binned:
+        real_f, syn_f = real, synthetic
+    else:
+        real_f, syn_f = _canonicalize_code_columns(
+            _adaptive_binning(real, columns),
+            _adaptive_binning(synthetic, columns),
+            columns,
+        )
     rules = mine_implication_rules(
         real_f,
         columns=columns,

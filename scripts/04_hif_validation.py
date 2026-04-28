@@ -316,6 +316,7 @@ def _evaluate_once(
     return {
         "hif_score": float(hif["hif_score"]),
         "hif_violation_rate": float(hif["violation_rate"]),
+        "lse_violation_rate": float(hif["lse_violation_rate"]),
         "nic_violation_rate": float(hif.get("nic_violation_rate", 0.0)),
         "rule_violation_rate": float(rules["rule_violation_rate"]),
         "num_rule_violations": int(rules["num_rule_violations"]),
@@ -524,8 +525,9 @@ def main() -> None:
             )
             print(
                 f"  level={level:>4.2f} | hif={metrics['hif_score']:.4f} | "
+                f"lse_vr={metrics['lse_violation_rate']:.4f} | "
                 f"nic_vr={metrics['nic_violation_rate']:.4f} | "
-                f"cssp_vr={metrics['hif_violation_rate']:.4f} | "
+                f"hif_vr={metrics['hif_violation_rate']:.4f} | "
                 f"mm={metrics['moment_matching_score']:.2f}",
                 flush=True,
             )
