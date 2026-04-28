@@ -60,9 +60,14 @@ class CTGANGenerator(BaseGenerator):
         from ctgan import CTGAN
 
         self._record_schema(data)
-        discrete_cols = [
-            c for c in self._columns if not pd.api.types.is_numeric_dtype(data[c])
-        ]
+        # Adaptive discovery: non-numeric OR low-cardinality numeric (e.g. binned features)
+        discrete_cols = []
+        for c in self._columns:
+            if not pd.api.types.is_numeric_dtype(data[c]):
+                discrete_cols.append(c)
+            elif data[c].nunique() < 20:
+                discrete_cols.append(c)
+
         self._model = CTGAN(
             epochs=self._epochs, batch_size=self._batch_size, verbose=False
         )
@@ -80,6 +85,19 @@ class CTGANGenerator(BaseGenerator):
         self._require_ctgan()
         if self._model is None:
             raise RuntimeError("CTGAN model is not initialised. Call fit() first.")
+
+        if seed is not None:
+            import random
+
+            import numpy as np
+            import torch
+
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+
         df = self._model.sample(n * (4 if filters else 1))
         df = self._cast_types(df)
         if filters:
