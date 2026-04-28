@@ -139,6 +139,28 @@ DOWNLOADERS: dict[str, dict] = {
             "B15003_001E": "education_total",
         },
     },
+    "adult": {
+        "name": "Adult Census Income",
+        "source": "UCI Machine Learning Repository",
+        "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data",
+        "method": "direct_csv",
+        "size_hint": "~4 MB — fast",
+        "indicators": {
+            "age": "age",
+            "workclass": "workclass",
+            "education": "education",
+            "marital_status": "marital_status",
+            "occupation": "occupation",
+            "relationship": "relationship",
+            "race": "race",
+            "sex": "sex",
+            "capital_gain": "capital_gain",
+            "capital_loss": "capital_loss",
+            "hours_per_week": "hours_per_week",
+            "native_country": "native_country",
+            "income": "income",
+        },
+    },
 }
 
 
@@ -424,12 +446,46 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
+def _download_adult(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+    """Download Adult dataset from UCI repository."""
+    url = DOWNLOADERS["adult"]["url"]
+    cols = [
+        "age",
+        "workclass",
+        "fnlwgt",
+        "education",
+        "education-num",
+        "marital-status",
+        "occupation",
+        "relationship",
+        "race",
+        "sex",
+        "capital-gain",
+        "capital-loss",
+        "hours-per-week",
+        "native-country",
+        "income",
+    ]
+    print("    Fetching Adult dataset from UCI...")
+    df = pd.read_csv(url, names=cols, sep=r",\s*", engine="python", na_values="?")
+    df = df.dropna()
+
+    # Drop fnlwgt and education-num as they are redundant or administrative
+    df = df.drop(columns=["fnlwgt", "education-num"])
+
+    # Clean up column names to match indicators
+    df.columns = [c.replace("-", "_") for c in df.columns]
+
+    return df.sample(min(n_sample, len(df)), random_state=42)
+
+
 # Mapping of registry methods to internal downloader functions
 METHOD_MAP = {
     "worldbank_api": _download_world_bank,
     "fred_api": _download_fred,
     "bls_api": _download_bls,
     "census_api": _download_census,
+    "direct_csv": _download_adult,
 }
 
 

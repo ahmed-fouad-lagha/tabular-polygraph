@@ -36,6 +36,11 @@ advanced = [
     "arch>=5.3",
     "pyvinecopulalib>=0.6"
 ]
+deep = [
+    "ctgan>=0.7.1",
+    "ForestDiffusion>=0.0.1",
+    "torch>=1.13"
+]
 dp = [
     "diffprivlib>=0.6"
 ]

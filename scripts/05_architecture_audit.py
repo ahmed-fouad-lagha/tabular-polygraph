@@ -18,6 +18,7 @@ from tabular_polygraph.fidelity import (
 )
 from tabular_polygraph.generators import (
     CTGANGenerator,
+    ForestDiffusionGenerator,
     GaussianCopulaGenerator,
     VineCopulaGenerator,
 )
@@ -34,14 +35,14 @@ def _compute_ks(real: pd.DataFrame, syn: pd.DataFrame, cols: list[str]) -> float
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="census_acs")
-    parser.add_argument("--rows", type=int, default=2000)
+    parser.add_argument("--dataset", type=str, default="adult")
+    parser.add_argument("--rows", type=int, default=5000)
     parser.add_argument("--seeds", type=str, default="42,43,44,45,46")
     parser.add_argument("--output", type=str, default="results/architecture_audit.json")
     args = parser.parse_args()
 
     seeds = [int(s) for s in args.seeds.split(",")]
-    real = load_dataset(args.dataset, n=2000)
+    real = load_dataset(args.dataset, n=args.rows)
     num_cols = numeric_columns(real)
     cat_cols = [c for c in real.columns if c not in num_cols]
 
@@ -49,6 +50,7 @@ def main():
         "Gaussian Copula": GaussianCopulaGenerator(),
         "Vine Copula": VineCopulaGenerator(),
         "CTGAN": CTGANGenerator(),
+        "ForestDiffusion": ForestDiffusionGenerator(),
     }
 
     results = []
@@ -85,19 +87,28 @@ def main():
                 print(f"  FAILED: {e}")
 
     df = pd.DataFrame(results)
-    summary = df.groupby("architecture").agg(["mean", "std"]).to_dict()
+    if not df.empty:
+        summary = df.groupby("architecture").agg(["mean", "std"])
+        # Flatten MultiIndex columns for JSON serialization
+        summary.columns = [f"{c[0]}_{c[1]}" for c in summary.columns]
+        summary_dict = summary.to_dict(orient="index")
+    else:
+        summary_dict = {}
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w") as f:
-        json.dump(summary, f, indent=2)
+        json.dump(summary_dict, f, indent=2)
 
     print("\n" + "=" * 50)
     print("ARCHITECTURE AUDIT SUMMARY (Real Numbers)")
     print("=" * 50)
-    pivot = df.groupby("architecture")[
-        ["ks_fidelity", "jcd_fidelity", "hif", "violation_rate"]
-    ].mean()
-    print(pivot)
+    if not df.empty:
+        pivot = df.groupby("architecture")[
+            ["ks_fidelity", "jcd_fidelity", "hif", "violation_rate"]
+        ].mean()
+        print(pivot)
+    else:
+        print("No results to display.")
     print("=" * 50)
 
 

@@ -232,6 +232,14 @@ def _load_generator(
     elif generator_type == "panel":
         entity_col, time_col = _infer_panel_columns(seed_df)
         gen = PanelDecompositionGenerator(entity_col=entity_col, time_col=time_col)
+    elif generator_type == "ctgan":
+        from tabular_polygraph.generators import CTGANGenerator
+
+        gen = CTGANGenerator()
+    elif generator_type == "forest_diffusion":
+        from tabular_polygraph.generators import ForestDiffusionGenerator
+
+        gen = ForestDiffusionGenerator()
     else:
         gen = GaussianCopulaGenerator()
 
@@ -966,7 +974,7 @@ def main():
         type=str,
         default="auto",
         metavar="TYPE",
-        help="auto | copula | var | panel",
+        help="auto | copula | var | panel | ctgan | forest_diffusion",
     )
     p.add_argument(
         "--fit-rows",

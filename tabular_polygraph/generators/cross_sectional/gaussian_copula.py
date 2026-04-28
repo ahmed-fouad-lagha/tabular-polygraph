@@ -17,6 +17,8 @@ of real rows and no individual-level information.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -29,7 +31,7 @@ from ..base import BaseGenerator
 class _NumericMarginal:
     """Fits and inverts a single numeric column distribution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._params: dict = {}
         self._min = self._max = 0.0
 
@@ -74,7 +76,7 @@ class _NumericMarginal:
 class _CategoricalMarginal:
     """Fits and inverts a single categorical column distribution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cats: list = []
         self._probs: np.ndarray = np.array([])
 
@@ -131,7 +133,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         "assets": "total_assets",
     }
 
-    def _init(self, priors=None, **kwargs):
+    def _init(self, priors: Any | None = None, **kwargs: Any) -> None:
         self._marginals: dict[str, _NumericMarginal | _CategoricalMarginal] = {}
         self._corr: np.ndarray | None = None
         self._priors = priors  # PriorSet | None

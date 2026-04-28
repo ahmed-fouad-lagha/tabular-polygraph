@@ -112,6 +112,34 @@ DATASETS: dict[str, dict] = {
             "Housing demand forecasting",
         ],
     },
+    "adult": {
+        "name": "Adult Census Income",
+        "vertical": "Tax & Income",
+        "source": "UCI Machine Learning Repository",
+        "description": "Demographic data from the 1994 US Census database. Standard benchmark for synthetic data.",
+        "columns": [
+            "age",
+            "workclass",
+            "education",
+            "marital_status",
+            "occupation",
+            "relationship",
+            "race",
+            "sex",
+            "capital_gain",
+            "capital_loss",
+            "hours_per_week",
+            "native_country",
+            "income",
+        ],
+        "col_count": 13,
+        "tags": ["CSV", "Classification", "Benchmark"],
+        "use_cases": [
+            "Income prediction",
+            "Fairness auditing",
+            "Synthetic data benchmarking",
+        ],
+    },
 }
 
 

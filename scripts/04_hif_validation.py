@@ -539,12 +539,12 @@ def _write_markdown_summary(path: Path, summary: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run HIF metric validation checks.")
-    parser.add_argument("--dataset", type=str, default="census_acs")
-    parser.add_argument("--rows", type=int, default=2000)
+    parser.add_argument("--dataset", type=str, default="adult")
+    parser.add_argument("--rows", type=int, default=5000)
     parser.add_argument("--fit-rows", type=int, default=None)
     parser.add_argument("--seeds", type=str, default="42,43,44,45,46")
     parser.add_argument("--corruption-levels", type=str, default="0,0.1,0.2,0.4,0.6")
-    parser.add_argument("--target", type=str, default="household_income")
+    parser.add_argument("--target", type=str, default="income")
     parser.add_argument(
         "--utility-feature-mode",
         type=str,

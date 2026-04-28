@@ -13,9 +13,10 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import RidgeCV
-from sklearn.metrics import normalized_mutual_info_score
+from sklearn.ensemble import (
+    HistGradientBoostingRegressor,
+    RandomForestClassifier,
+)
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 _ANTE_JOIN = " & "
@@ -86,13 +87,13 @@ def _canonicalize_code_columns(
 class ManifoldEncoder:
     """Stateful Categorical-to-Ordinal projection with feature mapping."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         self.feature_names: List[str] = []
         self.feature_map: Dict[str, List[str]] = {}
         self.is_fitted = False
 
-    def fit(self, df: pd.DataFrame):
+    def fit(self, df: pd.DataFrame) -> None:
         """Fit encoder on reference manifold and build feature map."""
         if df.empty:
             return
@@ -125,7 +126,7 @@ class LogicalSentinelEnsemble:
 
     def __init__(
         self, top_n_hubs: int = 5, max_depth: int = 12, random_state: int = 42
-    ):
+    ) -> None:
         self.top_n_hubs = top_n_hubs
         self.max_depth = max_depth
         self.random_state = random_state
@@ -135,47 +136,40 @@ class LogicalSentinelEnsemble:
         self.encoder = ManifoldEncoder()
         self.is_trained: bool = False
 
-    def _calculate_dependency_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Discover 'Manifold Hubs' using Symmetric Mutual Information."""
+    def _discover_hubs(self, df: pd.DataFrame, x_encoded: pd.DataFrame) -> List[str]:
+        """Discover 'Manifold Hubs' using predictive synergy (captures higher-order interactions)."""
         cols = df.columns
-        n = len(cols)
-        matrix = np.eye(n)
-        for i in range(n):
-            for j in range(i + 1, n):
-                if df[cols[i]].nunique() <= 1 or df[cols[j]].nunique() <= 1:
-                    mi = 0.0
-                else:
-                    mi = normalized_mutual_info_score(
-                        df[cols[i]], df[cols[j]], average_method="arithmetic"
-                    )
-                matrix[i, j] = mi
-                matrix[j, i] = mi
-        return pd.DataFrame(matrix, index=cols, columns=cols)
+        scores = {}
 
-    def _select_diverse_hubs(self, mi_matrix: pd.DataFrame) -> List[str]:
-        """Greedy selection of hubs based on dependency sum and redundancy filter."""
-        hub_scores = mi_matrix.sum(axis=1).sort_values(ascending=False)
-        potential_hubs = hub_scores.index.tolist()
+        for hub_col in cols:
+            other_cols = [c for c in cols if c != hub_col]
+            hub_features = []
+            for col in other_cols:
+                hub_features.extend(self.encoder.feature_map.get(col, []))
 
-        selected: List[str] = []
-        redundancy_threshold = 0.8
+            if not hub_features:
+                continue
 
-        for candidate in potential_hubs:
-            if len(selected) >= self.top_n_hubs:
-                break
+            X = x_encoded[hub_features]
+            y = df[hub_col].astype(str)
 
-            # Check redundancy with already selected hubs
-            is_redundant = False
-            for active in selected:
-                correlation = mi_matrix.loc[candidate, active]
-                if correlation > redundancy_threshold:
-                    is_redundant = True
-                    break
+            if len(y.unique()) < 2:
+                continue
 
-            if not is_redundant:
-                selected.append(candidate)
+            # Use a fast RF to measure how "constrained" this feature is by the rest of the manifold.
+            # Higher score = more synergistic dependency = better sentinel hub.
+            # This captures complex interactions (e.g. XOR) that SNMI (pairwise) misses.
+            clf = RandomForestClassifier(
+                n_estimators=25,
+                max_depth=8,
+                random_state=self.random_state,
+                max_features="sqrt",
+            )
+            clf.fit(X, y)
+            scores[hub_col] = float(clf.score(X, y))
 
-        return selected
+        sorted_hubs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        return [h[0] for h in sorted_hubs[: self.top_n_hubs]]
 
     def fit(
         self,
@@ -187,14 +181,6 @@ class LogicalSentinelEnsemble:
         """Train Sentinels using stateful manifold projection."""
         if len(df) < 50:
             return
-
-        mi_matrix = self._calculate_dependency_matrix(df)
-        self.hubs = self._select_diverse_hubs(mi_matrix)
-
-        if verbose:
-            print(
-                f"  [HIF Hubs] Selected {len(self.hubs)} Diverse Manifold Hubs: {self.hubs}"
-            )
 
         if x_precomputed is not None:
             x_encoded = x_precomputed
@@ -210,6 +196,17 @@ class LogicalSentinelEnsemble:
         else:
             self.encoder.fit(df)
             x_encoded = self.encoder.transform(df)
+
+        if verbose:
+            print(
+                "  [HIF Hubs] Discovering Synergistic Manifold Hubs...",
+                end="",
+                flush=True,
+            )
+        self.hubs = self._discover_hubs(df, x_encoded)
+
+        if verbose:
+            print(f" Done. Selected: {self.hubs}")
 
         for hub_col in self.hubs:
             # SUBSPACE: Use feature_map instead of startswith scan
@@ -325,11 +322,11 @@ class LogicalSentinelEnsemble:
 class NeighborInvariantContinuity:
     """
     Neighbor-Invariant Continuity (NIC).
-    Audits continuous features against categorical manifold using spectral reconstruction.
+    Audits continuous features against categorical manifold using non-linear reconstruction.
     """
 
     def __init__(self, random_state: int = 42):
-        self.regressors: Dict[str, RidgeCV] = {}
+        self.regressors: Dict[str, HistGradientBoostingRegressor] = {}
         self.scalers: Dict[str, StandardScaler] = {}
         self.z_thresholds: Dict[str, float] = {}
         self.pca: PCA | None = None
@@ -343,7 +340,7 @@ class NeighborInvariantContinuity:
         x_precomputed: pd.DataFrame | None = None,
         verbose: bool = True,
     ):
-        """Fit spectral regressors on the training manifold."""
+        """Fit non-linear regressors on the training manifold."""
         valid_cols = [
             c for c in continuous_df.columns if continuous_df[c].nunique() > 1
         ]
@@ -363,11 +360,11 @@ class NeighborInvariantContinuity:
         if n_feat < 1 or n_samples < 2:
             return
 
-        # SPEED HARDENING: Use a fixed component limit for fast spectral reconstruction
+        # Spectral projection to reduce categorical manifold sparsity
         n_comp = min(n_samples, n_feat, 100)
         if verbose:
             print(
-                f"  [HIF NIC] Spectral Reconstruction ({n_feat} -> {n_comp} target)...",
+                f"  [HIF NIC] Spectral Embedding ({n_feat} -> {n_comp} target)...",
                 end="",
                 flush=True,
             )
@@ -389,8 +386,13 @@ class NeighborInvariantContinuity:
             scaler = StandardScaler()
             y_scaled = scaler.fit_transform(y.reshape(-1, 1)).flatten()
 
-            # Use RidgeCV for automated regularization optimization
-            reg = RidgeCV(alphas=np.logspace(-2, 4, 7))
+            # Upgrade to non-linear booster for complex manifold laws
+            reg = HistGradientBoostingRegressor(
+                max_iter=100,
+                max_depth=5,
+                random_state=self.random_state,
+                l2_regularization=1.0,
+            )
             reg.fit(latent, y_scaled)
             if verbose:
                 print("Done.")
@@ -400,7 +402,9 @@ class NeighborInvariantContinuity:
 
             self.regressors[col] = reg
             self.scalers[col] = scaler
-            self.z_thresholds[col] = float(np.percentile(residuals, 95))
+            self.z_thresholds[col] = float(
+                np.percentile(residuals, 98)
+            )  # Tighter threshold for non-linear
 
     def score(
         self,
@@ -413,7 +417,6 @@ class NeighborInvariantContinuity:
             return 1.0, np.zeros(len(continuous_df))
 
         if x_precomputed is not None:
-            # Use the full categorical context for maximum regression robustness
             x_aligned = x_precomputed
         else:
             x_aligned = self.encoder.transform(categorical_df)
@@ -432,7 +435,8 @@ class NeighborInvariantContinuity:
 
             threshold = self.z_thresholds[col]
             if threshold > 0:
-                col_penalty = np.clip((residuals - threshold) / (threshold * 3.0), 0, 1)
+                # Nonlinear penalty scaling
+                col_penalty = np.clip((residuals - threshold) / (threshold * 2.0), 0, 1)
             else:
                 col_penalty = np.zeros_like(residuals)
 

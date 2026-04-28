@@ -36,8 +36,8 @@ def run_sensitivity_test(p_hallucination: float = 0.01):
         f"\n[Sensitivity Test] Injecting {p_hallucination * 100:.1f}% Hallucinations..."
     )
 
-    # 1. Load Real Data
-    real_df = load_dataset("census_acs", n=2000).dropna()
+    # 1. Load Real Data (Adult dataset)
+    real_df = load_dataset("adult", n=5000).dropna()
 
     # 2. Perfect Distributional Mimic (Baseline)
     # We use the real data itself as the 'perfect' synthetic data
