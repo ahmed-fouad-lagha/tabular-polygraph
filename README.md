@@ -65,6 +65,29 @@ tabular-polygraph generate census_acs --rows 100 --output synthetic.csv
 tabular-polygraph evaluate ~/.tabular_polygraph/cache/census_acs.parquet synthetic.csv --type cross_sectional --hif-epochs 10
 ```
 
+## CLI Reference
+
+### Generate Synthetic Data
+
+```bash
+tabular-polygraph generate <dataset_id_or_path> \
+  --rows <number_of_rows> \
+  --generator <type> \
+  --seed <integer> \
+  --output <filename.csv>
+```
+
+### Audit Synthetic Data (Fidelity Report)
+
+```bash
+tabular-polygraph evaluate <real_data_path> <synthetic_data_path> \
+  --type <cross_sectional|time_series|panel> \
+  --hif-epochs <integer> \
+  --seed <integer> \
+  --target <target_column_for_utility> \
+  --output <report.json>
+```
+
 ## Python API
 
 ```python
