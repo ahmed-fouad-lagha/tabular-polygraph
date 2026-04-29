@@ -185,6 +185,7 @@ def _load_generator(
     generator_type="auto",
     drop_cols: list[str] | None = None,
     fit_rows: int | None = None,
+    **kwargs,
 ):
     """Load and fit a generator for the given dataset."""
     from tabular_polygraph.catalog import load_dataset
@@ -228,20 +229,22 @@ def _load_generator(
     gen: BaseGenerator
     if generator_type == "var":
         time_col = "year" if "year" in seed_df.columns else None
-        gen = VARGenerator(lags=2, time_col=time_col)
+        gen = VARGenerator(lags=2, time_col=time_col, **kwargs)
     elif generator_type == "panel":
         entity_col, time_col = _infer_panel_columns(seed_df)
-        gen = PanelDecompositionGenerator(entity_col=entity_col, time_col=time_col)
+        gen = PanelDecompositionGenerator(
+            entity_col=entity_col, time_col=time_col, **kwargs
+        )
     elif generator_type == "ctgan":
         from tabular_polygraph.generators import CTGANGenerator
 
-        gen = CTGANGenerator()
+        gen = CTGANGenerator(**kwargs)
     elif generator_type == "forest_diffusion":
         from tabular_polygraph.generators import ForestDiffusionGenerator
 
-        gen = ForestDiffusionGenerator()
+        gen = ForestDiffusionGenerator(**kwargs)
     else:
-        gen = GaussianCopulaGenerator()
+        gen = GaussianCopulaGenerator(**kwargs)
 
     gen.fit(seed_df)
     return gen, seed_df, generator_type
@@ -386,6 +389,7 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
                 args.generator,
                 drop_cols=drop_cols,
                 fit_rows=getattr(args, "fit_rows", None),
+                epochs=getattr(args, "epochs", None),
             )
     except FileNotFoundError as e:
         err(f"File not found: {e}")
@@ -1008,6 +1012,13 @@ def main():
         "--calibrate",
         action="store_true",
         help="Run moment calibration after generation",
+    )
+    p.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Override default training epochs for deep generators",
     )
     p.add_argument("--seed", type=int, default=42, metavar="INT")
     p.add_argument(
