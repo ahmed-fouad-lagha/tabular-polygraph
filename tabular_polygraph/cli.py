@@ -21,6 +21,7 @@ from pathlib import Path
 from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
 from tabular_polygraph.generators.panel import PanelDecompositionGenerator
 from tabular_polygraph.generators.time_series import VARGenerator
+from tabular_polygraph.utils import set_seed
 
 
 class C:
@@ -625,6 +626,7 @@ def cmd_info(args):
 
 
 def cmd_generate(args):
+    set_seed(args.seed)
     input_file, dataset_id, filters, drop_cols = _prepare_generate_request(args)
     gen, seed_df, gen_type = _fit_generate_generator(
         input_file, dataset_id, args, drop_cols
@@ -651,6 +653,7 @@ def cmd_generate(args):
 
 
 def cmd_evaluate(args):
+    set_seed(args.seed)
     from tabular_polygraph.fidelity import fidelity_report, format_report
 
     header("Fidelity evaluation", f"{args.real}  vs  {args.synthetic}")
@@ -684,6 +687,7 @@ def cmd_evaluate(args):
         hif_epochs=getattr(args, "hif_epochs", 10),
         hif_hubs=getattr(args, "hif_hubs", 5),
         hif_depth=getattr(args, "hif_depth", 12),
+        random_state=args.seed,
         **rule_params,
     )
 
@@ -702,6 +706,7 @@ def cmd_evaluate(args):
 
 
 def cmd_audit(args):
+    set_seed(args.seed)
     header("TAMIS Privacy Oracle audit", f"{args.real}  vs  {args.synthetic}")
 
     for p in [Path(args.real), Path(args.synthetic)]:
@@ -724,7 +729,7 @@ def cmd_audit(args):
         real,
         syn,
         n_attacks=args.attacks,
-        seed=42,
+        seed=args.seed,
     )
 
     print(format_audit(report))
@@ -782,6 +787,7 @@ def cmd_scenario_list(args):
 
 
 def cmd_scenario_apply(args):
+    set_seed(args.seed)
     from tabular_polygraph.calibration import apply_scenario
     from tabular_polygraph.io import read, write
 
@@ -1146,8 +1152,8 @@ def main():
         metavar="N",
         help="Number of TAMIS attack attempts per test (default: 300)",
     )
-    p.add_argument("--json", action="store_true")
     p.add_argument("--output", type=str, default=None, metavar="FILE")
+    p.add_argument("--seed", type=int, default=42, metavar="N")
     p.set_defaults(func=cmd_audit)
 
     # scenario
@@ -1162,6 +1168,7 @@ def main():
     p_sca.add_argument("--input", type=str, required=True, metavar="FILE")
     p_sca.add_argument("--output", type=str, required=True, metavar="FILE")
     p_sca.add_argument("--intensity", type=float, default=1.0, metavar="F")
+    p_sca.add_argument("--seed", type=int, default=42, metavar="N")
     p_sca.set_defaults(func=cmd_scenario_apply)
 
     def _scenario_help(_args):

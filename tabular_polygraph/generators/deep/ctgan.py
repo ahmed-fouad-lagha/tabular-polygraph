@@ -8,11 +8,8 @@ CTGAN significantly outperforms Gaussian Copula on:
   - Imbalanced categorical columns
   - Complex non-linear inter-column relationships
 
-Installation of the deep extra required:
+Requirements:
     pip install .[deep]   # installs ctgan, torch
-
-This stub raises an informative error until the deep extra is installed,
-and documents the interface so the upgrade path is clear.
 """
 
 from __future__ import annotations
@@ -27,8 +24,6 @@ from ..base import BaseGenerator
 class CTGANGenerator(BaseGenerator):
     """
     CTGAN deep tabular generator.
-
-    Requires: pip install .[deep]
 
     Usage (same interface as GaussianCopulaGenerator):
         gen = CTGANGenerator(epochs=300, batch_size=500)
@@ -66,10 +61,8 @@ class CTGANGenerator(BaseGenerator):
         except ImportError:
             raise ImportError(
                 "CTGAN is not installed.\n"
-                "Run: pip install .[deep]\n\n"
-                "This installs ctgan and its PyTorch dependency (~2 GB).\n"
-                "If you don't need deep learning quality, GaussianCopulaGenerator\n"
-                "achieves 96–98% fidelity with no additional dependencies."
+                "Run: pip install ctgan torch\n\n"
+                "This installs ctgan and its PyTorch dependencies."
             ) from None
 
     def fit(self, data: pd.DataFrame) -> "CTGANGenerator":
@@ -102,7 +95,7 @@ class CTGANGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
@@ -112,18 +105,6 @@ class CTGANGenerator(BaseGenerator):
         self._require_ctgan()
         if self._model is None:
             raise RuntimeError("CTGAN model is not initialised. Call fit() first.")
-
-        if seed is not None:
-            import random
-
-            import numpy as np
-            import torch
-
-            random.seed(seed)
-            np.random.seed(seed)
-            torch.manual_seed(seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(seed)
 
         df = self._model.sample(n * (4 if filters else 1))
         df = self._cast_types(df)

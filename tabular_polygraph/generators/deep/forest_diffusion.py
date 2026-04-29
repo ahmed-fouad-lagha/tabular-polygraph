@@ -77,19 +77,13 @@ class ForestDiffusionGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
         self._require_forest_diffusion()
-
-        if seed is not None:
-            import numpy as np
-
-            np.random.seed(seed)
 
         if self._model is None:
             raise RuntimeError("ForestDiffusion model is not fitted.")

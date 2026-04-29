@@ -209,16 +209,12 @@ class DPGaussianCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
-        if seed is not None:
-            np.random.seed(seed)
-
         n_gen = n * (6 if filters else 1)
         if self._corr is None:
             raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")

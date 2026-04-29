@@ -215,13 +215,12 @@ class VECMGARCHGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
         rng = np.random.default_rng(seed)
         if self._Y_raw is None or self._means is None or self._stds is None:
             raise RuntimeError(

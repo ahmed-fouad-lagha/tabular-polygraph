@@ -54,8 +54,6 @@ class VARGenerator(BaseGenerator):
         self._stds: np.ndarray | None = None  # column stds
         self._marginals: dict = {}  # per-column marginal for back-transform
 
-    # ── fit ───────────────────────────────────────────────────────────────────
-
     def fit(self, data: pd.DataFrame) -> "VARGenerator":
         self._record_schema(data)
 
@@ -130,15 +128,12 @@ class VARGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    # ── sample ────────────────────────────────────────────────────────────────
-
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
         rng = np.random.default_rng(seed)
         if (
             self._Y_std is None

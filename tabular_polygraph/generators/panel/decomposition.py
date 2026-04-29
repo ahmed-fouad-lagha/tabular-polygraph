@@ -64,8 +64,6 @@ class PanelDecompositionGenerator(BaseGenerator):
         self._entity_values: list = []
         self._time_values: list = []
 
-    # ── fit ───────────────────────────────────────────────────────────────────
-
     def fit(self, data: pd.DataFrame) -> "PanelDecompositionGenerator":
         self._record_schema(data)
         df = data.copy()
@@ -145,15 +143,12 @@ class PanelDecompositionGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    # ── sample ────────────────────────────────────────────────────────────────
-
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
         rng = np.random.default_rng(seed)
         if self._residual_gen is None:
             raise RuntimeError("Residual generator is not fitted. Call fit() first.")

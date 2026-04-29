@@ -144,20 +144,17 @@ class VineCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
         _require_pyvine()
 
         n_gen = n * (6 if filters else 1)
 
         # Simulate from vine
-        if seed is not None:
-            np.random.seed(seed)
         if self._vine is None:
             raise RuntimeError("Vine model is not fitted. Call fit() first.")
         U_syn = self._vine.simulate(n_gen)

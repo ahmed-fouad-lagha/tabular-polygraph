@@ -9,6 +9,7 @@ Provides:
 
 from __future__ import annotations
 
+import random
 from typing import TypeAlias
 
 import numpy as np
@@ -221,3 +222,33 @@ def format_score_bar(
     """
     filled = int((score / max_score) * width)
     return "█" * filled + "░" * (width - filled)
+
+
+# ============================================================================
+# Reproducibility
+# ============================================================================
+
+
+def set_seed(seed: int | None) -> None:
+    """Set the random seed for reproducibility across multiple libraries.
+
+    This helper centralizes seeding for random, numpy, and torch (if available),
+    ensuring that generators and fidelity metrics produce deterministic results.
+
+    Args:
+        seed: The seed value to use. If None, this function does nothing.
+    """
+    if seed is None:
+        return
+
+    random.seed(seed)
+    np.random.seed(seed)
+
+    try:
+        import torch
+
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass

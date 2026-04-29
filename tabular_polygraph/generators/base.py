@@ -56,7 +56,6 @@ class BaseGenerator(ABC):
         Returns self (fluent interface).
         """
 
-    @abstractmethod
     def generate(
         self,
         n: int,
@@ -66,13 +65,34 @@ class BaseGenerator(ABC):
         """
         Draw n synthetic rows.
 
+        Handles global seeding automatically before calling subclass _generate().
+        """
+        self._require_fitted()
+
+        if seed is not None:
+            from tabular_polygraph.utils import set_seed
+
+            set_seed(seed)
+
+        return self._generate(n, filters=filters, seed=seed)
+
+    @abstractmethod
+    def _generate(
+        self,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
+        """
+        Internal implementation of sampling. Subclasses override this.
+
         Parameters
         ----------
         n       : number of rows to return
-        filters : optional column constraints (see filter spec in README)
-        seed    : random seed for reproducibility
+        filters : optional column constraints
+        seed    : random seed (already applied globally by generate())
 
-        Returns a DataFrame with a 'syn_id' column prepended.
+        Returns a DataFrame without 'syn_id' (BaseGenerator adds it if needed).
         """
 
     # ── Convenience ───────────────────────────────────────────────────────────

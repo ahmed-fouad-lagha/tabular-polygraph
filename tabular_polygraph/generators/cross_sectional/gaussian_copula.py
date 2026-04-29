@@ -25,8 +25,6 @@ from scipy import stats
 
 from ..base import BaseGenerator
 
-# ── Marginal models ───────────────────────────────────────────────────────────
-
 
 class _NumericMarginal:
     """Fits and inverts a single numeric column distribution."""
@@ -104,9 +102,6 @@ class _CategoricalMarginal:
         return "categorical"
 
 
-# ── Generator ─────────────────────────────────────────────────────────────────
-
-
 class GaussianCopulaGenerator(BaseGenerator):
     """
     Cross-sectional Gaussian Copula synthetic data generator.
@@ -136,9 +131,7 @@ class GaussianCopulaGenerator(BaseGenerator):
     def _init(self, priors: Any | None = None, **kwargs: Any) -> None:
         self._marginals: dict[str, _NumericMarginal | _CategoricalMarginal] = {}
         self._corr: np.ndarray | None = None
-        self._priors = priors  # PriorSet | None
-
-    # ── fit ───────────────────────────────────────────────────────────────────
+        self._priors = priors
 
     def fit(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
         import warnings
@@ -189,16 +182,12 @@ class GaussianCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def generate(
+    def _generate(
         self,
         n: int,
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        self._require_fitted()
-        if seed is not None:
-            np.random.seed(seed)
-
         n_gen = n * (6 if filters else 1)
         if self._corr is None:
             raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")
