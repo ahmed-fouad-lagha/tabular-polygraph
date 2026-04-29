@@ -105,7 +105,7 @@ def test_ctgan_custom_params(sample_data):
         discrete_threshold=5,
     )
     gen.fit(sample_data)
-    assert gen._model.epochs == 2
+    assert gen._model._epochs == 2
     assert gen._model._batch_size == 100
     assert gen._model._generator_lr == 1e-3
     assert gen._model._discriminator_steps == 5

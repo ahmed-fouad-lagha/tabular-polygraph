@@ -69,6 +69,44 @@ def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
             }
         )
 
+    if did == "adult":
+        return pd.DataFrame(
+            {
+                "age": rng.integers(17, 90, n),
+                "workclass": rng.choice(["Private", "Self-emp", "Gov"], n),
+                "education": rng.choice(
+                    ["HS-grad", "Some-college", "Bachelors", "Masters", "Doctorate"], n
+                ),
+                "marital_status": rng.choice(
+                    ["Married", "Never-married", "Divorced"], n
+                ),
+                "occupation": rng.choice(
+                    ["Prof-specialty", "Exec-managerial", "Sales", "Craft-repair"], n
+                ),
+                "relationship": rng.choice(
+                    ["Husband", "Not-in-family", "Own-child", "Unmarried"], n
+                ),
+                "race": rng.choice(
+                    [
+                        "White",
+                        "Black",
+                        "Asian-Pac-Islander",
+                        "Amer-Indian-Eskimo",
+                        "Other",
+                    ],
+                    n,
+                ),
+                "sex": rng.choice(["Male", "Female"], n),
+                "capital_gain": rng.lognormal(0, 1, n) * 1000,
+                "capital_loss": rng.lognormal(0, 1, n) * 100,
+                "hours_per_week": rng.normal(40, 5, n).clip(1, 99),
+                "native_country": rng.choice(
+                    ["United-States", "Mexico", "Philippines", "Germany"], n
+                ),
+                "income": rng.choice(["<=50K", ">50K"], n),
+            }
+        )
+
     raise ValueError(f"Unsupported fallback dataset: {did}")
 
 
