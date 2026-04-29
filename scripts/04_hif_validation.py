@@ -292,24 +292,41 @@ def _utility_feature_columns(
     real_util = real.copy()
     syn_util = syn.copy()
 
-    target_mean = float(pd.to_numeric(real[target], errors="coerce").mean())
+    # Pre-process target to numeric for mean calculation (handles categorical targets)
+    target_numeric_real = pd.to_numeric(real[target], errors="coerce")
+    if target_numeric_real.isna().mean() > 0.5:
+        # If mostly non-numeric, treat as categorical and use codes
+        cat = real[target].astype("category").cat
+        target_numeric_real = cat.codes.astype(float)
+        # Apply same mapping to synthetic
+        target_numeric_syn = pd.Categorical(
+            syn[target], categories=cat.categories
+        ).codes.astype(float)
+        # Re-scale to [0, 1] if multi-class, or keep as is if binary
+        m = target_numeric_real.max()
+        if m > 0:
+            target_numeric_real = target_numeric_real / m
+            target_numeric_syn = target_numeric_syn / m
+    else:
+        target_numeric_syn = pd.to_numeric(syn[target], errors="coerce")
+
+    # Update target in util frames to be numeric
+    real_util[target] = target_numeric_real
+    syn_util[target] = target_numeric_syn
+
+    target_mean = float(target_numeric_real.mean())
     encoded_cols: list[str] = []
     for col in cat_cols:
         if col not in real.columns or col not in syn.columns or col == target:
             continue
 
-        mapping_frame = real[[col, target]].dropna()
+        mapping_frame = pd.DataFrame(
+            {col: real[col], "target_y": target_numeric_real}
+        ).dropna()
         if mapping_frame.empty:
             continue
 
-        means = (
-            mapping_frame.assign(
-                **{target: pd.to_numeric(mapping_frame[target], errors="coerce")}
-            )
-            .dropna(subset=[target])
-            .groupby(col)[target]
-            .mean()
-        )
+        means = mapping_frame.groupby(col)["target_y"].mean()
         if means.empty:
             continue
 

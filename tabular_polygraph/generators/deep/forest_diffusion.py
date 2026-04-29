@@ -31,7 +31,7 @@ class ForestDiffusionGenerator(BaseGenerator):
 
     supported_types = ["cross_sectional"]
 
-    def _init(self, n_t: int = 50, **kwargs):
+    def _init(self, n_t: int = 10, **kwargs):
         self._n_t = n_t
         self._model: Any | None = None
 
@@ -49,21 +49,30 @@ class ForestDiffusionGenerator(BaseGenerator):
 
         self._record_schema(data)
 
-        # ForestDiffusion requires a numpy array of floats.
-        # It handles categorical data if we provide X with labels or if we pre-encode.
-        # For simplicity and robust integration, we pre-encode categorical columns.
         X = data.copy()
         self._cat_mappings = {}
-        for col in self._columns:
+        cat_indexes = []
+        int_indexes = []
+
+        for i, col in enumerate(self._columns):
             if not pd.api.types.is_numeric_dtype(X[col]):
                 X[col] = X[col].astype("category")
                 self._cat_mappings[col] = dict(enumerate(X[col].cat.categories))
                 X[col] = X[col].cat.codes.astype(float)
+                cat_indexes.append(i)
+            elif pd.api.types.is_integer_dtype(X[col]):
+                X[col] = X[col].astype(float)
+                int_indexes.append(i)
             else:
                 X[col] = X[col].astype(float)
 
         self._model = ForestDiffusionModel(
-            X.to_numpy(), n_t=self._n_t, duplicate_K=1, binarize=False
+            X.to_numpy(),
+            n_t=self._n_t,
+            duplicate_K=1,
+            cat_indexes=cat_indexes,
+            int_indexes=int_indexes,
+            seed=42,
         )
         self._fitted = True
         return self
