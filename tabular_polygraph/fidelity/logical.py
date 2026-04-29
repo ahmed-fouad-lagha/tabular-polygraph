@@ -136,9 +136,14 @@ class LogicalSentinelEnsemble:
         self.encoder = ManifoldEncoder()
         self.is_trained: bool = False
 
-    def _discover_hubs(self, df: pd.DataFrame, x_encoded: pd.DataFrame) -> List[str]:
+    def _discover_hubs(
+        self,
+        df: pd.DataFrame,
+        x_encoded: pd.DataFrame,
+        potential_hubs: List[str] | None = None,
+    ) -> List[str]:
         """Discover 'Manifold Hubs' using predictive synergy (captures higher-order interactions)."""
-        cols = df.columns
+        cols = potential_hubs if potential_hubs is not None else df.columns
         scores = {}
 
         for hub_col in cols:
@@ -177,6 +182,7 @@ class LogicalSentinelEnsemble:
         hif_epochs: int = 10,
         verbose: bool = True,
         x_precomputed: pd.DataFrame | None = None,
+        potential_hubs: List[str] | None = None,
     ):
         """Train Sentinels using stateful manifold projection."""
         if len(df) < 50:
@@ -203,7 +209,7 @@ class LogicalSentinelEnsemble:
                 end="",
                 flush=True,
             )
-        self.hubs = self._discover_hubs(df, x_encoded)
+        self.hubs = self._discover_hubs(df, x_encoded, potential_hubs=potential_hubs)
 
         if verbose:
             print(f" Done. Selected: {self.hubs}")
@@ -281,12 +287,13 @@ class LogicalSentinelEnsemble:
 
             floor = self.confidence_floors[hub_col]
 
-            # CALIBRATION: Nonlinear error response
-            raw_diff = floor - probs_observed
-            soft_threshold = 0.1
-            penalty = np.clip(
-                (raw_diff - soft_threshold) / (1.0 - soft_threshold), 0, 1
-            )
+            # CALIBRATION: Nonlinear error response scaled by floor
+            # If probs_observed < floor, penalty starts.
+            # Full penalty if probs_observed is 10x smaller than floor or 0.
+            if floor > 1e-6:
+                penalty = np.clip((floor - probs_observed) / floor, 0, 1)
+            else:
+                penalty = np.zeros(len(df))
 
             # ATOMIC AGGREGATION: Multiplicative manifold penalty
             # This ensures that ruptures in multiple hubs compound the penalty
@@ -535,7 +542,13 @@ def hif_score(
         print(
             "  [HIF Audit] Auditing Sentinel Logical Consistency...", end="", flush=True
         )
-    oracle.fit(real_f, hif_epochs=hif_epochs, verbose=verbose, x_precomputed=x_real_cat)
+    oracle.fit(
+        real_f,
+        hif_epochs=hif_epochs,
+        verbose=verbose,
+        x_precomputed=x_real_cat,
+        potential_hubs=valid_cols,
+    )
     _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
     if verbose:
         print("Done.")
