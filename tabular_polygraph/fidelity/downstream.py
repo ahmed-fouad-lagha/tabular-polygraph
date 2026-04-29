@@ -13,6 +13,10 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import f1_score, r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 from tabular_polygraph.utils import numeric_columns
 
@@ -78,19 +82,7 @@ def tstr_score(
     seed: int = 42,
 ) -> dict:
     """
-    Compute TSTR score: train on synthetic, evaluate on real.
-
-    Parameters
-    ----------
-    real, synthetic : DataFrames (must share columns)
-    target_col      : column to predict
-    feature_cols    : predictor columns (default: all shared numeric cols except target)
-    task            : 'classification', 'regression', or 'auto'
-    test_frac       : fraction of real data held out for evaluation
-
-    Returns
-    -------
-    dict with tstr_score, trr_score, ratio (TSTR/TRR), and task type
+    Compute TSTR score: train on synthetic, evaluate on real using Random Forest.
     """
     all_cols = [c for c in real.columns if c in synthetic.columns]
     if feature_cols is None:
@@ -107,41 +99,52 @@ def tstr_score(
         task = "classification" if n_unique <= 10 else "regression"
 
     # Prepare data
-    rng = np.random.default_rng(seed)
     real_clean = real[feature_cols + [target_col]].dropna()
     syn_clean = synthetic[feature_cols + [target_col]].dropna()
 
-    # Split real into train/test
-    idx = rng.permutation(len(real_clean))
-    split = int(len(real_clean) * (1 - test_frac))
-    real_train = real_clean.iloc[idx[:split]]
-    real_test = real_clean.iloc[idx[split:]]
-
-    X_real_tr, X_test_real = _standardize_with_train_stats(
-        real_train, real_test, feature_cols
+    real_train, real_test = train_test_split(
+        real_clean, test_size=test_frac, random_state=seed
     )
-    X_syn, X_test_syn = _standardize_with_train_stats(
-        syn_clean, real_test, feature_cols
-    )
-    y_real_tr = real_train[target_col].values.astype(float)
-    y_test = real_test[target_col].values.astype(float)
 
-    y_syn = syn_clean[target_col].values.astype(float)
+    X_real_tr = real_train[feature_cols]
+    y_real_tr = real_train[target_col]
+    X_test = real_test[feature_cols]
+    y_test = real_test[target_col]
+
+    X_syn = syn_clean[feature_cols]
+    y_syn = syn_clean[target_col]
 
     if task == "classification":
-        y_real_tr_b = (y_real_tr > y_real_tr.mean()).astype(float)
-        y_syn_b = (y_syn > y_real_tr.mean()).astype(float)
-        y_test_b = (y_test > y_real_tr.mean()).astype(float)
+        model_tstr = RandomForestClassifier(n_estimators=100, random_state=seed)
+        model_trr = RandomForestClassifier(n_estimators=100, random_state=seed)
 
-        p_tstr = _simple_logreg(X_syn, y_syn_b, X_test_syn)
-        p_trr = _simple_logreg(X_real_tr, y_real_tr_b, X_test_real)
+        le = LabelEncoder()
+        y_real_tr = le.fit_transform(y_real_tr.astype(str))
+        y_test = le.transform(y_test.astype(str))
+        # Handle potential missing classes in synthetic
+        y_syn_str = y_syn.astype(str)
+        # Filter syn to only classes present in real
+        mask = y_syn_str.isin(le.classes_)
+        if not mask.any():
+            return {"error": "Synthetic target has no overlap with real classes"}
+        X_syn = X_syn[mask]
+        y_syn = le.transform(y_syn_str[mask])
 
-        tstr = _gini(y_test_b, p_tstr)
-        trr = _gini(y_test_b, p_trr)
-        metric = "gini"
+        model_tstr.fit(X_syn, y_syn)
+        model_trr.fit(X_real_tr, y_real_tr)
+
+        tstr = f1_score(y_test, model_tstr.predict(X_test), average="macro")
+        trr = f1_score(y_test, model_trr.predict(X_test), average="macro")
+        metric = "f1_macro"
     else:
-        tstr = _simple_linreg_r2(X_syn, y_syn, X_test_syn, y_test)
-        trr = _simple_linreg_r2(X_real_tr, y_real_tr, X_test_real, y_test)
+        model_tstr = RandomForestRegressor(n_estimators=100, random_state=seed)
+        model_trr = RandomForestRegressor(n_estimators=100, random_state=seed)
+
+        model_tstr.fit(X_syn, y_syn)
+        model_trr.fit(X_real_tr, y_real_tr)
+
+        tstr = r2_score(y_test, model_tstr.predict(X_test))
+        trr = r2_score(y_test, model_trr.predict(X_test))
         metric = "r2"
 
     ratio = round(tstr / max(abs(trr), 1e-6), 4)
@@ -156,11 +159,4 @@ def tstr_score(
         "n_features": len(feature_cols),
         "n_synthetic_train": len(syn_clean),
         "n_real_test": len(real_test),
-        "interpretation": (
-            "TSTR ≈ TRR: synthetic data is a good substitute for real data"
-            if 0.8 <= ratio <= 1.2
-            else "TSTR < TRR: synthetic data loses predictive signal — check generator quality"
-            if ratio < 0.8
-            else "TSTR > TRR: synthetic data may be overfit to training distribution"
-        ),
     }

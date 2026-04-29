@@ -67,6 +67,7 @@ def main():
                     real,
                     syn,
                     columns=cat_cols + num_cols,
+                    hif_hubs=10,
                     random_state=seed,
                     verbose=False,
                 )

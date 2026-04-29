@@ -363,12 +363,14 @@ def _evaluate_once(
     target: str | None,
     utility_feature_mode: str,
     seed: int,
+    hif_hubs: int = 5,
 ) -> dict:
     # Use the hardened hif_score (Neurosymbolic LSE + Spectral NIC)
     hif = hif_score(
         real,
         syn,
         columns=cat_cols + num_cols,
+        hif_hubs=hif_hubs,
         random_state=seed,
         verbose=False,
     )
@@ -573,6 +575,7 @@ def main() -> None:
         ),
     )
     parser.add_argument("--hif-epochs", type=int, default=50)
+    parser.add_argument("--hif-hubs", type=int, default=5)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
     parser.add_argument("--output-dir", type=str, default="results")
     args = parser.parse_args()
@@ -625,6 +628,7 @@ def main() -> None:
                 target=args.target,
                 utility_feature_mode=args.utility_feature_mode,
                 seed=seed,
+                hif_hubs=args.hif_hubs,
             )
 
             # Quantitative Privacy Audit (MIA)

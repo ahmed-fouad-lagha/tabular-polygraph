@@ -66,8 +66,9 @@ class ForestDiffusionGenerator(BaseGenerator):
             else:
                 X[col] = X[col].astype(float)
 
+        X_np = X.to_numpy().astype("float32")
         self._model = ForestDiffusionModel(
-            X.to_numpy(),
+            X_np,
             n_t=self._n_t,
             duplicate_K=1,
             cat_indexes=cat_indexes,

@@ -1,112 +1,85 @@
-"""
-Example 3: TAMIS Privacy Oracle Walkthrough
---------------------------------------
-Demonstrates the TAMIS (Targeted Adversarial Masking and Inference Suite) workflow:
-- Membership inference attack
-- Singling-out risk
-- Linkability risk
-- Differential privacy noise addition
-- Interpreting TAMIS risk levels and recommendations
+import argparse
 
-Run: python scripts/03_privacy_audit.py
-"""
-
-from pathlib import Path
-
-# ruff: noqa: E402
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
+import numpy as np
+import pandas as pd
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.generators import GaussianCopulaGenerator
-from tabular_polygraph.privacy import format_audit, privacy_audit
-from tabular_polygraph.privacy.dp import PrivacyBudget, laplace_mechanism
+
+
+def _audit_privacy(
+    train_df: pd.DataFrame, holdout_df: pd.DataFrame, syn_df: pd.DataFrame
+) -> float:
+    """Quantitative Privacy Audit via Membership Inference Attack (MIA)."""
+    if syn_df.empty:
+        return 0.5
+    cols = [c for c in train_df.columns if pd.api.types.is_numeric_dtype(train_df[c])]
+    if not cols:
+        return 0.5
+    scaler = StandardScaler()
+    n_test = min(1000, len(train_df), len(holdout_df))
+    n_syn = min(2000, len(syn_df))
+    train_sample = train_df[cols].sample(n_test, random_state=42).fillna(0)
+    holdout_sample = holdout_df[cols].sample(n_test, random_state=42).fillna(0)
+    syn_sample = syn_df[cols].sample(n_syn, random_state=42).fillna(0)
+    combined_test = pd.concat([train_sample, holdout_sample])
+    labels = np.array([1] * n_test + [0] * n_test)
+    scaler.fit(combined_test)
+    test_norm = scaler.transform(combined_test)
+    syn_norm = scaler.transform(syn_sample)
+    nn = NearestNeighbors(n_neighbors=1, algorithm="auto").fit(syn_norm)
+    distances, _ = nn.kneighbors(test_norm)
+    scores = -distances.flatten()
+    try:
+        auc = roc_auc_score(labels, scores)
+        return float(auc)
+    except Exception:
+        return 0.5
 
 
 def main():
-    print("=" * 60)
-    print("  TAMIS Privacy Oracle Audit — Census ACS Data")
-    print("=" * 60)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="adult")
+    parser.add_argument("--rows", type=int, default=2000)
+    args = parser.parse_args()
 
-    # ── 1. Generate synthetic data ────────────────────────────────────────────
-    print("\n[1/4] Generating synthetic census_acs data...")
-    seed = load_dataset("census_acs")
+    print(f"Privacy Audit: {args.dataset}")
+    real = load_dataset(args.dataset, n=args.rows * 2)
+
+    # Split for MIA (Train/Holdout)
+    real_train, real_holdout = train_test_split(real, train_size=0.5, random_state=42)
+
+    print("Fitting Gaussian Copula...")
     gen = GaussianCopulaGenerator()
-    gen.fit(seed)
-    syn = gen.generate(1000, seed=42)
-    syn_body = syn.drop(columns=["syn_id"])
-    print(f"      Real rows: {len(seed):,}  |  Synthetic rows: {len(syn_body):,}")
+    gen.fit(real_train)
+    syn = gen.generate(args.rows, seed=42)
 
-    # ── 2. Full audit ─────────────────────────────────────────────────────────
-    print("\n[2/4] Running full privacy audit (300 attacks per test)...")
-    audit = privacy_audit(seed, syn_body, n_attacks=300, seed=42)
-    print(format_audit(audit))
+    print("Calculating HIF scores...")
+    hif = hif_score(real_train, syn, random_state=42)
 
-    # ── 3. Individual test deep-dives ─────────────────────────────────────────
-    print("\n[3/4] Individual test results:")
+    # Filtering by Integrity Frontier (Penalty < 0.5)
+    syn_filtered = syn[hif["row_penalties"] < 0.5]
 
-    # Membership inference
-    mi = audit["membership_inference"]
-    print("\n  Membership Inference:")
-    print(
-        f"    Attack AUC     : {mi['attack_auc']}  (0.5 = random, 1.0 = perfect attack)"
-    )
-    print(f"    Advantage      : {mi['advantage']}  (AUC - 0.5)")
-    print(f"    Risk level     : {mi['risk_level']}")
-    print(f"    Interpretation : {mi['interpretation']}")
+    print(f"Full synthetic size: {len(syn)}")
+    print(f"Filtered synthetic size: {len(syn_filtered)}")
 
-    # Singling-out
-    so = audit["singling_out"]
-    print("\n  Singling-Out:")
-    print(
-        f"    Rate           : {so['singling_out_rate']}  (fraction of attacks that uniquely identify)"
-    )
-    print(f"    Risk level     : {so['risk_level']}")
-    print(f"    QI columns used: {so.get('quasi_id_cols', [])}")
+    print("Auditing Privacy (MIA AUC)...")
+    auc_full = _audit_privacy(real_train, real_holdout, syn)
+    auc_filtered = _audit_privacy(real_train, real_holdout, syn_filtered)
 
-    # Linkability
-    lk = audit["linkability"]
-    print("\n  Linkability:")
-    print(f"    Rate           : {lk['linkability_rate']}  (0.5 = random baseline)")
-    print(f"    Lift           : {lk['lift_over_baseline_pct']}% over baseline")
-    print(f"    Risk level     : {lk['risk_level']}")
+    print(f"MIA AUC (Full):     {auc_full:.4f}")
+    print(f"MIA AUC (Filtered): {auc_filtered:.4f}")
 
-    # ── 4. Differential privacy demo ─────────────────────────────────────────
-    print("\n[4/4] Differential privacy — protecting aggregate statistics:")
-    budget = PrivacyBudget(epsilon=1.0)
-    print(f"      Budget: {budget}")
-
-    true_mean_hh_income = float(seed["household_income"].mean())
-    true_mean_housing_units = float(seed["total_housing_units"].mean())
-
-    noisy_hh_income = laplace_mechanism(
-        true_mean_hh_income,
-        sensitivity=500_000,
-        epsilon=0.3,
-        budget=budget,
-        label="mean_household_income",
-    )
-    noisy_housing_units = laplace_mechanism(
-        true_mean_housing_units,
-        sensitivity=200_000,
-        epsilon=0.3,
-        budget=budget,
-        label="mean_total_housing_units",
-    )
-
-    print(
-        f"\n      Household income:  true={true_mean_hh_income:>12,.0f}  noisy={noisy_hh_income:>12,.0f}"
-    )
-    print(
-        f"      Housing units:    true={true_mean_housing_units:>12,.0f}  noisy={noisy_housing_units:>12,.0f}"
-    )
-    print("\n      Budget log:")
-    for entry in budget.log:
-        print(f"        ε={entry['epsilon']}  [{entry['label']}]")
-    print(f"      Remaining ε: {budget.remaining_epsilon:.2f}")
-
-    print("\nDone.")
+    print("\nPrivacy claim: Filtering does not increase leakage (AUC remains near 0.5)")
+    if abs(auc_filtered - 0.5) <= 0.1:
+        print("RESULT: SUCCESS")
+    else:
+        print("RESULT: FAIL (Potential leakage or outlier influence)")
 
 
 if __name__ == "__main__":

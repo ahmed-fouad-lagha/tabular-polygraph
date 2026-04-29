@@ -382,9 +382,20 @@ class NeighborInvariantContinuity:
         for col in active_df.columns:
             if verbose:
                 print(f"  [HIF NIC] Regressing variable '{col}'...", end="", flush=True)
-            y = active_df[col].values
+
+            # SAFE DROP: Filter both X (latent) and y to remove NaNs in this specific target
+            y_raw = active_df[col].values
+            valid_mask = ~np.isnan(y_raw)
+            if not valid_mask.any():
+                if verbose:
+                    print("Skipped (all NaN).")
+                continue
+
+            y_valid = y_raw[valid_mask]
+            latent_valid = latent[valid_mask]
+
             scaler = StandardScaler()
-            y_scaled = scaler.fit_transform(y.reshape(-1, 1)).flatten()
+            y_scaled = scaler.fit_transform(y_valid.reshape(-1, 1)).flatten()
 
             # Upgrade to non-linear booster for complex manifold laws
             reg = HistGradientBoostingRegressor(
@@ -393,11 +404,11 @@ class NeighborInvariantContinuity:
                 random_state=self.random_state,
                 l2_regularization=1.0,
             )
-            reg.fit(latent, y_scaled)
+            reg.fit(latent_valid, y_scaled)
             if verbose:
                 print("Done.")
 
-            y_pred = reg.predict(latent)
+            y_pred = reg.predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
             self.regressors[col] = reg
@@ -429,16 +440,27 @@ class NeighborInvariantContinuity:
                 continue
 
             y = continuous_df[col].values
-            y_scaled = self.scalers[col].transform(y.reshape(-1, 1)).flatten()
-            y_pred = self.regressors[col].predict(latent)
+            # Handle NaNs during scoring: validity = 1 (penalty=0) for NaN values?
+            # Or should we flag them as violations? Paper says HIF is non-compensatory.
+            # We'll treat NaN as "neutral" (penalty 0) to avoid double-counting if Rules already catch them.
+            valid_mask = ~np.isnan(y)
+            if not valid_mask.any():
+                continue
+
+            y_valid = y[valid_mask]
+            latent_valid = latent[valid_mask]
+
+            y_scaled = self.scalers[col].transform(y_valid.reshape(-1, 1)).flatten()
+            y_pred = self.regressors[col].predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
             threshold = self.z_thresholds[col]
+            col_penalty = np.zeros(len(y))
             if threshold > 0:
-                # Nonlinear penalty scaling
-                col_penalty = np.clip((residuals - threshold) / (threshold * 2.0), 0, 1)
-            else:
-                col_penalty = np.zeros_like(residuals)
+                # Nonlinear penalty scaling (Aligned with paper: gamma=3.0)
+                col_penalty[valid_mask] = np.clip(
+                    (residuals - threshold) / (threshold * 3.0), 0, 1
+                )
 
             row_penalties = np.maximum(row_penalties, col_penalty)
 

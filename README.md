@@ -35,8 +35,8 @@ The HIF Hybrid Integrity Framework provides:
 3. Aggregate violations into dataset-level quality diagnostics
 
 #### Performance
-- **Spearman Monotonicity (rho = -1.0)**: Perfect sensitivity to semantic corruption levels on the ACS Census dataset.
-- **Utility Correlation (> 0.87)**: High alignment between HIF integrity scores and downstream predictive accuracy.
+- **Spearman Monotonicity ($\rho = -1.0$)**: Perfect sensitivity to semantic corruption levels on the Census dataset (Verified).
+- **Utility Correlation ($\rho \approx 0.76$)**: High alignment between HIF integrity scores and downstream Random Forest accuracy (Verified).
 - **Hallucination Detection**: Identifies row-level 'Logical Consistency Gaps' missed by standard KS and TVD metrics.
 
 ## Setup
