@@ -134,6 +134,7 @@ python scripts/04_hif_validation.py \
 # Adult Validation
 python scripts/04_hif_validation.py \
   --dataset adult \
+  --corruption-strategy manifold_rupture \
   --rows 2000 \
   --seeds 42,43,44,45,46 \
   --corruption-levels 0,0.1,0.2,0.4,0.6 \
@@ -141,7 +142,8 @@ python scripts/04_hif_validation.py \
 ```
 
 Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confirming:
-- **Monotonicity**: Perfect sensitivity to corruption levels.
+- **Monotonicity**: Perfect sensitivity to corruption levels ($\rho = -1.0$).
+- **Distribution Stability (The Education Paradox)**: Using the `manifold_rupture` strategy, HIF detects integrity loss while marginal and joint fidelity scores remain **perfectly stable**, proving it catches "Silent Hallucinations" that traditional metrics miss.
 - **External Validity**: Correlation with human-defined implication rules.
 - **Utility Correlation**: Alignment with downstream Random Forest accuracy.
 

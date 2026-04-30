@@ -129,7 +129,7 @@ def tstr_score(
         # Handle potential missing classes in synthetic
         y_syn_str = y_syn.astype(str)
         # Filter syn to only classes present in real
-        mask = y_syn_str.isin(le.classes_)
+        mask = np.isin(y_syn_str, le.classes_)
         if not mask.any():
             return {"error": "Synthetic target has no overlap with real classes"}
         X_syn = X_syn[mask]

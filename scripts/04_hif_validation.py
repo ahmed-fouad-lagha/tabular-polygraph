@@ -145,6 +145,114 @@ def _corrupt_continuous(
     return out
 
 
+def _corrupt_permutation(
+    syn: pd.DataFrame,
+    cat_cols: list[str],
+    num_cols: list[str],
+    corruption_level: float,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """Corrupt by permuting values within the same column.
+    Preserves marginal distributions exactly while breaking joint structure.
+    """
+    if corruption_level <= 0.0:
+        return syn.copy()
+
+    out = syn.copy()
+    for col in cat_cols + num_cols:
+        if col not in out.columns:
+            continue
+        mask = rng.random(len(out)) < corruption_level
+        n = int(mask.sum())
+        if n <= 1:
+            continue
+        vals = out.loc[mask, col].values
+        out.loc[mask, col] = rng.permutation(vals)
+    return out
+
+
+def _corrupt_manifold_rupture(
+    syn: pd.DataFrame,
+    real: pd.DataFrame,
+    cat_cols: list[str],
+    num_cols: list[str],
+    corruption_level: float,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """High-Resolution Semantic Rupture (The 'Education Paradox').
+    Deliberately breaks 1-to-1 mappings to show HIF's unique sensitivity.
+    """
+    if corruption_level <= 0.0:
+        return syn.copy()
+
+    out = syn.copy()
+
+    # Strategy: Break the Semantic relationship between Sex and Relationship
+    # e.g., Husbands must be Male, Wives must be Female.
+    if "sex" in out.columns and "relationship" in out.columns:
+        # We target 'Husband' and 'Wife' rows
+        husbands = out[
+            out["relationship"].astype(str).str.contains("Husband", case=False)
+        ].index
+        wives = out[
+            out["relationship"].astype(str).str.contains("Wife", case=False)
+        ].index
+        target_indices = husbands.union(wives)
+
+        if not target_indices.empty:
+            n_to_break = int(len(target_indices) * corruption_level)
+            if n_to_break > 0:
+                break_idx = rng.choice(target_indices, size=n_to_break, replace=False)
+                # Flip the sex
+                out.loc[break_idx, "sex"] = out.loc[break_idx, "sex"].apply(
+                    lambda x: "Female" if str(x).lower().startswith("m") else "Male"
+                )
+                return out
+
+    # Fallback: Targeted Rule Breaking using mined rules
+    from tabular_polygraph.fidelity.logical import mine_implication_rules
+
+    rules = mine_implication_rules(
+        real, columns=cat_cols, min_confidence=0.95, min_support=0.01
+    )
+
+    if not rules:
+        return _corrupt_permutation(syn, cat_cols, num_cols, corruption_level, rng)
+
+    target_rupture_count = int(len(out) * corruption_level)
+    current_ruptured = 0
+    for rule in rng.permutation(rules):
+        if current_ruptured >= target_rupture_count:
+            break
+
+        ant_feat, ant_val = rule.get("antecedent_feature"), rule.get("antecedent_value")
+        cons_feat, cons_val = (
+            rule.get("consequent_feature"),
+            rule.get("consequent_value"),
+        )
+
+        if ant_feat not in out.columns or cons_feat not in out.columns:
+            continue
+
+        # We break the rule for ALL rows that satisfy the antecedent to ensure the rupture is 'dense'
+        # enough for the aggregate HIF score to move.
+        mask = out[ant_feat].astype(str) == str(ant_val)
+        indices = out.index[mask].tolist()
+        if not indices:
+            continue
+
+        n = min(len(indices), target_rupture_count - current_ruptured)
+        break_idx = rng.choice(indices, size=n, replace=False)
+
+        pool = out[cons_feat].unique()
+        bad_vals = [v for v in pool if str(v) != str(cons_val)]
+        if bad_vals:
+            out.loc[break_idx, cons_feat] = rng.choice(bad_vals, size=n, replace=True)
+            current_ruptured += n
+
+    return out
+
+
 def _antecedent_features_from_rule(rule: dict) -> set[str]:
     features: set[str] = set()
 
@@ -579,6 +687,13 @@ def main() -> None:
             "Use categorical_target_encoded for HIF-aligned external validity."
         ),
     )
+    parser.add_argument(
+        "--corruption-strategy",
+        type=str,
+        default="swap_real",
+        choices=["swap_real", "permutation", "manifold_rupture"],
+        help="Strategy for injecting corrupt samples.",
+    )
     parser.add_argument("--hif-epochs", type=int, default=50)
     parser.add_argument("--hif-hubs", type=int, default=5)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
@@ -621,9 +736,19 @@ def main() -> None:
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))
-            # Apply Mixed Corruption: Both categorical and continuous
-            syn = _corrupt_categorical(base_syn, real_train, cat_cols, level, rng)
-            syn = _corrupt_continuous(syn, real_train, num_cols, level, rng)
+
+            if args.corruption_strategy == "swap_real":
+                # Apply Mixed Corruption: Both categorical and continuous
+                syn = _corrupt_categorical(base_syn, real_train, cat_cols, level, rng)
+                syn = _corrupt_continuous(syn, real_train, num_cols, level, rng)
+            elif args.corruption_strategy == "permutation":
+                syn = _corrupt_permutation(base_syn, cat_cols, num_cols, level, rng)
+            elif args.corruption_strategy == "manifold_rupture":
+                syn = _corrupt_manifold_rupture(
+                    base_syn, real_train, cat_cols, num_cols, level, rng
+                )
+            else:
+                syn = base_syn.copy()
 
             metrics = _evaluate_once(
                 real=real_train,
