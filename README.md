@@ -114,20 +114,49 @@ hallucinations = syn.sort_values('hallucination_score', ascending=False).head(5)
 print(hallucinations)
 ```
 
-Run the following script to reproduce the benchmarks:
+## Reproduce Benchmarks
+
+To reproduce the empirical results and tables presented in the manuscript, run the following validation suite:
+
+### 1. HIF Empirical Validation (Census ACS & Adult)
+These scripts verify the framework's sensitivity to semantic corruption across multiple seeds and noise levels.
 
 ```bash
+# Census ACS Validation
 python scripts/04_hif_validation.py \
   --dataset census_acs \
   --rows 2000 \
   --seeds 42,43,44,45,46 \
-  --corruption-levels 0,0.1,0.2,0.4,0.6
+  --corruption-levels 0,0.1,0.2,0.4,0.6 \
+  --target household_income \
+  --output-dir results/census
+
+# Adult Validation
+python scripts/04_hif_validation.py \
+  --dataset adult \
+  --rows 2000 \
+  --seeds 42,43,44,45,46 \
+  --corruption-levels 0,0.1,0.2,0.4,0.6 \
+  --output-dir results/adult
 ```
 
-The script generates a comprehensive summary in `results/hif_validation_summary.md`, confirming PASS/FAIL status for:
-- Monotonicity (Semantic Sensitivity)
-- External Validity (Correlation with Implication Rules)
-- Downstream Utility Correlation ($r > 0.87$)
+Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confirming:
+- **Monotonicity**: Perfect sensitivity to corruption levels.
+- **External Validity**: Correlation with human-defined implication rules.
+- **Utility Correlation**: Alignment with downstream Random Forest accuracy.
+
+### 2. Cross-Architecture Audit (Table 2 & 3)
+Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) to reproduce the primary comparative benchmarks.
+
+```bash
+python scripts/05_cross_domain_audit.py \
+  --rows 500 \
+  --seeds 3 \
+  --epochs 150 \
+  --output-dir results
+```
+
+Raw results and summary tables are saved to `results/architecture_audit.csv`.
 
 ## License
 
