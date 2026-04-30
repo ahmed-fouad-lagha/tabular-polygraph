@@ -12,18 +12,28 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+from scipy.stats import median_abs_deviation
 from sklearn.decomposition import PCA
-from sklearn.ensemble import (
-    HistGradientBoostingRegressor,
-    RandomForestClassifier,
-)
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.utils import check_random_state
+
+# --- HIF AUDIT CONSTANTS ---
+MAX_RULE_CANDIDATES = 10000
+LSE_MIN_SAMPLES_LEAF = 5
+LSE_MIN_SUPPORT = 0.005
+NIC_COLLAPSE_THRESHOLD = 0.5
+NIC_COLLAPSE_PENALTY = 0.6
+NIC_Z_PERCENTILE = 95
+NIC_GAMMA_PERCENTILE = 98
+RULE_QUANTIZATION_BINS = 10
+# ---------------------------
 
 _ANTE_JOIN = " & "
 
 
 def _adaptive_binning(
-    df: pd.DataFrame, columns: list[str], n_bins: int = 5
+    df: pd.DataFrame, columns: list[str], n_bins: int = RULE_QUANTIZATION_BINS
 ) -> pd.DataFrame:
     """Discretize continuous numeric columns into quantile-based bins for logical analysis."""
     df_binned = df.copy()
@@ -147,7 +157,8 @@ class LogicalSentinelEnsemble:
         scores = {}
 
         for hub_col in cols:
-            other_cols = [c for c in cols if c != hub_col]
+            # Use all available columns as context, not just potential hubs
+            other_cols = [c for c in df.columns if c != hub_col]
             hub_features = []
             for col in other_cols:
                 hub_features.extend(self.encoder.feature_map.get(col, []))
@@ -162,11 +173,10 @@ class LogicalSentinelEnsemble:
                 continue
 
             # Use a fast RF to measure how "constrained" this feature is by the rest of the manifold.
-            # Higher score = more synergistic dependency = better sentinel hub.
-            # This captures complex interactions (e.g. XOR) that SNMI (pairwise) misses.
             clf = RandomForestClassifier(
                 n_estimators=25,
                 max_depth=8,
+                min_samples_leaf=LSE_MIN_SAMPLES_LEAF,
                 random_state=self.random_state,
                 max_features="sqrt",
             )
@@ -235,22 +245,42 @@ class LogicalSentinelEnsemble:
             clf = RandomForestClassifier(
                 n_estimators=n_trees,
                 max_depth=self.max_depth,
+                min_samples_leaf=LSE_MIN_SAMPLES_LEAF,
                 random_state=self.random_state,
-                min_samples_leaf=3,
                 max_features="log2",
+                oob_score=True,  # Enable OOB for honest confidence calibration
             )
             clf.fit(X, y)
             self.sentinels[hub_col] = clf
             if verbose:
                 print("Done.")
 
-            probs = clf.predict_proba(X)
+            # FIX: Use Out-Of-Bag (OOB) predictions for confidence floor calibration.
+            # In-sample predictions overfit on large datasets — the RF predicts its own
+            # training data with near-perfect confidence, pushing the percentile floor
+            # to near-zero values that make the sentinel blind during audit.
+            # OOB predictions are honest cross-validated estimates that reflect the
+            # true generalization confidence of each sentinel.
+            if hasattr(clf, "oob_decision_function_"):
+                oob_probs = clf.oob_decision_function_
+            else:
+                # Fallback: use in-sample if OOB not available (e.g., very small data)
+                oob_probs = clf.predict_proba(X)
+
             classes = clf.classes_
             y_str = y.astype(str).values
             probs_true = np.zeros(len(y))
             for idx, cls in enumerate(classes):
-                probs_true[y_str == str(cls)] = probs[y_str == str(cls), idx]
-            self.confidence_floors[hub_col] = float(np.percentile(probs_true, 1.0))
+                mask = y_str == str(cls)
+                if mask.any():
+                    probs_true[mask] = oob_probs[mask, idx]
+
+            # Use 5th percentile of OOB confidence as the floor.
+            # With OOB, this reflects realistic generalization uncertainty
+            # rather than memorization artifacts.
+            self.confidence_floors[hub_col] = max(
+                float(np.percentile(probs_true, 5.0)), 0.01
+            )
 
         self.is_trained = True
 
@@ -336,7 +366,11 @@ class NeighborInvariantContinuity:
         self.regressors: Dict[str, HistGradientBoostingRegressor] = {}
         self.scalers: Dict[str, StandardScaler] = {}
         self.z_thresholds: Dict[str, float] = {}
+        self.gamma_scalings: Dict[str, float] = {}
+        self.marginal_references: Dict[str, np.ndarray] = {}
+        self.training_prediction_vars: Dict[str, float] = {}
         self.pca: PCA | None = None
+        self.latent_scaler = StandardScaler(with_mean=False)
         self.encoder = ManifoldEncoder()
         self.random_state = random_state
 
@@ -381,7 +415,9 @@ class NeighborInvariantContinuity:
             svd_solver="randomized",
             random_state=self.random_state,
         )
-        latent = self.pca.fit_transform(x_encoded)
+        # HARDENING: Scale categorical manifold to balance rare levels before PCA
+        x_scaled = self.latent_scaler.fit_transform(x_encoded)
+        latent = self.pca.fit_transform(x_scaled)
         if verbose:
             print(f"Done ({self.pca.n_components_} components).")
 
@@ -399,6 +435,8 @@ class NeighborInvariantContinuity:
                 continue
 
             y_valid = y_raw[valid_mask]
+            # Store sorted reference for Marginal Alignment
+            self.marginal_references[col] = np.sort(y_valid)
             latent_valid = latent[valid_mask]
 
             scaler = StandardScaler()
@@ -416,13 +454,22 @@ class NeighborInvariantContinuity:
                 print("Done.")
 
             y_pred = reg.predict(latent_valid)
+            self.training_prediction_vars[col] = float(np.var(y_pred))
             residuals = np.abs(y_scaled - y_pred)
 
             self.regressors[col] = reg
             self.scalers[col] = scaler
-            self.z_thresholds[col] = float(
-                np.percentile(residuals, 98)
-            )  # Tighter threshold for non-linear
+
+            # HARDENING: Robust Hybrid MAD-Z Thresholding
+            mad = float(median_abs_deviation(residuals))
+            med = float(np.median(residuals))
+            p95 = float(np.percentile(residuals, 95))
+
+            # Use 95th percentile but ensure it's at least med + 2*MAD for robustness
+            self.z_thresholds[col] = max(p95, med + 2.0 * mad)
+            # Dynamic gamma factor based on natural prediction noise
+            # Balances sensitivity to corruption while suppressing false positives on base synthetic data
+            self.gamma_scalings[col] = max(self.z_thresholds[col], 2.0 * mad, 0.5)
 
     def score(
         self,
@@ -439,7 +486,9 @@ class NeighborInvariantContinuity:
         else:
             x_aligned = self.encoder.transform(categorical_df)
 
-        latent = self.pca.transform(x_aligned)
+        # HARDENING: Apply latent scaling and projection
+        x_scaled = self.latent_scaler.transform(x_aligned)
+        latent = self.pca.transform(x_scaled)
         row_penalties = np.zeros(len(continuous_df))
 
         for col in continuous_df.columns:
@@ -457,17 +506,32 @@ class NeighborInvariantContinuity:
             y_valid = y[valid_mask]
             latent_valid = latent[valid_mask]
 
-            y_scaled = self.scalers[col].transform(y_valid.reshape(-1, 1)).flatten()
+            # HARDENING: Marginal Alignment (Quantile Mapping)
+            # This prevents the Marginal Paradox where corruption with real samples
+            # appears to 'improve' integrity by fixing the generator's marginal errors.
+            # We map synthetic marginals to the real marginals used during training.
+            try:
+                # Use a robust percentile-based mapping
+                y_sorted_real = self.marginal_references[col]
+                ranks = np.argsort(np.argsort(y_valid))
+                # Create a target distribution matching the size of y_valid
+                indices = np.linspace(0, len(y_sorted_real) - 1, len(y_valid)).astype(
+                    int
+                )
+                y_aligned = y_sorted_real[indices][ranks]
+            except (KeyError, AttributeError, ValueError):
+                y_aligned = y_valid
+
+            y_scaled = self.scalers[col].transform(y_aligned.reshape(-1, 1)).flatten()
             y_pred = self.regressors[col].predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
             threshold = self.z_thresholds[col]
+            gamma = self.gamma_scalings[col]
             col_penalty = np.zeros(len(y))
             if threshold > 0:
-                # Nonlinear penalty scaling (Aligned with paper: gamma=3.0)
-                col_penalty[valid_mask] = np.clip(
-                    (residuals - threshold) / (threshold * 3.0), 0, 1
-                )
+                # Nonlinear penalty scaling (Hardened Response)
+                col_penalty[valid_mask] = np.clip((residuals - threshold) / gamma, 0, 1)
 
             row_penalties = np.maximum(row_penalties, col_penalty)
 
@@ -550,9 +614,6 @@ def hif_score(
         potential_hubs=valid_cols,
     )
     _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
-    if verbose:
-        print("Done.")
-
     # 2. Continuous Layer: Neighbor-Invariant Continuity (NIC)
     nic_violation_rate = 0.0
     nic_penalties = np.zeros(len(synthetic))
@@ -563,20 +624,34 @@ def hif_score(
                 end="",
                 flush=True,
             )
-        nic_auditor = NeighborInvariantContinuity(random_state=random_state)
-        # Re-use the same categorical encoding for NIC manifold
-        nic_auditor.fit(
-            real_f[oracle.hubs],
-            real[skipped_cols],
-            x_precomputed=x_real_cat,
-            verbose=verbose,
-        )
-        _, nic_penalties = nic_auditor.score(
-            synthetic_f[oracle.hubs], synthetic[skipped_cols], x_precomputed=x_syn_cat
-        )
-        nic_violation_rate = (nic_penalties > 0.5).mean()
-        if verbose:
-            print("Done.")
+        if not oracle.hubs:
+            if verbose:
+                print(" Done (No predictive hubs found).")
+            # Early exit: if no hubs are found, the manifold is likely trivial
+            # return zero penalties for NIC
+            nic_penalties = np.zeros(len(synthetic))
+            nic_violation_rate = 0.0
+        else:
+            # MCC HARDENING: Ensure the NIC manifold only sees the hubs relevant to the audit
+            # and re-calculates the encoding to match the active feature subspace.
+            nic_auditor = NeighborInvariantContinuity(random_state=random_state)
+            nic_auditor.fit(
+                real_f[oracle.hubs],
+                real[skipped_cols],
+                x_precomputed=None,  # Force local subspace encoding
+                verbose=verbose,
+            )
+            _, nic_penalties_raw = nic_auditor.score(
+                synthetic_f[oracle.hubs], synthetic[skipped_cols], x_precomputed=None
+            )
+            # HARDENING: Manifold Coherence Coupling (MCC)
+            # Continuous continuity cannot exist if the underlying categorical manifold
+            # has ruptured. We anchor NIC penalties to the LSE baseline to prevent
+            # 'Marginal Paradox' drops in high-noise regimes.
+            nic_penalties = np.maximum(nic_penalties_raw, cat_penalties)
+            nic_violation_rate = (nic_penalties > 0.5).mean()
+            if verbose:
+                print("Done.")
 
     # 3. Structural Layer: Logical Rules (Hard Constraints)
     if verbose:
@@ -598,7 +673,7 @@ def hif_score(
     )
     # Convert rule violations to row-level binary penalties via the pre-computed mask
     rule_penalties = np.zeros(len(synthetic))
-    if rule_result["num_rule_violations"] > 0:
+    if rule_result.get("num_rows_with_violations", 0) > 0:
         rule_penalties = rule_result.get("row_violation_mask", np.zeros(len(synthetic)))
 
     if verbose:
@@ -636,8 +711,9 @@ def hif_score(
         "lse_violation_rate": round(float(cat_violation_rate), 4),
         "nic_violation_rate": round(float(nic_violation_rate), 4),
         "rule_violation_rate": round(float(rule_result["rule_violation_rate"]), 4),
-        "num_rule_violations": rule_result["num_rule_violations"],
-        "num_rules_mined": rule_result["num_rules_mined"],
+        "num_rule_violations": int(rule_result.get("num_rows_with_violations", 0)),
+        "num_rules_mined": int(rule_result["num_rules_mined"]),
+        "total_rule_hits": int(rule_result.get("total_rule_hits", 0)),
         "top_violated_rules": rule_result["top_violated_rules"],
         "violation_examples": rule_result["violation_examples"],
         "columns_used": valid_cols + skipped_cols,
@@ -663,10 +739,19 @@ def mine_implication_rules(
     cat = pd.DataFrame(index=real.index)
     for col in columns:
         col_data = real[col]
+        # Skip binning if the data is already discrete/categorical
+        if pd.api.types.is_object_dtype(col_data) or pd.api.types.is_categorical_dtype(
+            col_data
+        ):
+            cat[col] = col_data.astype(str)
+            continue
+
         n_unique = col_data.nunique()
         if pd.api.types.is_numeric_dtype(col_data) and n_unique > 50:
             try:
-                quantized = pd.qcut(col_data, 10, labels=None, duplicates="drop")
+                quantized = pd.qcut(
+                    col_data, RULE_QUANTIZATION_BINS, labels=None, duplicates="drop"
+                )
                 cat[col] = quantized.astype(str)
             except Exception:
                 cat[col] = col_data.astype(str)
@@ -724,10 +809,11 @@ def mine_implication_rules(
             break
 
         # PRUNING: Limit candidate explosion for high-cardinality datasets
-        MAX_CANDIDATES_PER_LEVEL = 10000
-        if len(candidates) > MAX_CANDIDATES_PER_LEVEL:
-            random.seed(random_state or 42)
-            candidates = random.sample(candidates, MAX_CANDIDATES_PER_LEVEL)
+        if len(candidates) > MAX_RULE_CANDIDATES:
+            rng = check_random_state(random_state)
+            # Use deterministic local sampling instead of global random.seed
+            indices = rng.choice(len(candidates), MAX_RULE_CANDIDATES, replace=False)
+            candidates = [candidates[i] for i in sorted(indices)]
 
         current_frequent = []
         for cand in candidates:
@@ -890,9 +976,13 @@ def rule_violation_score(
     rule_diagnostics.sort(key=lambda d: d["violation_count"], reverse=True)
     return {
         "rule_violation_rate": round(row_violation_mask.sum() / len(syn_f), 4),
-        "num_rule_violations": int(total_violations),
+        "total_rule_hits": int(
+            total_violations
+        ),  # Sum of all violations across all rules
         "num_rules_mined": int(len(rules)),
-        "rows_with_rule_violations": int(row_violation_mask.sum()),
+        "num_rows_with_violations": int(
+            row_violation_mask.sum()
+        ),  # Unique rows affected
         "rows_evaluated": int(len(syn_f)),
         "row_violation_mask": row_violation_mask.astype(float),
         "top_violated_rules": rule_diagnostics[:10],
