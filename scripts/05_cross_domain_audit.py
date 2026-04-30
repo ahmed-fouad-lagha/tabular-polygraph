@@ -34,13 +34,13 @@ from tabular_polygraph.generators import (
 from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
 
-def _get_generator(gen_type: str, epochs: int = 150):
+def _get_generator(gen_type: str, epochs: int = 500):
     if gen_type == "gaussian":
         return GaussianCopulaGenerator()
     elif gen_type == "vine":
         return VineCopulaGenerator()
     elif gen_type == "ctgan":
-        return CTGANGenerator(epochs=epochs, batch_size=500)
+        return CTGANGenerator(epochs=epochs, batch_size=100)
     else:
         raise ValueError(f"Unknown generator type: {gen_type}")
 
@@ -51,10 +51,28 @@ def load_real_data(dataset_id: str) -> pd.DataFrame:
         from tabular_polygraph.catalog import load_dataset
 
         df = load_dataset(dataset_id, n=50000)
+
     drop = [c for c in DEFAULT_DROP_LIST if c in df.columns]
-    if drop:
-        df = df.drop(columns=drop)
-    return df.dropna().reset_index(drop=True)
+
+    # Feature-level sparsity filtering
+    missing_pct = df.isnull().mean()
+    to_drop = list(set(drop) | set(missing_pct[missing_pct > 0.5].index))
+    if to_drop:
+        df = df.drop(columns=to_drop)
+
+    # Preservation of manifold rows via imputation
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col] = df[col].fillna(df[col].median())
+        else:
+            # Handle categorical with mode
+            mode_val = df[col].mode()
+            if not mode_val.empty:
+                df[col] = df[col].fillna(mode_val[0])
+            else:
+                df[col] = df[col].fillna("unknown")
+
+    return df.reset_index(drop=True)
 
 
 def run_single(real_df, gen_type, rows, seed, epochs):
@@ -103,16 +121,16 @@ def main():
     parser = argparse.ArgumentParser(
         description="Cross-Architecture Maturity Audit for NeurIPS manuscript tables."
     )
-    parser.add_argument("--rows", type=int, default=500)
+    parser.add_argument("--rows", type=int, default=1000)
     parser.add_argument("--seeds", type=int, default=3)
-    parser.add_argument("--epochs", type=int, default=150)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--output-dir", type=str, default="results")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = ["census_acs", "world_bank"]
+    datasets = ["adult", "census_acs", "world_bank"]
     generators = ["gaussian", "vine", "ctgan"]
 
     print("=" * 70)

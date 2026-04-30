@@ -106,13 +106,18 @@ def tstr_score(
         real_clean, test_size=test_frac, random_state=seed
     )
 
-    X_real_tr = real_train[feature_cols]
-    y_real_tr = real_train[target_col]
-    X_test = real_test[feature_cols]
-    y_test = real_test[target_col]
+    X_real_tr, X_test = _standardize_with_train_stats(
+        real_train, real_test, feature_cols
+    )
+    y_real_tr = real_train[target_col].values
+    y_test = real_test[target_col].values
 
-    X_syn = syn_clean[feature_cols]
-    y_syn = syn_clean[target_col]
+    # Scale synthetic using REAL training stats (as it would be in a real TSTR scenario)
+    # We treat syn as the "training" set but it must be in the same feature space as real
+    mu = real_train[feature_cols].values.astype(float).mean(axis=0)
+    sd = real_train[feature_cols].values.astype(float).std(axis=0) + 1e-9
+    X_syn = (syn_clean[feature_cols].values.astype(float) - mu) / sd
+    y_syn = syn_clean[target_col].values
 
     if task == "classification":
         model_tstr = RandomForestClassifier(n_estimators=100, random_state=seed)

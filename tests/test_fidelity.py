@@ -117,7 +117,11 @@ class TestLogicalFidelity:
 
         assert clean_rules["num_rules_mined"] > 0
         assert clean_rules["rule_violation_rate"] < bad_rules["rule_violation_rate"]
-        assert clean_rules["num_rule_violations"] < bad_rules["num_rule_violations"]
+        assert clean_rules["total_rule_hits"] < bad_rules["total_rule_hits"]
+        assert (
+            clean_rules["num_rows_with_violations"]
+            < bad_rules["num_rows_with_violations"]
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
