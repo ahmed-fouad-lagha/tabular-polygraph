@@ -28,6 +28,7 @@ from tabular_polygraph.catalog.downloader import load_cached
 from tabular_polygraph.fidelity import fidelity_report
 from tabular_polygraph.generators import (
     CTGANGenerator,
+    ForestDiffusionGenerator,
     GaussianCopulaGenerator,
     VineCopulaGenerator,
 )
@@ -41,6 +42,8 @@ def _get_generator(gen_type: str, epochs: int = 500):
         return VineCopulaGenerator()
     elif gen_type == "ctgan":
         return CTGANGenerator(epochs=epochs, batch_size=100)
+    elif gen_type == "forest":
+        return ForestDiffusionGenerator()
     else:
         raise ValueError(f"Unknown generator type: {gen_type}")
 
@@ -131,7 +134,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     datasets = ["adult", "census_acs", "world_bank"]
-    generators = ["gaussian", "vine", "ctgan"]
+    generators = ["gaussian", "vine", "ctgan", "forest"]
 
     print("=" * 70)
     print("  CROSS-ARCHITECTURE MATURITY AUDIT")
@@ -156,6 +159,7 @@ def main():
                 "gaussian": "Gaussian Copula",
                 "vine": "Vine Copula",
                 "ctgan": "CTGAN (Neural)",
+                "forest": "Forest Diffusion",
             }[gen_type]
 
             print(f"\n  ── {gen_label} ──")

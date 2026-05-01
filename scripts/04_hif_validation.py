@@ -48,7 +48,12 @@ from tabular_polygraph.fidelity import (
 )
 from tabular_polygraph.fidelity.downstream import tstr_score
 from tabular_polygraph.fidelity.logical import rule_violation_score
-from tabular_polygraph.generators import GaussianCopulaGenerator
+from tabular_polygraph.generators import (
+    BaseGenerator,
+    CTGANGenerator,
+    ForestDiffusionGenerator,
+    GaussianCopulaGenerator,
+)
 from tabular_polygraph.utils import numeric_columns
 
 
@@ -83,8 +88,17 @@ def _drop_cols(df: pd.DataFrame, drop_cols: list[str]) -> pd.DataFrame:
     return df.drop(columns=present)
 
 
-def _generate_synthetic(real: pd.DataFrame, rows: int, seed: int) -> pd.DataFrame:
-    gen = GaussianCopulaGenerator()
+def _generate_synthetic(
+    real: pd.DataFrame, rows: int, seed: int, generator_type: str = "gaussian_copula"
+) -> pd.DataFrame:
+    gen: BaseGenerator
+    if generator_type == "ctgan":
+        gen = CTGANGenerator()
+    elif generator_type == "forest_diffusion":
+        gen = ForestDiffusionGenerator()
+    else:
+        gen = GaussianCopulaGenerator()
+
     gen.fit(real)
     syn = gen.generate(rows, seed=seed)
     return syn.drop(columns=["syn_id"], errors="ignore")
@@ -221,6 +235,8 @@ def _corrupt_manifold_rupture(
 
     target_rupture_count = int(len(out) * corruption_level)
     current_ruptured = 0
+
+    # Apply categorical rule ruptures
     for rule in rng.permutation(rules):
         if current_ruptured >= target_rupture_count:
             break
@@ -234,8 +250,6 @@ def _corrupt_manifold_rupture(
         if ant_feat not in out.columns or cons_feat not in out.columns:
             continue
 
-        # We break the rule for ALL rows that satisfy the antecedent to ensure the rupture is 'dense'
-        # enough for the aggregate HIF score to move.
         mask = out[ant_feat].astype(str) == str(ant_val)
         indices = out.index[mask].tolist()
         if not indices:
@@ -249,6 +263,13 @@ def _corrupt_manifold_rupture(
         if bad_vals:
             out.loc[break_idx, cons_feat] = rng.choice(bad_vals, size=n, replace=True)
             current_ruptured += n
+
+    # HARDENING: Forcefully break the utility relationship
+    if corruption_level > 0:
+        for col in list(out.columns):
+            mask = rng.random(len(out)) < corruption_level
+            if mask.any():
+                out.loc[mask, col] = rng.permutation(out.loc[mask, col].values)
 
     return out
 
@@ -424,40 +445,31 @@ def _utility_feature_columns(
     real_util[target] = target_numeric_real
     syn_util[target] = target_numeric_syn
 
-    target_mean = float(target_numeric_real.mean())
+    # One-Hot Encode categorical features for the utility audit
+    # Skip high-cardinality features (like PUMA) to avoid overfitting/explosion
     encoded_cols: list[str] = []
     for col in cat_cols:
         if col not in real.columns or col not in syn.columns or col == target:
             continue
-
-        mapping_frame = pd.DataFrame(
-            {col: real[col], "target_y": target_numeric_real}
-        ).dropna()
-        if mapping_frame.empty:
+        if real[col].nunique() > 50:
             continue
 
-        means = mapping_frame.groupby(col)["target_y"].mean()
-        if means.empty:
-            continue
+        dummies = pd.get_dummies(real[col], prefix=f"ohe__{col}").astype(float)
+        real_util = pd.concat([real_util, dummies], axis=1)
 
-        out_col = f"te__{col}"
-        real_util[out_col] = (
-            real[col].astype(str).map(means).fillna(target_mean).astype(float)
-        )
-        syn_util[out_col] = (
-            syn[col].astype(str).map(means).fillna(target_mean).astype(float)
-        )
-        encoded_cols.append(out_col)
+        syn_dummies = pd.get_dummies(syn[col], prefix=f"ohe__{col}").astype(float)
+        for d_col in dummies.columns:
+            if d_col in syn_dummies.columns:
+                syn_util[d_col] = syn_dummies[d_col]
+            else:
+                syn_util[d_col] = 0.0
+        encoded_cols.extend(dummies.columns)
 
-    if feature_mode == "categorical_target_encoded":
-        return real_util, syn_util, encoded_cols
-    if feature_mode == "hybrid":
-        numeric = [
-            c
-            for c in num_cols
-            if c != target and c in real.columns and c in syn.columns
-        ]
-        return real_util, syn_util, numeric + encoded_cols
+    # Use both numeric and encoded categorical features for maximum sensitivity
+    numeric = [
+        c for c in num_cols if c != target and c in real.columns and c in syn.columns
+    ]
+    return real_util, syn_util, numeric + encoded_cols
 
     raise ValueError(
         "Unknown utility_feature_mode: "
@@ -489,7 +501,15 @@ def _evaluate_once(
     syn_filtered = syn[hif["row_penalties"] < 0.5]
 
     # Sensitive attributes for Fairness Audit
-    sensitive_candidates = ["SEX", "RAC1P", "race", "gender", "age_bin"]
+    sensitive_candidates = [
+        "SEX",
+        "RAC1P",
+        "race",
+        "gender",
+        "age_bin",
+        "state",
+        "education",
+    ]
     sensitive_cols = [c for c in sensitive_candidates if c in syn.columns]
     fairness_results = _representation_audit(syn, syn_filtered, sensitive_cols)
     mean_tvd = np.mean(list(fairness_results.values())) if fairness_results else 0.0
@@ -519,11 +539,22 @@ def _evaluate_once(
             feature_mode=utility_feature_mode,
         )
         if util_features:
+            # Standardize discretization to binary median split (mirroring Adult dataset)
+            u_real, u_syn = real_util.copy(), syn_util.copy()
+            if (
+                pd.api.types.is_numeric_dtype(u_real[target])
+                and u_real[target].nunique() > 2
+            ):
+                m = u_real[target].median()
+                u_real[target] = (u_real[target] > m).astype(int)
+                u_syn[target] = (u_syn[target] > m).astype(int)
+
             util = tstr_score(
-                real_util,
-                syn_util,
+                u_real,
+                u_syn,
                 target_col=target,
                 feature_cols=util_features,
+                task="classification",
                 seed=seed,
             )
             if "error" not in util:
@@ -680,11 +711,11 @@ def main() -> None:
     parser.add_argument(
         "--utility-feature-mode",
         type=str,
-        default="categorical_target_encoded",
+        default="hybrid",
         choices=["numeric", "categorical_target_encoded", "hybrid"],
         help=(
             "Predictor set for utility check. "
-            "Use categorical_target_encoded for HIF-aligned external validity."
+            "Use hybrid for maximum sensitivity to manifold corruption."
         ),
     )
     parser.add_argument(
@@ -698,6 +729,12 @@ def main() -> None:
     parser.add_argument("--hif-hubs", type=int, default=5)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
     parser.add_argument("--output-dir", type=str, default="results")
+    parser.add_argument(
+        "--generator",
+        choices=["gaussian_copula", "ctgan", "forest_diffusion"],
+        default="gaussian_copula",
+        help="Synthetic data generator to evaluate (default: forest_diffusion)",
+    )
     args = parser.parse_args()
 
     seeds = _parse_int_list(args.seeds)
@@ -732,7 +769,7 @@ def main() -> None:
     for seed in seeds:
         print(f"\n[seed={seed}] fitting + generating base synthetic...", flush=True)
         # Train on the split train_df
-        base_syn = _generate_synthetic(real_train, args.rows, seed)
+        base_syn = _generate_synthetic(real_train, args.rows, seed, args.generator)
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))
@@ -761,7 +798,6 @@ def main() -> None:
                 hif_hubs=args.hif_hubs,
             )
 
-            # Quantitative Privacy Audit (MIA)
             metrics["mia_auc"] = _audit_privacy(real_train, real_holdout, syn)
             rows.append(
                 {
@@ -772,11 +808,10 @@ def main() -> None:
                     **metrics,
                 }
             )
+
             print(
                 f"  level={level:>4.2f} | hif={metrics['hif_score']:.4f} | "
-                f"lse_vr={metrics['lse_violation_rate']:.4f} | "
-                f"nic_vr={metrics['nic_violation_rate']:.4f} | "
-                f"hif_vr={metrics['hif_violation_rate']:.4f} | "
+                f"util={metrics['utility_ratio']:.4f} | "
                 f"mm={metrics['moment_matching_score']:.2f}",
                 flush=True,
             )

@@ -125,6 +125,7 @@ These scripts verify the framework's sensitivity to semantic corruption across m
 # Census ACS Validation
 python scripts/04_hif_validation.py \
   --dataset census_acs \
+  --corruption-strategy manifold_rupture \
   --rows 5000 \
   --seeds 42,43,44,45,46 \
   --corruption-levels 0,0.1,0.2,0.4,0.6 \

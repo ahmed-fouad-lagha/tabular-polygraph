@@ -169,7 +169,14 @@ class LogicalSentinelEnsemble:
             X = x_encoded[hub_features]
             y = df[hub_col].astype(str)
 
-            if len(y.unique()) < 2:
+            n_unique = len(y.unique())
+            if n_unique < 2:
+                continue
+
+            # HARDENING: Avoid high-cardinality 'pseudo-primary-key' hubs (like PUMA/ZIP codes).
+            # These cause the Sentinel to memorise noise, leading to massive false-positive
+            # hallucination detections on base synthetic data.
+            if n_unique > 50 and n_unique > len(y) * 0.15:
                 continue
 
             # Use a fast RF to measure how "constrained" this feature is by the rest of the manifold.
