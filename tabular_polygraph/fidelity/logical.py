@@ -45,7 +45,7 @@ def _adaptive_binning(
             try:
                 # Robust binning: Try qcut, fallback to cut, fallback to unique values as strings
                 if df[col].nunique() <= n_bins:
-                    df_binned[col] = df[col].astype(str)
+                    df_binned[col] = df[col].apply(lambda x: f"bin_{x}")
                     continue
                 bins = pd.qcut(df[col], q=n_bins, labels=False, duplicates="drop")
                 # SAFE CONVERSION: Ensure we don't int(None) or int(NaN)
@@ -409,7 +409,10 @@ class NeighborInvariantContinuity:
             return
 
         # Spectral projection to reduce categorical manifold sparsity
-        n_comp = min(n_samples, n_feat, 100)
+        # Capped to 32 components or half the sample size to prevent overfitting
+        n_comp = min(n_samples // 2, n_feat, 32)
+        if n_comp < 1:
+            n_comp = 1
         if verbose:
             print(
                 f"  [HIF NIC] Spectral Embedding ({n_feat} -> {n_comp} target)...",
@@ -472,11 +475,11 @@ class NeighborInvariantContinuity:
             med = float(np.median(residuals))
             p95 = float(np.percentile(residuals, 95))
 
-            # Use 95th percentile but ensure it's at least med + 2*MAD for robustness
-            self.z_thresholds[col] = max(p95, med + 2.0 * mad)
+            # Use 95th percentile but ensure it's at least med + 1.5*MAD for robustness
+            self.z_thresholds[col] = max(p95, med + 1.5 * mad)
             # Dynamic gamma factor based on natural prediction noise
-            # Balances sensitivity to corruption while suppressing false positives on base synthetic data
-            self.gamma_scalings[col] = max(self.z_thresholds[col], 2.0 * mad, 0.5)
+            # Tightened floor to 0.3 to increase sensitivity to clear ruptures
+            self.gamma_scalings[col] = max(self.z_thresholds[col], 1.5 * mad, 0.3)
 
     def score(
         self,
@@ -747,8 +750,8 @@ def mine_implication_rules(
     for col in columns:
         col_data = real[col]
         # Skip binning if the data is already discrete/categorical
-        if pd.api.types.is_object_dtype(col_data) or pd.api.types.is_categorical_dtype(
-            col_data
+        if pd.api.types.is_object_dtype(col_data) or isinstance(
+            col_data.dtype, pd.CategoricalDtype
         ):
             cat[col] = col_data.astype(str)
             continue

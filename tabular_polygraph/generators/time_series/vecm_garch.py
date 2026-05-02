@@ -131,12 +131,7 @@ class VECMGARCHGenerator(BaseGenerator):
         self._cat_modes = {c: df[c].mode()[0] for c in self._cat_cols}
 
         # Store raw numeric data
-        Y = (
-            df[self._numeric_cols]
-            .fillna(method="ffill")
-            .fillna(method="bfill")
-            .values.astype(float)
-        )
+        Y = df[self._numeric_cols].ffill().bfill().values.astype(float)
         self._Y_raw = Y
         self._means = Y.mean(0)
         self._stds = Y.std(0) + 1e-9

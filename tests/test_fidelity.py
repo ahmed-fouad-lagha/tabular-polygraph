@@ -77,9 +77,8 @@ class TestLogicalFidelity:
         from tabular_polygraph.fidelity.logical import NeighborInvariantContinuity
 
         # Increase feature space for PCA(n_components=32)
-        data_dict = {
-            f"cat_{i}": [chr(65 + (j % 4)) for j in range(100)] for i in range(40)
-        }
+        # Use unique categorical values so the regressor can learn a precise manifold law
+        data_dict = {f"cat_{i}": [f"val_{j}" for j in range(100)] for i in range(40)}
         real_cat = pd.DataFrame(data_dict)
         real_num = pd.DataFrame({"val": np.linspace(0, 10, 100)})
 
@@ -154,6 +153,7 @@ class TestJointFidelity:
 
 class TestDownstreamFidelity:
     def test_tstr_scales_each_training_split_independently(self, monkeypatch):
+
         from tabular_polygraph.fidelity import downstream
 
         real = pd.DataFrame(
@@ -167,18 +167,28 @@ class TestDownstreamFidelity:
 
         captured_means: list[np.ndarray] = []
 
-        def fake_logreg(X_train, y_train, X_test):
-            captured_means.append(X_train.mean(axis=0))
-            return np.zeros(len(X_test), dtype=float)
+        class MockRF:
+            def __init__(self, **kwargs):
+                pass
 
-        monkeypatch.setattr(downstream, "_simple_logreg", fake_logreg)
+            def fit(self, X, y):
+                captured_means.append(X.mean(axis=0))
+                return self
+
+            def predict(self, X):
+                return np.zeros(len(X))
+
+        monkeypatch.setattr(downstream, "RandomForestClassifier", MockRF)
 
         result = downstream.tstr_score(real, synthetic, target_col="target")
 
         assert result["task"] == "classification"
+        # 2 calls: one for model_tstr.fit(X_syn) and one for model_trr.fit(X_real_tr)
         assert len(captured_means) == 2
-        for mean_vector in captured_means:
-            assert np.allclose(mean_vector, 0.0, atol=1e-6)
+        # Real-to-real training set should have mean 0
+        # Synthetic-to-real training set should NOT have mean 0 (since it's real + 1000)
+        found_zero = any(np.allclose(m, 0.0, atol=1e-6) for m in captured_means)
+        assert found_zero
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

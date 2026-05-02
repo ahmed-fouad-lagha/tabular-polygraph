@@ -34,7 +34,7 @@ test = [
 advanced = [
     "statsmodels>=0.14",
     "arch>=5.3",
-    "pyvinecopulalib>=0.6"
+    "pyvinecopulib>=0.6"
 ]
 deep = [
     "ctgan>=0.7.1",
