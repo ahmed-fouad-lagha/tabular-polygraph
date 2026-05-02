@@ -200,6 +200,8 @@ def _corrupt_manifold_rupture(
         return syn.copy()
 
     out = syn.copy()
+    target_rupture_count = max(1, int(len(out) * corruption_level))
+    current_ruptured = 0
 
     # Strategy: Break the Semantic relationship between Sex and Relationship
     # e.g., Husbands must be Male, Wives must be Female.
@@ -214,14 +216,51 @@ def _corrupt_manifold_rupture(
         target_indices = husbands.union(wives)
 
         if not target_indices.empty:
-            n_to_break = int(len(target_indices) * corruption_level)
+            n_to_break = min(
+                len(target_indices), target_rupture_count - current_ruptured
+            )
             if n_to_break > 0:
                 break_idx = rng.choice(target_indices, size=n_to_break, replace=False)
                 # Flip the sex
                 out.loc[break_idx, "sex"] = out.loc[break_idx, "sex"].apply(
                     lambda x: "Female" if str(x).lower().startswith("m") else "Male"
                 )
-                return out
+                current_ruptured += n_to_break
+                if current_ruptured >= target_rupture_count:
+                    return out
+
+    if "education" in out.columns and "age_group" in out.columns:
+        # BREAK: High education for children (illegal state)
+        child_mask = (
+            out["age_group"].astype(str).str.contains("under 18", case=False, na=False)
+        )
+        child_idx = out.index[child_mask].tolist()
+        if child_idx:
+            remaining = target_rupture_count - current_ruptured
+            n = min(len(child_idx), max(0, remaining))
+            if n > 0:
+                # TARGETS: Children who should NOT have advanced education
+                break_idx = rng.choice(child_idx, size=n, replace=False)
+
+                # SOURCES: Adults who DO have advanced education
+                adv_mask = out["education"].astype(str).str.contains(
+                    "doctorate", case=False, na=False
+                ) | out["education"].astype(str).str.contains(
+                    "master", case=False, na=False
+                )
+                adv_idx = out.index[adv_mask & ~child_mask].tolist()
+
+                if len(adv_idx) >= n:
+                    # TARGETED SWAP: Preserves marginals while breaking manifold laws.
+                    swap_idx = rng.choice(adv_idx, size=n, replace=False)
+                    target_vals = out.loc[break_idx, "education"].values
+                    source_vals = out.loc[swap_idx, "education"].values
+
+                    out.loc[break_idx, "education"] = source_vals
+                    out.loc[swap_idx, "education"] = target_vals
+                    current_ruptured += n
+                    if current_ruptured >= target_rupture_count:
+                        return out
 
     # Fallback: Targeted Rule Breaking using mined rules
     from tabular_polygraph.fidelity.logical import mine_implication_rules
@@ -232,9 +271,6 @@ def _corrupt_manifold_rupture(
 
     if not rules:
         return _corrupt_permutation(syn, cat_cols, num_cols, corruption_level, rng)
-
-    target_rupture_count = int(len(out) * corruption_level)
-    current_ruptured = 0
 
     # Apply categorical rule ruptures
     for rule in rng.permutation(rules):
@@ -250,26 +286,32 @@ def _corrupt_manifold_rupture(
         if ant_feat not in out.columns or cons_feat not in out.columns:
             continue
 
+        # TARGETS: Rows that follow the rule (antecedent match)
         mask = out[ant_feat].astype(str) == str(ant_val)
         indices = out.index[mask].tolist()
         if not indices:
             continue
 
-        n = min(len(indices), target_rupture_count - current_ruptured)
+        # SOURCES: Rows that don't follow the rule (consequent mismatch)
+        # We will borrow their 'incorrect' values
+        bad_mask = out[cons_feat].astype(str) != str(cons_val)
+        bad_indices = out.index[bad_mask].tolist()
+
+        n = min(len(indices), len(bad_indices), target_rupture_count - current_ruptured)
+        if n <= 0:
+            continue
+
         break_idx = rng.choice(indices, size=n, replace=False)
+        swap_idx = rng.choice(bad_indices, size=n, replace=False)
 
-        pool = out[cons_feat].unique()
-        bad_vals = [v for v in pool if str(v) != str(cons_val)]
-        if bad_vals:
-            out.loc[break_idx, cons_feat] = rng.choice(bad_vals, size=n, replace=True)
-            current_ruptured += n
+        # TARGETED SWAP: Preserves column distributions perfectly
+        target_vals = out.loc[break_idx, cons_feat].values
+        source_vals = out.loc[swap_idx, cons_feat].values
 
-    # HARDENING: Forcefully break the utility relationship
-    if corruption_level > 0:
-        for col in list(out.columns):
-            mask = rng.random(len(out)) < corruption_level
-            if mask.any():
-                out.loc[mask, col] = rng.permutation(out.loc[mask, col].values)
+        out.loc[break_idx, cons_feat] = source_vals
+        out.loc[swap_idx, cons_feat] = target_vals
+
+        current_ruptured += n
 
     return out
 
@@ -812,6 +854,7 @@ def main() -> None:
             print(
                 f"  level={level:>4.2f} | hif={metrics['hif_score']:.4f} | "
                 f"util={metrics['utility_ratio']:.4f} | "
+                f"joint={metrics['joint_score']:.2f} | "
                 f"mm={metrics['moment_matching_score']:.2f}",
                 flush=True,
             )

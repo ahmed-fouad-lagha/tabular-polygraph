@@ -35,9 +35,9 @@ The HIF Hybrid Integrity Framework provides:
 3. Aggregate violations into dataset-level quality diagnostics
 
 #### Performance
-- **Spearman Monotonicity ($\rho = -1.0$)**: Perfect sensitivity to semantic corruption levels on the Census dataset (Verified).
-- **Utility Correlation ($\rho \approx 0.76$)**: High alignment between HIF integrity scores and downstream Random Forest accuracy (Verified).
-- **Hallucination Detection**: Identifies row-level 'Logical Consistency Gaps' missed by standard KS and TVD metrics.
+- **Spearman Monotonicity ($\rho = -1.0$)**: Perfect monotonic response under targeted semantic corruption in both current Census and Adult validation runs.
+- **Utility Correlation is dataset-dependent**: Strong on Census ACS in current runs, weak on Adult under the same protocol.
+- **Hallucination Detection**: Identifies row-level logical consistency gaps that can be attenuated by aggregate KS/TVD-style summaries.
 
 ## Setup
 
@@ -143,10 +143,10 @@ python scripts/04_hif_validation.py \
 ```
 
 Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confirming:
-- **Monotonicity**: Perfect sensitivity to corruption levels ($\rho = -1.0$).
-- **Distribution Stability (The Education Paradox)**: Using the `manifold_rupture` strategy, HIF detects integrity loss while marginal and joint fidelity scores remain **perfectly stable**, proving it catches "Silent Hallucinations" that traditional metrics miss.
-- **External Validity**: Correlation with human-defined implication rules.
-- **Utility Correlation**: Alignment with downstream Random Forest accuracy.
+- **Monotonicity**: Strong rank-monotonic sensitivity to corruption levels (often $\rho = -1.0$ in our current benchmarks).
+- **Practical separability**: HIF tracks targeted manifold ruptures under `manifold_rupture` even when aggregate fidelity metrics are less specific.
+- **External validity**: Correlation with rule-violation behavior.
+- **Utility coupling**: Can be strong or weak depending on dataset and target protocol.
 
 ### 2. Cross-Architecture Audit (Table 2 & 3)
 Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) to reproduce the primary comparative benchmarks.
@@ -159,7 +159,29 @@ python scripts/05_cross_domain_audit.py \
   --output-dir results
 ```
 
-Raw results and summary tables are saved to `results/architecture_audit.csv`.
+### 3. Utility Improvement through HIF Filtering (Table 1)
+These commands reproduce the results showing how selecting records that satisfy the neuro-symbolic manifold laws recovers predictive performance lost during generation.
+
+```bash
+# Census ACS Utility Audit (Table 1, Top Row)
+python scripts/07_utility_filtering.py \
+  --dataset census_acs \
+  --seeds 5 \
+  --generator vine \
+  --rows 10000
+
+# Adult Utility Audit (Table 1, Bottom Row)
+python scripts/07_utility_filtering.py \
+  --dataset adult \
+  --seeds 5 \
+  --generator vine \
+  --target income \
+  --rows 5000
+```
+
+> [!NOTE]
+> The **HIF Oracle (Combined)** variant selects the top 50% of synthetic records by integrity score. On the Adult dataset, we use 5,000 rows as a memory-safe default for systems with limited RAM.
+> Canonical manuscript-facing aggregates are written to `results/paper_numbers.json`.
 
 ## License
 
