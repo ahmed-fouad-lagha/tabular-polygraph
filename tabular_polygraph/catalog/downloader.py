@@ -381,8 +381,20 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     years = list(range(2018, 2024))
     quarters = [1, 2, 3, 4]
 
-    # Area Codes: US National (US000), CA (06000), TX (48000), NY (36000), FL (12000), IL (17000)
-    area_codes = ["US000", "06000", "48000", "36000", "12000", "17000"]
+    # Area Codes: US National (US000) + Top 10 states (CA, TX, NY, FL, IL, PA, OH, GA, NC, WA)
+    area_codes = [
+        "US000",
+        "06000",
+        "48000",
+        "36000",
+        "12000",
+        "17000",
+        "42000",
+        "39000",
+        "13000",
+        "37000",
+        "53000",
+    ]
 
     base_url = "https://data.bls.gov/cew/data/api"
     frames = []
@@ -391,22 +403,23 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
         print(f"    Fetching QCEW quarterly data for {year}...", flush=True)
         for qtr in quarters:
             for area_code in area_codes:
-                # Quarterly URL uses /q/ and specific qtr number
                 url = f"{base_url}/{year}/{qtr}/area/{area_code}.csv"
                 try:
-                    with urllib.request.urlopen(url, timeout=10) as r:
+                    with urllib.request.urlopen(url, timeout=5) as r:
                         df_q = pd.read_csv(
-                            io.BytesIO(r.read()), dtype={"area_fips": str, "qtr": str}
+                            io.BytesIO(r.read()),
+                            dtype={"area_fips": str, "qtr": str, "industry_code": str},
                         )
-                        # Filter to private sector (ownership=5) and total industries (naics=10)
+                        # Filter to Private Sector (ownership=5) and NAICS Sectors (2-digit or Total)
                         df_q = df_q[
-                            (df_q["own_code"] == 5) & (df_q["industry_code"] == "10")
+                            (df_q["own_code"] == 5)
+                            & (df_q["industry_code"].str.len() <= 3)
                         ]
                         if not df_q.empty:
                             frames.append(df_q)
                 except Exception:
                     continue
-                time.sleep(0.01)
+                time.sleep(0.005)
 
     if not frames:
         raise RuntimeError("BLS download produced 0 usable rows after cleaning")

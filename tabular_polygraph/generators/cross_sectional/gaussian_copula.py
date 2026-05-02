@@ -146,24 +146,7 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     def _fit_impl(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
         self._record_schema(data)
-
-        # Fit marginals, applying prior regularisation where provided
-        for col in self._columns:
-            if pd.api.types.is_numeric_dtype(data[col]):
-                m = _NumericMarginal().fit(data[col])
-                if self._priors is not None:
-                    prior = self._priors.get(col)
-                    if prior is not None and m._params.get("kind") in (
-                        "norm",
-                        "lognorm",
-                    ):
-                        n = len(data[col].dropna())
-                        p = m._params
-                        p["loc"] = prior.map_mean(p.get("loc", p.get("scale", 0)), n)
-                        p["scale"] = max(prior.map_std(p.get("scale", 1), n), 1e-6)
-                self._marginals[col] = m
-            else:
-                self._marginals[col] = _CategoricalMarginal().fit(data[col])
+        self._fit_marginals(data)
 
         # Transform to normal space
         uniform = np.column_stack(
@@ -171,20 +154,50 @@ class GaussianCopulaGenerator(BaseGenerator):
         )
         normal = stats.norm.ppf(np.clip(uniform, 1e-6, 1 - 1e-6))
 
-        # Estimate correlation, ensure PSD
-        if len(self._columns) == 0:
-            self._corr = np.eye(0)
-        else:
-            corr = np.corrcoef(normal.T)
-            # Ensure it's 2D (np.corrcoef can return a scalar for 1D input in some cases)
-            corr = np.atleast_2d(corr)
-            eigvals = np.linalg.eigvalsh(corr)
-            if eigvals.min() < 0:
-                corr += (-eigvals.min() + 1e-8) * np.eye(len(self._columns))
-            self._corr = corr
-
+        self._fit_correlation(normal)
         self._fitted = True
         return self
+
+    def _fit_marginals(self, data: pd.DataFrame) -> None:
+        """Fit marginal distributions for all columns."""
+        for col in self._columns:
+            if pd.api.types.is_numeric_dtype(data[col]):
+                m = _NumericMarginal().fit(data[col])
+                if self._priors is not None:
+                    self._apply_numeric_prior(m, col, len(data[col].dropna()))
+                self._marginals[col] = m
+            else:
+                self._marginals[col] = _CategoricalMarginal().fit(data[col])
+
+    def _apply_numeric_prior(self, m: _NumericMarginal, col: str, n: int) -> None:
+        """Apply prior regularization to a numeric marginal."""
+        if self._priors is None:
+            return
+        prior = self._priors.get(col)
+        if prior is not None and m.kind in ("norm", "lognorm"):
+            p = m._params
+            p["loc"] = prior.map_mean(p.get("loc", p.get("scale", 0)), n)
+            p["scale"] = max(prior.map_std(p.get("scale", 1), n), 1e-6)
+
+    def _fit_correlation(self, normal: np.ndarray) -> None:
+        """Estimate and regularize the inter-column correlation matrix."""
+        if len(self._columns) == 0:
+            self._corr = np.eye(0)
+            return
+
+        corr = np.corrcoef(normal.T)
+        corr = np.atleast_2d(corr)
+
+        # HARDENING: Handle NaNs and ensure PSD
+        if np.any(np.isnan(corr)):
+            corr = np.nan_to_num(corr, nan=0.0)
+            np.fill_diagonal(corr, 1.0)
+
+        eigvals = np.linalg.eigvalsh(corr)
+        if eigvals.min() < 0:
+            corr += (-eigvals.min() + 1e-8) * np.eye(len(self._columns))
+
+        self._corr = corr
 
     def _generate(
         self,
@@ -196,12 +209,13 @@ class GaussianCopulaGenerator(BaseGenerator):
         if self._corr is None:
             raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")
 
-        # Correlated normal samples via Cholesky
+        # Correlated normal samples via modern Generator
+        rng = np.random.default_rng(seed)
         try:
             L = np.linalg.cholesky(self._corr)
-            z = np.random.standard_normal((n_gen, len(self._columns))) @ L.T
+            z = rng.standard_normal((n_gen, len(self._columns))) @ L.T
         except np.linalg.LinAlgError:
-            z = np.random.standard_normal((n_gen, len(self._columns)))
+            z = rng.standard_normal((n_gen, len(self._columns)))
 
         u = stats.norm.cdf(z)
 
@@ -230,24 +244,33 @@ class GaussianCopulaGenerator(BaseGenerator):
         return matches[0] if len(matches) == 1 else None
 
     def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+        """Apply a set of filters to a generated DataFrame."""
+        filtered_df = df
         for key, val in filters.items():
             if key.endswith("_min"):
-                col = self._resolve_col(key[:-4])
-                if col:
-                    df = df[df[col] >= val]
+                filtered_df = self._apply_min_filter(filtered_df, key, val)
             elif key.endswith("_max"):
-                col = self._resolve_col(key[:-4])
-                if col:
-                    df = df[df[col] <= val]
+                filtered_df = self._apply_max_filter(filtered_df, key, val)
             else:
-                col = self._resolve_col(key)
-                if col:
-                    vals = [str(v) for v in val] if isinstance(val, list) else val
-                    if isinstance(vals, list):
-                        df = df[df[col].isin(vals)]
-                    else:
-                        df = df[df[col] == vals]
-        return df
+                filtered_df = self._apply_exact_filter(filtered_df, key, val)
+        return filtered_df
+
+    def _apply_min_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
+        col = self._resolve_col(key[:-4])
+        return df[df[col] >= val] if col else df
+
+    def _apply_max_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
+        col = self._resolve_col(key[:-4])
+        return df[df[col] <= val] if col else df
+
+    def _apply_exact_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
+        col = self._resolve_col(key)
+        if not col:
+            return df
+        vals = [str(v) for v in val] if isinstance(val, list) else val
+        if isinstance(vals, list):
+            return df[df[col].isin(vals)]
+        return df[df[col] == vals]
 
     # ── introspection ─────────────────────────────────────────────────────────
 
