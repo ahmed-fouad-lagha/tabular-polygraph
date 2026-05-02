@@ -34,9 +34,13 @@ class _NumericMarginal:
         self._min = self._max = 0.0
 
     def fit(self, series: pd.Series) -> "_NumericMarginal":
+        import warnings
+
         arr = series.dropna().astype(float).values
         self._min, self._max = float(arr.min()), float(arr.max())
-        skewness = float(stats.skew(arr))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            skewness = float(stats.skew(arr))
         if skewness > 1.0 and self._min > 0:
             s, loc, scale = stats.lognorm.fit(arr, floc=0)
             self._params = {"kind": "lognorm", "s": s, "loc": loc, "scale": scale}
