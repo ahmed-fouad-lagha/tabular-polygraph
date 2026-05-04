@@ -82,10 +82,13 @@ def run_single(real_df, gen_type, rows, seed, epochs):
     """Run a single generate + evaluate cycle. Returns a result dict."""
     np.random.seed(seed)
 
-    gen = _get_generator(gen_type, epochs=epochs)
-    gen.fit(real_df)
-    syn = gen.generate(rows, seed=seed)
-    syn_body = syn.drop(columns=["syn_id"], errors="ignore")
+    if gen_type == "real":
+        syn_body = real_df.sample(n=min(rows, len(real_df)), random_state=seed)
+    else:
+        gen = _get_generator(gen_type, epochs=epochs)
+        gen.fit(real_df)
+        syn = gen.generate(rows, seed=seed)
+        syn_body = syn.drop(columns=["syn_id"], errors="ignore")
 
     report = fidelity_report(
         real_df,
@@ -162,6 +165,7 @@ def main():
                 "vine": "Vine Copula",
                 "ctgan": "CTGAN (Neural)",
                 "forest": "Forest Diffusion",
+                "real": "Ground Truth (Real)",
             }[gen_type]
 
             print(f"\n  ── {gen_label} ──")

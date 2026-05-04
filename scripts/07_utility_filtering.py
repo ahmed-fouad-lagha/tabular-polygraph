@@ -125,7 +125,11 @@ def run_benchmark_seed(
         "forest": ForestDiffusionGenerator,
     }
 
-    gen = gen_map.get(args.generator, GaussianCopulaGenerator)()
+    gen_class = gen_map.get(args.generator, GaussianCopulaGenerator)
+    if args.generator == "ctgan":
+        gen = gen_class(epochs=args.epochs)
+    else:
+        gen = gen_class()
     gen.fit(real_train)
     syn = gen.generate(args.rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
 
@@ -159,7 +163,8 @@ def run_benchmark_seed(
         if subset is None or subset.empty:
             continue
 
-        X_train_df, _, y_train, _ = prepare_utility_features(
+        # Corrected: Train on Synthetic (subset), Test on Real (X_test_df)
+        _, X_train_df, _, y_train = prepare_utility_features(
             real_train, subset, args.target, num_cols, cat_cols, reference_df=X_test_df
         )
         f1, acc = evaluate_utility(
@@ -189,6 +194,10 @@ def main():
     parser.add_argument("--rows", type=int, default=5000)
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--generator", type=str, default="gaussian")
+    parser.add_argument("--epochs", type=int, default=300)
+    parser.add_argument(
+        "--output", type=str, default="results/table1_utility_filtering.csv"
+    )
     args = parser.parse_args()
 
     real = load_dataset(args.dataset)
@@ -207,6 +216,9 @@ def main():
             run_benchmark_seed(seed, real_train, real_test, args, num_cols, cat_cols)
         )
 
+        # Incremental save
+        pd.DataFrame(all_results).to_csv(args.output, index=False)
+
     df = pd.DataFrame(all_results)
     summary = df.groupby("variant").agg(
         {"f1": ["mean", "std"], "acc": ["mean", "std"], "retention": "mean"}
@@ -217,7 +229,7 @@ def main():
     print(summary)
     print("=" * 60)
 
-    output_path = Path("results/table1_utility_filtering.csv")
+    output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
 
