@@ -31,8 +31,9 @@ class ForestDiffusionGenerator(BaseGenerator):
 
     supported_types = ["cross_sectional"]
 
-    def _init(self, n_t: int = 10, **kwargs):
+    def _init(self, n_t: int = 10, max_train_rows: int = 5000, **kwargs):
         self._n_t = n_t
+        self._max_train_rows = max_train_rows
         self._model: Any | None = None
 
     def _require_forest_diffusion(self):
@@ -67,6 +68,24 @@ class ForestDiffusionGenerator(BaseGenerator):
                 X[col] = X[col].astype(float)
 
         X_np = X.to_numpy().astype("float32")
+
+        # Subsample large datasets to keep ForestDiffusion tractable
+        if len(X_np) > self._max_train_rows:
+            import numpy as np
+
+            rng = np.random.RandomState(42)
+            idx = rng.choice(len(X_np), self._max_train_rows, replace=False)
+            X_np = X_np[idx]
+            print(
+                f"  [ForestDiffusion] Subsampled {len(data)} → {self._max_train_rows} rows for training"
+            )
+
+        print(
+            f"  [ForestDiffusion] Fitting {self._n_t} diffusion steps on {len(X_np)} rows × {len(self._columns)} cols..."
+        )
+
+        # We use n_batch=0 for maximum speed on small/medium datasets
+        # and n_estimators=50 for a faster audit.
         self._model = ForestDiffusionModel(
             X_np,
             n_t=self._n_t,
@@ -74,6 +93,9 @@ class ForestDiffusionGenerator(BaseGenerator):
             cat_indexes=cat_indexes,
             int_indexes=int_indexes,
             seed=42,
+            n_jobs=1,
+            n_batch=0,  # Turbo mode: Use standard fast DMatrix
+            n_estimators=50,  # Faster training for audit
         )
         self._fitted = True
         return self
@@ -88,6 +110,14 @@ class ForestDiffusionGenerator(BaseGenerator):
 
         if self._model is None:
             raise RuntimeError("ForestDiffusion model is not fitted.")
+
+        if seed is not None:
+            import numpy as np
+            import torch
+
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
         df_array = self._model.generate(batch_size=n)
         df = pd.DataFrame(df_array, columns=self._columns)
 
@@ -105,7 +135,7 @@ class ForestDiffusionGenerator(BaseGenerator):
         for key, val in filters.items():
             if key in df.columns:
                 if isinstance(val, list):
-                    df = df[df[key].isin([str(v) for v in val])]
+                    df = df[df[key].isin(val)]
                 else:
                     df = df[df[key] == val]
         return df

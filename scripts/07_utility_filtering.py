@@ -129,8 +129,8 @@ def run_benchmark_seed(
     gen.fit(real_train)
     syn = gen.generate(args.rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
 
-    # Base evaluation data
-    X_test_df, _, _, y_test = prepare_utility_features(
+    # Base evaluation data (X_test/y_test from REAL test set)
+    X_test_df, _, y_test, _ = prepare_utility_features(
         real_test, syn, args.target, num_cols, cat_cols
     )
 

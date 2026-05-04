@@ -128,13 +128,15 @@ def main():
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--output-dir", type=str, default="results")
+    parser.add_argument("--datasets", type=str, default="bls,census_acs")
+    parser.add_argument("--generators", type=str, default="gaussian,vine,ctgan")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = ["adult", "census_acs", "world_bank"]
-    generators = ["gaussian", "vine", "ctgan", "forest"]
+    datasets = args.datasets.split(",")
+    generators = args.generators.split(",")
 
     print("=" * 70)
     print("  CROSS-ARCHITECTURE MATURITY AUDIT")
@@ -173,6 +175,12 @@ def main():
                     result["generator"] = gen_label
                     result["seed"] = seed
                     all_results.append(result)
+
+                    # Incremental save
+                    pd.DataFrame(all_results).to_csv(
+                        out_dir / "cross_domain_audit.csv", index=False
+                    )
+
                     elapsed = time.time() - t0
                     print(
                         f" KS={result['ks_score']:.1f}%  "

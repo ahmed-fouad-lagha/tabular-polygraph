@@ -154,6 +154,10 @@ class GaussianCopulaGenerator(BaseGenerator):
         )
         normal = stats.norm.ppf(np.clip(uniform, 1e-6, 1 - 1e-6))
 
+        # HARDENING: Handle extreme outliers that might cause INFs
+        if np.any(np.isinf(normal)):
+            normal = np.nan_to_num(normal, posinf=4.0, neginf=-4.0)
+
         self._fit_correlation(normal)
         self._fitted = True
         return self
@@ -193,9 +197,21 @@ class GaussianCopulaGenerator(BaseGenerator):
             corr = np.nan_to_num(corr, nan=0.0)
             np.fill_diagonal(corr, 1.0)
 
-        eigvals = np.linalg.eigvalsh(corr)
-        if eigvals.min() < 0:
-            corr += (-eigvals.min() + 1e-8) * np.eye(len(self._columns))
+        # Numerical stability jitter
+        corr = (corr + corr.T) / 2
+        corr += np.eye(len(self._columns)) * 1e-10
+
+        try:
+            # Use SVD for more robust eigenvalue estimation on ill-conditioned matrices
+            _, s, _ = np.linalg.svd(corr)
+            min_eig = s.min()
+            # If SVD is successful but min singular value is effectively 0 or negative
+            # (singular values are non-negative, but numerical noise might happen)
+            if min_eig < 1e-8:
+                corr += (1e-8 - min_eig) * np.eye(len(self._columns))
+        except np.linalg.LinAlgError:
+            # Absolute fallback
+            corr += 1e-6 * np.eye(len(self._columns))
 
         self._corr = corr
 
