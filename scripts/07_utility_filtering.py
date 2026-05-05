@@ -35,9 +35,19 @@ def discretize_target(df: pd.DataFrame, target: str) -> pd.DataFrame:
             else:
                 mapping = {v: i for i, v in enumerate(unique_vals)}
                 df[target] = df[target].map(mapping).fillna(0).astype(int)
+        elif len(unique_vals) <= 5:
+            # Few unique numeric values: map to integer codes preserving order
+            mapping = {v: i for i, v in enumerate(unique_vals)}
+            df[target] = df[target].map(mapping).fillna(0).astype(int)
         else:
-            median_val = df[target].median()
-            df[target] = (df[target] >= median_val).astype(int)
+            # Use quintiles for the main manuscript experiment (5-class)
+            try:
+                df[target] = pd.qcut(df[target], q=5, labels=False, duplicates="drop")
+                df[target] = df[target].astype(int)
+            except Exception:
+                # Fallback to median split if qcut fails for pathological distributions
+                median_val = df[target].median()
+                df[target] = (df[target] >= median_val).astype(int)
     else:
         cat_codes = df[target].astype("category").cat.codes
         if len(df[target].unique()) <= 2:

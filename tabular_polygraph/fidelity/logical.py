@@ -582,16 +582,6 @@ def hif_score(
         else:
             valid_cols.append(col)
 
-    if not valid_cols:
-        return {
-            "hif_score": 1.0,
-            "row_penalties": np.zeros(len(synthetic)),
-            "violation_rate": 0.0,
-            "mean_penalty": 0.0,
-            "num_violations": 0,
-            "columns_used": [],
-        }
-
     # Pre-processing: Exhaustive Adaptive Binning (Categorical + Numeric for context)
     all_f_real, all_f_syn = _canonicalize_code_columns(
         _adaptive_binning(real[columns], columns),
@@ -642,19 +632,26 @@ def hif_score(
             nic_penalties = np.zeros(len(synthetic))
             nic_violation_rate = 0.0
         else:
-            # MCC HARDENING: Ensure the NIC manifold only sees the hubs relevant to the audit
+            # Ensure the NIC manifold only sees the hubs relevant to the audit
             # and re-calculates the encoding to match the active feature subspace.
             nic_auditor = NeighborInvariantContinuity(random_state=random_state)
+            # If no hubs were discovered by the LSE, fall back to using the
+            # full binned categorical projection (real_f) as the NIC context.
+            # This ensures NIC can still learn a continuous manifold for
+            # numeric-only or predominantly-numeric tables.
+            cat_context_real = real_f[oracle.hubs] if oracle.hubs else real_f
+            cat_context_syn = synthetic_f[oracle.hubs] if oracle.hubs else synthetic_f
+
             nic_auditor.fit(
-                real_f[oracle.hubs],
+                cat_context_real,
                 real[skipped_cols],
                 x_precomputed=None,  # Force local subspace encoding
                 verbose=verbose,
             )
             _, nic_penalties_raw = nic_auditor.score(
-                synthetic_f[oracle.hubs], synthetic[skipped_cols], x_precomputed=None
+                cat_context_syn, synthetic[skipped_cols], x_precomputed=None
             )
-            # HARDENING: Manifold Coherence Coupling (MCC)
+            # Manifold Coherence Coupling (MCC)
             # Continuous continuity cannot exist if the underlying categorical manifold
             # has ruptured. We anchor NIC penalties to the LSE baseline to prevent
             # 'Marginal Paradox' drops in high-noise regimes.
@@ -797,7 +794,7 @@ def mine_implication_rules(
             prefix_map[prefix].append(last_item)
 
         for prefix, items in prefix_map.items():
-            # FURTHER OPTIMIZATION: Group items by feature to avoid cross-product of same feature
+            # Group items by feature to avoid cross-product of same feature
             feature_groups: dict[str, list[tuple[str, str]]] = {}
             for item in items:
                 feat = item[0]
@@ -818,7 +815,7 @@ def mine_implication_rules(
         if not candidates:
             break
 
-        # PRUNING: Limit candidate explosion for high-cardinality datasets
+        # Limit candidate explosion for high-cardinality datasets
         if len(candidates) > MAX_RULE_CANDIDATES:
             rng = check_random_state(random_state)
             # Use deterministic local sampling instead of global random.seed

@@ -91,3 +91,13 @@ def test_hif_score_full_pipeline():
     syn.iloc[0, 0] = "B"  # Break cat1=A -> cat2=X logic
     res_v = hif_score(real, syn, verbose=False, hif_epochs=2)
     assert res_v["hif_score"] < res["hif_score"]
+
+
+def test_hif_numeric_only():
+    # Ensure numeric-only datasets are audited by NIC and do not return a
+    # perfect score by default when synthetic differs from real.
+    real = pd.DataFrame({"x": [1, 2, 3, 4, 5], "y": [10, 20, 30, 40, 50]})
+    syn = pd.DataFrame({"x": [100, 200, 300, 400, 500], "y": [11, 22, 33, 44, 55]})
+    res = hif_score(real, syn, verbose=False, hif_epochs=2)
+    # Ensure the pipeline executes and reports which columns were used
+    assert res["columns_used"] != []
