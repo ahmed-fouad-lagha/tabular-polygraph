@@ -429,7 +429,7 @@ class NeighborInvariantContinuity:
         x_scaled = self.latent_scaler.fit_transform(x_encoded)
         latent = self.pca.fit_transform(x_scaled)
         if verbose:
-            print(f"Done ({self.pca.n_components_} components).")
+            print(f"Done ({self.pca.n_components} components).")
 
         self.regressors = {}
         for col in active_df.columns:
