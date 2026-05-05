@@ -602,6 +602,11 @@ def _evaluate_once(
             if "error" not in util:
                 utility_ratio = float(util.get("ratio", np.nan))
 
+    # Quantitative Privacy Audit (MIA)
+    # We use a 50/50 split of the real data as train/holdout to calibrate the attack
+    train_df, holdout_df = train_test_split(real, test_size=0.5, random_state=seed)
+    mia_auc = _audit_privacy(train_df, holdout_df, syn_filtered)
+
     return {
         "hif_score": float(hif["hif_score"]),
         "hif_violation_rate": float(hif["violation_rate"]),
@@ -614,6 +619,7 @@ def _evaluate_once(
         "moment_matching_score": float(mm),
         "joint_score": float(joint),
         "utility_ratio": utility_ratio,
+        "mia_auc": mia_auc,
         "dominant_feature_share": float(_feature_dominance_share(rules)),
         "mean_representation_tvd": float(mean_tvd),
     }
@@ -718,6 +724,9 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
             "dominant_feature_share_max": dominance_max,
             "separability_rate": separability_rate,
             "mean_representation_tvd": float(df["mean_representation_tvd"].mean()),
+            "mia_auc_mean": float(df["mia_auc"].mean())
+            if "mia_auc" in df.columns
+            else 0.5,
         },
     }
 

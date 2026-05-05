@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import median_abs_deviation
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils import check_random_state
@@ -420,9 +420,9 @@ class NeighborInvariantContinuity:
                 flush=True,
             )
 
-        self.pca = PCA(
+        self.pca = TruncatedSVD(
             n_components=n_comp,
-            svd_solver="randomized",
+            algorithm="randomized",
             random_state=self.random_state,
         )
         # HARDENING: Scale categorical manifold to balance rare levels before PCA
