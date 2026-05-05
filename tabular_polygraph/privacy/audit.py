@@ -63,9 +63,11 @@ def privacy_audit(
 
     # ── Exact copy check ──────────────────────────────────────────────────────
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
-    real_hashes = set(real[shared].astype(str).apply("|".join, axis=1))
+    # Use pandas hash function for robust handling of NaN, floats, and types
+    # This avoids collisions from string conversion and preserves precision
+    real_hashes = set(pd.util.hash_pandas_object(real[shared], index=False))
     syn_cols = synthetic[[c for c in shared if c in synthetic.columns]]
-    syn_hashes = syn_cols.astype(str).apply("|".join, axis=1)
+    syn_hashes = pd.util.hash_pandas_object(syn_cols, index=False)
     n_exact = int(syn_hashes.isin(real_hashes).sum())
 
     report["exact_copies"] = {

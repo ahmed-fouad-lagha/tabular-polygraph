@@ -51,6 +51,8 @@ def moment_matching_scores(
 
         mean_err = abs(mean_s - mean_r) / (abs(mean_r) + eps)
         std_err = abs(std_s - std_r) / (std_r + eps)
+        # Regularization for skew/kurtosis: when true moments are near zero,
+        # use Laplace smoothing to dampen error (0.5, 1.0 are tuned defaults)
         skew_err = abs(skew_s - skew_r) / (abs(skew_r) + 0.5)
         kurt_err = abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0)
 

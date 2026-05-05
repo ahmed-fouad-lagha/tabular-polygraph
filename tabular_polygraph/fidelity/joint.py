@@ -74,14 +74,25 @@ def pairwise_correlation_report(
     result = {}
     for i, ca in enumerate(cols):
         for cb in cols[i + 1 :]:
+            # Properly handle NaNs: drop them for each pair independently
+            # This preserves the actual correlation structure without arbitrary imputation
+            real_pair = real[[ca, cb]].dropna()
+            syn_pair = synthetic[[ca, cb]].dropna()
+
+            if len(real_pair) < 2 or len(syn_pair) < 2:
+                # Skip pair if insufficient data
+                result[f"{ca} × {cb}"] = 0.0
+                continue
+
             r_real, _ = spearmanr(
-                real[ca].fillna(0).astype(float),
-                real[cb].fillna(0).astype(float),
+                real_pair[ca].astype(float), real_pair[cb].astype(float)
             )
-            r_syn, _ = spearmanr(
-                synthetic[ca].fillna(0).astype(float),
-                synthetic[cb].fillna(0).astype(float),
-            )
+            r_syn, _ = spearmanr(syn_pair[ca].astype(float), syn_pair[cb].astype(float))
+
+            # Handle non-finite correlations (e.g., constant columns)
+            r_real = r_real if np.isfinite(r_real) else 0.0
+            r_syn = r_syn if np.isfinite(r_syn) else 0.0
+
             delta = round(float(abs(r_real - r_syn)), 4)
             result[f"{ca} × {cb}"] = delta
     return result
