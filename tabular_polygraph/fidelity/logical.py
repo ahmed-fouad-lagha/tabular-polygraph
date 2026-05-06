@@ -110,7 +110,7 @@ class ManifoldEncoder:
         self.encoder.fit(df)
         self.feature_names = list(self.encoder.get_feature_names_out())
 
-        # Build O(1) lookup map for Sentinel predictors
+        # Lookup map for Sentinel predictors
         self.feature_map = {}
         for original_col in df.columns:
             self.feature_map[original_col] = [
@@ -202,9 +202,6 @@ class LogicalSentinelEnsemble:
         potential_hubs: List[str] | None = None,
     ):
         """Train Sentinels using stateful manifold projection."""
-        if len(df) < 50:
-            return
-
         if x_precomputed is not None:
             x_encoded = x_precomputed
             # feature_map must be built manually if precomputed
@@ -296,7 +293,7 @@ class LogicalSentinelEnsemble:
     ) -> Tuple[float, np.ndarray, Dict[str, Any]]:
         """Audit synthetic rows for 'Logical Ruptures' using reference manifold."""
         if not self.is_trained:
-            return 1.0, np.zeros(len(df)), {}
+            raise ValueError("LogicalSentinelEnsemble must be fitted before audit().")
 
         row_penalties = np.zeros(len(df))
         traces = []
@@ -489,7 +486,9 @@ class NeighborInvariantContinuity:
     ) -> Tuple[float, np.ndarray]:
         """Score continuous features for manifold continuity violations."""
         if self.pca is None or not self.regressors:
-            return 1.0, np.zeros(len(continuous_df))
+            raise ValueError(
+                "NeighborInvariantContinuity must be fitted before score()."
+            )
 
         if x_precomputed is not None:
             x_aligned = x_precomputed
@@ -582,6 +581,11 @@ def hif_score(
         else:
             valid_cols.append(col)
 
+    if not valid_cols and skipped_cols:
+        raise ValueError(
+            "hif_score requires at least one non-numeric column; numeric-only tables are unsupported."
+        )
+
     # Pre-processing: Exhaustive Adaptive Binning (Categorical + Numeric for context)
     all_f_real, all_f_syn = _canonicalize_code_columns(
         _adaptive_binning(real[columns], columns),
@@ -624,41 +628,26 @@ def hif_score(
                 end="",
                 flush=True,
             )
-        if not oracle.hubs:
-            if verbose:
-                print(" Done (No predictive hubs found).")
-            # Early exit: if no hubs are found, the manifold is likely trivial
-            # return zero penalties for NIC
-            nic_penalties = np.zeros(len(synthetic))
-            nic_violation_rate = 0.0
-        else:
-            # Ensure the NIC manifold only sees the hubs relevant to the audit
-            # and re-calculates the encoding to match the active feature subspace.
-            nic_auditor = NeighborInvariantContinuity(random_state=random_state)
-            # If no hubs were discovered by the LSE, fall back to using the
-            # full binned categorical projection (real_f) as the NIC context.
-            # This ensures NIC can still learn a continuous manifold for
-            # numeric-only or predominantly-numeric tables.
-            cat_context_real = real_f[oracle.hubs] if oracle.hubs else real_f
-            cat_context_syn = synthetic_f[oracle.hubs] if oracle.hubs else synthetic_f
+        # Ensure the NIC manifold only sees the hubs relevant to the audit.
+        # If no hubs are discovered, use the full binned projection as context.
+        nic_auditor = NeighborInvariantContinuity(random_state=random_state)
+        cat_context_real = real_f[oracle.hubs] if oracle.hubs else real_f
+        cat_context_syn = synthetic_f[oracle.hubs] if oracle.hubs else synthetic_f
 
-            nic_auditor.fit(
-                cat_context_real,
-                real[skipped_cols],
-                x_precomputed=None,  # Force local subspace encoding
-                verbose=verbose,
-            )
-            _, nic_penalties_raw = nic_auditor.score(
-                cat_context_syn, synthetic[skipped_cols], x_precomputed=None
-            )
-            # Manifold Coherence Coupling (MCC)
-            # Continuous continuity cannot exist if the underlying categorical manifold
-            # has ruptured. We anchor NIC penalties to the LSE baseline to prevent
-            # 'Marginal Paradox' drops in high-noise regimes.
-            nic_penalties = np.maximum(nic_penalties_raw, cat_penalties)
-            nic_violation_rate = (nic_penalties > 0.5).mean()
-            if verbose:
-                print("Done.")
+        nic_auditor.fit(
+            cat_context_real,
+            real[skipped_cols],
+            x_precomputed=None,
+            verbose=verbose,
+        )
+        _, nic_penalties_raw = nic_auditor.score(
+            cat_context_syn, synthetic[skipped_cols], x_precomputed=None
+        )
+        # Continuous continuity cannot exist if the categorical manifold has ruptured.
+        nic_penalties = np.maximum(nic_penalties_raw, cat_penalties)
+        nic_violation_rate = (nic_penalties > 0.5).mean()
+        if verbose:
+            print("Done.")
 
     # 3. Structural Layer: Logical Rules (Hard Constraints)
     if verbose:

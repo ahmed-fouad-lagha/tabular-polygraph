@@ -55,3 +55,5 @@ results/
 # data
 *.csv
 *.parquet
+
+docs

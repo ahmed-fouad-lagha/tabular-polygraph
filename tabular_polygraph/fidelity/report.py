@@ -104,8 +104,8 @@ def _logical_section(
     hif_hubs: int = 5,
     hif_depth: int = 12,
     random_state: int = 42,
-) -> tuple[dict, float]:
-    logical_validity = 100.0
+) -> tuple[dict, float | None]:
+    logical_validity: float | None = None
 
     try:
         from .logical import hif_score
@@ -150,8 +150,8 @@ def _logical_section(
         if "torch" in str(e).lower():
             return {
                 "error": "PyTorch not installed. Install with: pip install torch"
-            }, logical_validity
-        return {"error": str(e)}, logical_validity
+            }, None
+        return {"error": str(e)}, None
 
 
 def _summary_section(
@@ -159,7 +159,7 @@ def _summary_section(
     ks_score: float,
     corr_score: float,
     privacy_score: float,
-    logical_validity: float,
+    logical_validity: float | None,
     utility_report: dict,
     n_real: int,
     n_syn: int,
@@ -181,7 +181,9 @@ def _summary_section(
     fidelity_score = round(float(max(0.0, min(100.0, fidelity_score))), 2)
 
     # 2. Logic Pillar (Integrity)
-    logic_score = round(float(logical_validity), 2)
+    logic_score = (
+        round(float(logical_validity), 2) if logical_validity is not None else None
+    )
 
     # 3. Utility Pillar (Downstream)
     u_scores = []
@@ -206,7 +208,9 @@ def _summary_section(
 
     # Hybrid Aggregate
     # If utility is missing, we average the 3 available pillars
-    pillars = {"fidelity": fidelity_score, "logic": logic_score, "privacy": p_score}
+    pillars = {"fidelity": fidelity_score, "privacy": p_score}
+    if logic_score is not None:
+        pillars["logic"] = logic_score
     if utility_score is not None:
         pillars["utility"] = utility_score
 
@@ -315,9 +319,9 @@ def fidelity_report(
         report["downstream"] = downstream_report
 
     # ── Privacy (basic — full audit is in privacy/audit.py) ──────────────────
-    real_hashes = set(real[cols].astype(str).apply("|".join, axis=1))
-    syn_hashes = (
-        syn[[c for c in cols if c in syn.columns]].astype(str).apply("|".join, axis=1)
+    real_hashes = set(pd.util.hash_pandas_object(real[cols], index=False))
+    syn_hashes = pd.util.hash_pandas_object(
+        syn[[c for c in cols if c in syn.columns]], index=False
     )
     exact_copies = int(syn_hashes.isin(real_hashes).sum())
     report["privacy_basic"] = {
@@ -379,7 +383,9 @@ def format_report(report: dict, width: int = 60) -> str:
     lines.append("-" * width)
     pillars = s.get("pillars", {})
     lines.append(f"  1. Fidelity (Stats)     | {pillars.get('fidelity', 0):>6.2f}%")
-    lines.append(f"  2. Logic (Integrity)    | {pillars.get('logic', 0):>6.2f}%")
+    l_score = pillars.get("logic")
+    l_str = f"{l_score:>6.2f}%" if l_score is not None else "N/A"
+    lines.append(f"  2. Logic (Integrity)    | {l_str}")
 
     u_score = pillars.get("utility")
     u_str = f"{u_score:>6.2f}%" if u_score is not None else "N/A"
