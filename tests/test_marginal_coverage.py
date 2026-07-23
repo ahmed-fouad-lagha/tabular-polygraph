@@ -24,3 +24,11 @@ def test_marginal_small_dataset():
     ks = ks_distribution_scores(df1, df2, columns=["A"])
     assert len(mm) == 0
     assert len(ks) == 0
+
+
+def test_marginal_constant_shift_not_perfect():
+    df1 = pd.DataFrame({"A": [1.0] * 20})
+    df2 = pd.DataFrame({"A": [2.0] * 20})
+    mm = moment_matching_scores(df1, df2, columns=["A"])
+    assert "A" in mm
+    assert mm["A"] < 100.0

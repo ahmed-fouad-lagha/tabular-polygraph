@@ -561,6 +561,8 @@ def hif_score(
     rule_max_antecedents: int = 2,
     random_state: int = 42,
     verbose: bool = True,
+    ablation_mode: str = "full",
+    aggregation: str = "geometric",
 ) -> dict:
     """
     Hybrid Integrity Framework (HIF) Entry Point.
@@ -675,20 +677,35 @@ def hif_score(
     if verbose:
         print(f"Done ({rule_result['num_rules_mined']} rules).")
 
-    # GEOMETRIC AGGREGATION: Integrative validities
+    # AGGREGATION: Integrative validities with ablation support
     eps = 1e-6
-    # Combine all active auditors: Sentinels (Cat), NIC (Cont), and Rules (Structural)
-    active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
-    if skipped_cols:
-        active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
 
-    # Layer 3 (Rules) as a Kill Switch:
-    # If a rule is violated (penalty=1.0), validity becomes eps (near-zero)
-    active_components.append(np.clip(1.0 - rule_penalties, eps, 1.0))
+    # Select active components based on ablation mode
+    if ablation_mode == "lse_only":
+        active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
+    elif ablation_mode == "nic_only":
+        if skipped_cols:
+            active_components = [np.clip(1.0 - nic_penalties, eps, 1.0)]
+        else:
+            active_components = [np.ones(len(synthetic))]
+    elif ablation_mode == "rules_only":
+        active_components = [np.clip(1.0 - rule_penalties, eps, 1.0)]
+    elif ablation_mode == "lse_nic":
+        active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
+        if skipped_cols:
+            active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
+    else:  # "full" — default
+        active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
+        if skipped_cols:
+            active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
+        active_components.append(np.clip(1.0 - rule_penalties, eps, 1.0))
 
-    # Calculate geometric mean across active auditors
-    log_sum = sum(np.log(c) for c in active_components)
-    row_validity = np.exp(log_sum / len(active_components))
+    # Aggregate using chosen method
+    if aggregation == "arithmetic":
+        row_validity = sum(active_components) / len(active_components)
+    else:  # "geometric" — default
+        log_sum = sum(np.log(c) for c in active_components)
+        row_validity = np.exp(log_sum / len(active_components))
 
     row_penalties = 1.0 - row_validity
     hif_score_val = row_validity.mean()
@@ -714,6 +731,8 @@ def hif_score(
         "violation_examples": rule_result["violation_examples"],
         "columns_used": valid_cols + skipped_cols,
         "traces": meta.get("traces", []),
+        "ablation_mode": ablation_mode,
+        "aggregation": aggregation,
     }
 
 

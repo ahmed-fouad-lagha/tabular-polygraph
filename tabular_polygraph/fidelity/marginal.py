@@ -49,6 +49,17 @@ def moment_matching_scores(
             float(stats.kurtosis(s, fisher=False, nan_policy="omit")),
         )
 
+        # Constant columns can produce undefined higher moments.
+        # Keep scoring stable by neutralizing non-finite skew/kurtosis terms.
+        if not np.isfinite(skew_r):
+            skew_r = 0.0
+        if not np.isfinite(skew_s):
+            skew_s = 0.0
+        if not np.isfinite(kurt_r):
+            kurt_r = 0.0
+        if not np.isfinite(kurt_s):
+            kurt_s = 0.0
+
         mean_err = abs(mean_s - mean_r) / (abs(mean_r) + eps)
         std_err = abs(std_s - std_r) / (std_r + eps)
         # Regularization for skew/kurtosis: when true moments are near zero,
@@ -93,6 +104,8 @@ def ks_distribution_scores(
             continue
 
         ks_stat, _ = stats.ks_2samp(r, s)
+        if not np.isfinite(ks_stat):
+            ks_stat = 1.0
         scores[col] = round(float(max(0.0, min(100.0, (1.0 - ks_stat) * 100.0))), 2)
 
     return scores
