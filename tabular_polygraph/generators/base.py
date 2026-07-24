@@ -2,8 +2,7 @@
 tabular_polygraph.generators.base
 --------------------------
 Abstract base class that every generator must implement.
-Enforces a consistent interface across cross-sectional, time-series,
-panel and deep generators.
+Enforces a consistent interface across cross-sectional and deep generators.
 """
 
 from __future__ import annotations
@@ -30,7 +29,7 @@ class BaseGenerator(ABC):
     """
 
     # Subclasses declare which dataset types they support
-    # e.g. ["cross_sectional", "panel", "time_series"]
+    # e.g. ["cross_sectional"]
     supported_types: list[str] = []
 
     def __init__(self, **kwargs: Any):

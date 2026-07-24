@@ -36,14 +36,6 @@ class TestDataHardening:
             quarters = df["quarter"].unique()
             assert all(q in [1, 2, 3, 4] for q in quarters)
 
-    @pytest.mark.skipif(not is_cached("world_bank"), reason="World Bank not cached")
-    def test_world_bank_metadata_integrity(self):
-        """Verify metadata merge is working (no Unknowns where data exists)."""
-        df = load_cached("world_bank")
-        if df is not None:
-            unknown_ratio = (df["income_group"] == "Unknown").mean()
-            assert unknown_ratio < 0.5
-
 
 class TestSchemaIntegrity:
     def test_cached_data_columns(self):

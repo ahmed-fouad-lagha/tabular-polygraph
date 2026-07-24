@@ -129,16 +129,6 @@ def _parse_drop_cols(drop_cols_arg: str | None) -> list[str]:
     return ordered
 
 
-def _critical_drop_cols(dataset_id: str | None, drop_cols: list[str]) -> list[str]:
-    """Return the subset of requested drops that are structural for the dataset."""
-    if not dataset_id or not drop_cols:
-        return []
-
-    critical_by_dataset: dict[str, set[str]] = {}
-    critical = critical_by_dataset.get(dataset_id, set())
-    return [c for c in drop_cols if c in critical]
-
-
 def _resolve_generator_type(dataset_id: str, generator_type: str) -> str:
     if generator_type != "auto":
         return generator_type
@@ -285,7 +275,7 @@ def _prepare_generate_request(args):
     dataset_id = getattr(args, "dataset", None)
 
     if not input_file and not dataset_id:
-        err("Provide a dataset ID (e.g. tabular-polygraph generate fred_macro)")
+        err("Provide a dataset ID (e.g. tabular-polygraph generate bls)")
         err("or your own file (e.g. tabular-polygraph generate --input data.csv)")
         sys.exit(1)
 
@@ -423,26 +413,6 @@ def _print_generate_stylized(report):
         print(f"    {sf_summary.get('note', 'Not evaluated.')}")
 
 
-def _print_generate_temporal(report):
-    if "temporal" not in report:
-        return
-
-    t = report["temporal"]
-    section("Temporal fidelity")
-    print(
-        f"    {_c('Stationarity agreement', C.GRAY):<28}{t['stationarity']['_summary']['agreement_rate']}%"
-    )
-    print(
-        f"    {_c('Cointegration agreement', C.GRAY):<28}{t['cointegration']['_summary']['agreement_rate']}%"
-    )
-    print(
-        f"    {_c('Break match rate', C.GRAY):<28}{t['breaks']['_summary']['break_match_rate']}%"
-    )
-    print(
-        f"    {_c('Causality agreement', C.GRAY):<28}{t['causality']['_summary']['agreement_rate']}%"
-    )
-
-
 def _print_generate_logical(report):
     if "logical" not in report:
         return
@@ -480,7 +450,6 @@ def _print_generate_report(report):
     _print_generate_bars(report)
     _print_generate_logical(report)
     _print_generate_stylized(report)
-    _print_generate_temporal(report)
 
 
 def _save_generated_output(syn, output_path: str):
@@ -828,7 +797,7 @@ def main():
         "dataset",
         nargs="?",
         default=None,
-        help="Built-in dataset ID (e.g. fred_macro). Omit if using --input.",
+        help="Built-in dataset ID (e.g. bls). Omit if using --input.",
     )
     p.add_argument(
         "--input",

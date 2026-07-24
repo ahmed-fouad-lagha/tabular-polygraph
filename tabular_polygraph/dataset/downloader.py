@@ -341,7 +341,7 @@ def download(
     Example
     -------
         from tabular_polygraph.dataset.downloader import download
-        df = download("world_bank")
+        df = download("bls")
         all_data = download("all")  # yields a dictionary
     """
     if dataset_id == "all":

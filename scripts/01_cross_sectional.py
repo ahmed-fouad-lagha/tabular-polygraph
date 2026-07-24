@@ -14,7 +14,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.calibration.priors import get_priors
 from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import fidelity_report
 from tabular_polygraph.generators import GaussianCopulaGenerator
@@ -29,9 +28,8 @@ def main():
     # ── 1. Load seed and fit generator ────────────────────────────────────────
     print("\n[1/5] Fitting generator on census_acs seed data...")
     seed = load_dataset("census_acs")
-    priors = get_priors("census_acs")
 
-    gen = GaussianCopulaGenerator(priors=priors)
+    gen = GaussianCopulaGenerator()
     gen.fit(seed)
     print(f"      {gen}")
     print(f"      Marginal kinds: {gen.marginal_kinds}")

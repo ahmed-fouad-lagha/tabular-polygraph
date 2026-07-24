@@ -12,7 +12,6 @@ import pandas as pd
 
 from tabular_polygraph.utils import DEFAULT_DROP_LIST, numeric_columns
 
-from .causality import causality_score
 from .downstream import tstr_score
 from .joint import correlation_distance_score, pairwise_correlation_report
 from .marginal import (
@@ -21,7 +20,6 @@ from .marginal import (
     mean_moment_matching_score,
     moment_matching_scores,
 )
-from .stylized_facts import stylized_facts_score
 from .tabular_facts import tabular_stylized_facts
 
 
@@ -42,40 +40,8 @@ def _stylized_facts_section(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     num_cols: list[str],
-    dataset_type: str,
 ) -> dict:
-    if dataset_type in ("time_series", "panel"):
-        return stylized_facts_score(real, synthetic, num_cols)
-
-    # For cross-sectional data, use the new tabular facts engine
     return tabular_stylized_facts(real, synthetic, num_cols)
-
-
-def _temporal_section(
-    real: pd.DataFrame,
-    synthetic: pd.DataFrame,
-    cols: list[str],
-    dataset_type: str,
-    include_temporal: bool | None,
-) -> dict | None:
-    do_temporal = (
-        include_temporal
-        if include_temporal is not None
-        else dataset_type in ("time_series", "panel")
-    )
-    if not do_temporal:
-        return None
-
-    from .temporal.breaks import breaks_score
-    from .temporal.cointegration import cointegration_score
-    from .temporal.stationarity import stationarity_score
-
-    return {
-        "stationarity": stationarity_score(real, synthetic, cols),
-        "cointegration": cointegration_score(real, synthetic),
-        "breaks": breaks_score(real, synthetic, cols),
-        "causality": causality_score(real, synthetic),
-    }
 
 
 def _downstream_section(
@@ -238,9 +204,8 @@ def _summary_section(
 def fidelity_report(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
-    dataset_type: str = "cross_sectional",  # cross_sectional | time_series | panel
+    dataset_type: str = "cross_sectional",
     target_col: str | None = None,  # for TSTR downstream score
-    include_temporal: bool | None = None,  # auto-detect from dataset_type
     include_downstream: bool = True,
     columns: list[str] | None = None,
     rule_min_confidence: float = 0.95,
@@ -259,16 +224,15 @@ def fidelity_report(
     Parameters
     ----------
     real, synthetic  : DataFrames to compare
-    dataset_type     : drives which temporal tests are included
+    dataset_type     : dataset type (cross_sectional)
     target_col       : if given, runs TSTR downstream evaluation
-    include_temporal : override temporal test inclusion
     include_downstream : run TSTR if target_col is provided
     include_logical  : run HIF for logical constraint validation
     columns          : restrict to these columns (default: all shared)
 
     Returns
     -------
-    Nested dict with sections: moment_matching, distribution_fit, joint, temporal (optional),
+    Nested dict with sections: moment_matching, distribution_fit, joint, stylized_facts, downstream (optional),
     stylized_facts, downstream (optional), logical (optional), summary.
     """
     t0 = time.time()
@@ -302,14 +266,7 @@ def fidelity_report(
     }
 
     # ── Stylized facts ────────────────────────────────────────────────────────
-    report["stylized_facts"] = _stylized_facts_section(
-        real, syn, num_cols, dataset_type
-    )
-
-    # ── Temporal (time series / panel only) ───────────────────────────────────
-    temporal_report = _temporal_section(real, syn, cols, dataset_type, include_temporal)
-    if temporal_report is not None:
-        report["temporal"] = temporal_report
+    report["stylized_facts"] = _stylized_facts_section(real, syn, num_cols)
 
     # ── Downstream ────────────────────────────────────────────────────────────
     downstream_report = _downstream_section(

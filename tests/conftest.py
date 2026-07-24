@@ -11,28 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
     rng = np.random.default_rng(42)
 
-    if did == "fred_macro":
-        years = np.arange(1980, 1980 + n)
-        return pd.DataFrame(
-            {
-                "year": years,
-                "gdp_growth_yoy": rng.normal(2.0, 1.0, n),
-                "cpi_yoy": rng.normal(2.5, 0.8, n),
-                "unemployment_rate": rng.normal(5.5, 1.2, n).clip(2.0, 15.0),
-                "fed_funds_rate": rng.normal(3.0, 1.0, n).clip(0.0, 10.0),
-                "vix": rng.normal(20.0, 6.0, n).clip(8.0, 80.0),
-                "industrial_production": rng.normal(100.0, 15.0, n),
-                "retail_sales": rng.normal(500.0, 50.0, n),
-                "housing_starts": rng.normal(1400.0, 200.0, n),
-                "consumer_confidence": rng.normal(95.0, 12.0, n),
-                "yield_10y": rng.normal(3.0, 0.8, n),
-                "yield_2y": rng.normal(2.5, 0.7, n),
-                "money_supply_m2": rng.normal(10000.0, 1200.0, n),
-                "payroll_growth": rng.normal(1.5, 0.7, n),
-                "dollar_index": rng.normal(100.0, 8.0, n),
-            }
-        )
-
     if did == "bls":
         quarter = np.tile(np.array(["Q1", "Q2", "Q3", "Q4"]), int(np.ceil(n / 4)))[:n]
         return pd.DataFrame(
@@ -42,18 +20,6 @@ def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
                 "unemployment_rate": rng.normal(5.0, 1.0, n).clip(2.0, 15.0),
                 "labor_force_participation": rng.normal(63.0, 1.0, n),
                 "avg_hourly_earnings_yoy": rng.normal(3.0, 0.8, n),
-            }
-        )
-
-    if did == "world_bank":
-        countries = np.array(["US", "DE", "FR", "JP", "IN", "BR", "ZA", "MX"])
-        return pd.DataFrame(
-            {
-                "country_code": rng.choice(countries, n),
-                "year": rng.integers(1995, 2023, n),
-                "gdp_per_capita": rng.normal(15000.0, 8000.0, n).clip(500.0, None),
-                "inflation": rng.normal(3.0, 2.0, n).clip(-2.0, 30.0),
-                "unemployment": rng.normal(7.0, 3.0, n).clip(1.0, 35.0),
             }
         )
 
@@ -121,16 +87,6 @@ def all_seeds():
         except ValueError:
             result[did] = _fallback_seed(did)
     return result
-
-
-@pytest.fixture(scope="module")
-def fred_macro(all_seeds):
-    return all_seeds.get("fred_macro")
-
-
-@pytest.fixture(scope="module")
-def world_bank(all_seeds):
-    return all_seeds.get("world_bank")
 
 
 @pytest.fixture(scope="module")
