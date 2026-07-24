@@ -76,21 +76,35 @@ class TestLogicalFidelity:
     def test_nic_scorer_manifold_continuity(self):
         from tabular_polygraph.fidelity.logical import NeighborInvariantContinuity
 
-        # Increase feature space for PCA(n_components=32)
-        # Use unique categorical values so the regressor can learn a precise manifold law
-        data_dict = {f"cat_{i}": [f"val_{j}" for j in range(100)] for i in range(40)}
-        real_cat = pd.DataFrame(data_dict)
-        real_num = pd.DataFrame({"val": np.linspace(0, 10, 100)})
+        # Create data where the categorical manifold has real structure
+        # that correlates with the continuous variable
+        np.random.seed(42)
+        n = 200
+        groups = np.random.choice(["low", "mid", "high"], n)
+        offsets = {"low": -2, "mid": 0, "high": 2}
+        noise = np.random.normal(0, 0.3, n)
+        vals = np.array([offsets[g] for g in groups]) + noise
 
-        syn_cat = real_cat.iloc[:2].copy()
-        syn_num = pd.DataFrame({"val": [5.0, 50.0]})  # 50.0 is an outlier
+        real_cat = pd.DataFrame(
+            {"g1": groups, "g2": np.random.choice(["A", "B", "C"], n)}
+        )
+        real_num = pd.DataFrame({"val": vals})
+
+        # Syn row 0: a normal in-range value from a known group
+        syn_cat = pd.DataFrame({"g1": ["low"], "g2": ["A"]})
+        syn_num = pd.DataFrame({"val": [offsets["low"] + 0.1]})  # in-range
 
         scorer = NeighborInvariantContinuity()
         scorer.fit(real_cat, real_num)
         score, penalties = scorer.score(syn_cat, syn_num)
-
+        # In-range value from a known group should not be heavily penalised
         assert penalties[0] < 0.5
-        assert penalties[1] > 0.5
+
+        # Syn row 1: a genuine outlier (value far outside real range)
+        syn_cat2 = pd.DataFrame({"g1": ["low"], "g2": ["A"]})
+        syn_num2 = pd.DataFrame({"val": [50.0]})  # way outside [-4, 4] range
+        _, penalties2 = scorer.score(syn_cat2, syn_num2)
+        assert penalties2[0] > 0.5
 
     def test_rule_violation_score_penalizes_corruption(self):
         from tabular_polygraph.fidelity.logical import rule_violation_score

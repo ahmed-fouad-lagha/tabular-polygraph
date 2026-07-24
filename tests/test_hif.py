@@ -5,7 +5,8 @@ import pytest
 from tabular_polygraph.fidelity.logical import (
     LogicalSentinelEnsemble,
     NeighborInvariantContinuity,
-    _adaptive_binning,
+    _apply_binning,
+    _fit_binning,
     hif_score,
     mine_implication_rules,
 )
@@ -19,15 +20,35 @@ def test_adaptive_binning():
             "c": ["x", "y"] * 5,
         }
     )
-    binned = _adaptive_binning(df, ["a", "b"])
+    edges = _fit_binning(df, ["a", "b"])
+    binned = _apply_binning(df, ["a", "b"], edges)
     assert binned["a"].iloc[0] == "bin_0"
     assert "bin_" in str(binned["b"].iloc[0])
 
 
 def test_adaptive_binning_constant():
     df = pd.DataFrame({"a": [1, 1, 1, 1, 1]})
-    binned = _adaptive_binning(df, ["a"])
+    edges = _fit_binning(df, ["a"])
+    binned = _apply_binning(df, ["a"], edges)
     assert (binned["a"] == "bin_0").all()
+
+
+def test_binning_consistency():
+    """Bin edges fitted on real data must produce the same labels on synthetic."""
+    np.random.seed(42)
+    real = pd.DataFrame({"x": np.random.normal(0, 1, 500)})
+    syn = pd.DataFrame({"x": np.random.normal(0.5, 1.2, 500)})
+
+    edges = _fit_binning(real, ["x"])
+    real_binned = _apply_binning(real, ["x"], edges)
+    syn_binned = _apply_binning(syn, ["x"], edges)
+
+    real_labels = set(real_binned["x"].unique())
+    syn_labels = set(syn_binned["x"].unique())
+    # Synthetic should use the same bin labels as real (same edges)
+    assert syn_labels.issubset(real_labels | {"bin_0"}), (
+        f"Synthetic has unexpected labels: {syn_labels - real_labels}"
+    )
 
 
 def test_mine_rules_numeric_quantization():
@@ -101,3 +122,72 @@ def test_hif_numeric_only():
     syn = pd.DataFrame({"x": [100, 200, 300, 400, 500], "y": [11, 22, 33, 44, 55]})
     with pytest.raises(ValueError, match="numeric-only tables are unsupported"):
         hif_score(real, syn, verbose=False, hif_epochs=2)
+
+
+def test_binning_cross_distribution():
+    """Edges from a normal distribution should still label an exponential one."""
+    np.random.seed(7)
+    real = pd.DataFrame({"x": np.random.normal(0, 1, 1000)})
+    syn = pd.DataFrame({"x": np.random.exponential(2, 1000)})
+
+    edges = _fit_binning(real, ["x"])
+    real_binned = _apply_binning(real, ["x"], edges)
+    syn_binned = _apply_binning(syn, ["x"], edges)
+
+    # Both should produce bin_ labels
+    assert real_binned["x"].str.startswith("bin_").all()
+    assert syn_binned["x"].str.startswith("bin_").all()
+    # Real bins should cover 0..N (consecutive)
+    real_bins = sorted(set(real_binned["x"]))
+    assert real_bins == [f"bin_{i}" for i in range(len(real_bins))]
+
+
+def test_nic_outlier_detection():
+    """NIC should penalise values outside the real support, not hide them."""
+    np.random.seed(42)
+    n = 200
+    groups = np.random.choice(["low", "high"], n)
+    vals = np.where(
+        groups == "low", np.random.normal(0, 0.5, n), np.random.normal(5, 0.5, n)
+    )
+
+    real_cat = pd.DataFrame({"g": groups})
+    real_num = pd.DataFrame({"v": vals})
+
+    scorer = NeighborInvariantContinuity()
+    scorer.fit(real_cat, real_num)
+
+    # In-range value
+    syn_cat = pd.DataFrame({"g": ["low"]})
+    syn_num = pd.DataFrame({"v": [0.1]})
+    _, p_in = scorer.score(syn_cat, syn_num)
+
+    # Outlier far beyond real range
+    syn_num_out = pd.DataFrame({"v": [100.0]})
+    _, p_out = scorer.score(syn_cat, syn_num_out)
+
+    # Outlier should be penalised more than in-range
+    assert p_out[0] > p_in[0]
+
+
+def test_hif_geometric_mean_non_compensatory():
+    """One bad component should dominate the geometric mean."""
+    np.random.seed(42)
+    real = pd.DataFrame(
+        {
+            "cat1": ["A", "B"] * 50,
+            "cat2": ["X", "Y"] * 50,
+            "num1": np.random.normal(0, 1, 100),
+        }
+    )
+    syn = real.copy()
+    res_clean = hif_score(real, syn, verbose=False, hif_epochs=2, component_floor=1e-4)
+
+    # Corrupt only cat1 — should tank the whole score
+    syn_corrupt = syn.copy()
+    syn_corrupt["cat1"] = np.random.choice(["A", "B"], 100)
+    res_corrupt = hif_score(
+        real, syn_corrupt, verbose=False, hif_epochs=2, component_floor=1e-4
+    )
+
+    assert res_corrupt["hif_score"] < res_clean["hif_score"]

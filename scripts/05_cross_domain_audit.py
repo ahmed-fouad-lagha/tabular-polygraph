@@ -128,8 +128,8 @@ def main():
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--output-dir", type=str, default="results")
-    parser.add_argument("--datasets", type=str, default="bls,census_acs")
-    parser.add_argument("--generators", type=str, default="gaussian,vine,ctgan")
+    parser.add_argument("--datasets", type=str, default="bls,census_acs,adult")
+    parser.add_argument("--generators", type=str, default="gaussian,ctgan,tvae")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)

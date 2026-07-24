@@ -156,14 +156,15 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     """
     Load real data for a dataset via API downloader.
 
-    All datasets are real, downloadable public data. To use, first download:
+    To use, first download:
         from tabular_polygraph.dataset.downloader import download
         download("bls")
         download("census_acs")
         download("adult")
+        download("credit")
 
     Args:
-        dataset_id: One of ["bls", "census_acs", "adult"]
+        dataset_id: One of ["bls", "census_acs", "adult", "credit"]
         n: Max number of records to return (default 2000)
 
     Returns:

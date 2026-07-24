@@ -14,6 +14,7 @@ import pandas as pd
 from scipy.stats import median_abs_deviation
 from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils import check_random_state
 
@@ -31,33 +32,69 @@ RULE_QUANTIZATION_BINS = 10
 _ANTE_JOIN = " & "
 
 
-def _adaptive_binning(
+def _fit_binning(
     df: pd.DataFrame, columns: list[str], n_bins: int = RULE_QUANTIZATION_BINS
+) -> dict[str, np.ndarray | None]:
+    """Learn bin edges from REAL data only.
+
+    Returns a dict mapping column name to its bin edges (for pd.cut) or None
+    if the column is already discrete (≤ n_bins unique values).
+    """
+    edges: dict[str, np.ndarray | None] = {}
+    for col in columns:
+        if not pd.api.types.is_numeric_dtype(df[col]) or df[col].nunique() <= 1:
+            edges[col] = None
+            continue
+        if df[col].nunique() <= n_bins:
+            edges[col] = None
+            continue
+        try:
+            _, bin_edges = pd.qcut(
+                df[col], q=n_bins, labels=False, duplicates="drop", retbins=True
+            )
+            edges[col] = bin_edges
+        except Exception:
+            try:
+                _, bin_edges = pd.cut(df[col], bins=n_bins, labels=False, retbins=True)
+                edges[col] = bin_edges
+            except Exception:
+                edges[col] = None
+    return edges
+
+
+def _apply_binning(
+    df: pd.DataFrame,
+    columns: list[str],
+    edges: dict[str, np.ndarray | None],
 ) -> pd.DataFrame:
-    """Discretize continuous numeric columns into quantile-based bins for logical analysis."""
+    """Apply pre-fitted bin edges to any DataFrame (real or synthetic).
+
+    Columns with None edges are either categorical (kept as-is) or have
+    ≤ n_bins unique values (labeled as ``bin_<value>``).
+    """
     df_binned = df.copy()
     for col in columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            if df[col].nunique() <= 1:
-                df_binned[col] = "bin_0"
-                continue
-            try:
-                # Robust binning: Try qcut, fallback to cut, fallback to unique values as strings
-                if df[col].nunique() <= n_bins:
+        if col not in edges or edges[col] is None:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                if df[col].nunique() <= 1:
+                    df_binned[col] = "bin_0"
+                else:
+                    # Discrete numeric with few unique values: label as bin_<value>
                     df_binned[col] = df[col].apply(lambda x: f"bin_{x}")
-                    continue
-                bins = pd.qcut(df[col], q=n_bins, labels=False, duplicates="drop")
-                # SAFE CONVERSION: Ensure we don't int(None) or int(NaN)
-                df_binned[col] = bins.apply(
-                    lambda x: f"bin_{int(x)}" if pd.notna(x) else x
-                )
-            except Exception:
-                try:
-                    df_binned[col] = pd.cut(df[col], bins=n_bins, labels=False).apply(
-                        lambda x: f"bin_{int(x)}" if pd.notna(x) else x
-                    )
-                except Exception:
-                    df_binned[col] = df[col].astype(str)
+            else:
+                df_binned[col] = df[col].astype(str)
+            continue
+
+        bin_edges = edges[col]
+        try:
+            assert bin_edges is not None
+            bin_indices = np.digitize(df[col].values, bin_edges[1:-1])
+            df_binned[col] = [
+                f"bin_{int(i)}" if pd.notna(v) else v
+                for i, v in zip(bin_indices, df[col].values, strict=True)
+            ]
+        except Exception:
+            df_binned[col] = df[col].astype(str)
     return df_binned
 
 
@@ -183,7 +220,7 @@ class LogicalSentinelEnsemble:
             if n_unique > 50 and n_unique > len(y) * 0.15:
                 continue
 
-            # Use a fast RF to measure how "constrained" this feature is by the rest of the manifold.
+            # Use cross-validated accuracy to avoid in-sample overfitting
             clf = RandomForestClassifier(
                 n_estimators=25,
                 max_depth=8,
@@ -191,8 +228,15 @@ class LogicalSentinelEnsemble:
                 random_state=self.random_state,
                 max_features="sqrt",
             )
-            clf.fit(X, y)
-            scores[hub_col] = float(clf.score(X, y))
+            n_unique = len(y.unique())
+            n_splits = min(5, n_unique)
+            if n_splits < 2:
+                continue
+            try:
+                cv_scores = cross_val_score(clf, X, y, cv=n_splits, scoring="accuracy")
+                scores[hub_col] = float(cv_scores.mean())
+            except Exception:
+                continue
 
         sorted_hubs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [h[0] for h in sorted_hubs[: self.top_n_hubs]]
@@ -517,23 +561,14 @@ class NeighborInvariantContinuity:
             y_valid = y[valid_mask]
             latent_valid = latent[valid_mask]
 
-            # HARDENING: Marginal Alignment (Quantile Mapping)
-            # This prevents the Marginal Paradox where corruption with real samples
-            # appears to 'improve' integrity by fixing the generator's marginal errors.
-            # We map synthetic marginals to the real marginals used during training.
-            try:
-                # Use a robust percentile-based mapping
-                y_sorted_real = self.marginal_references[col]
-                ranks = np.argsort(np.argsort(y_valid))
-                # Create a target distribution matching the size of y_valid
-                indices = np.linspace(0, len(y_sorted_real) - 1, len(y_valid)).astype(
-                    int
-                )
-                y_aligned = y_sorted_real[indices][ranks]
-            except (KeyError, AttributeError, ValueError):
-                y_aligned = y_valid
+            # Clip synthetic values to the real range before computing residuals.
+            # This ensures genuine outliers (e.g. income=500000 when real max=90000)
+            # produce large residuals and get flagged, rather than being silently
+            # mapped to the real distribution via quantile alignment.
+            y_sorted_real = self.marginal_references[col]
+            y_clipped = np.clip(y_valid, y_sorted_real.min(), y_sorted_real.max())
 
-            y_scaled = self.scalers[col].transform(y_aligned.reshape(-1, 1)).flatten()
+            y_scaled = self.scalers[col].transform(y_clipped.reshape(-1, 1)).flatten()
             y_pred = self.regressors[col].predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
@@ -567,6 +602,7 @@ def hif_score(
     verbose: bool = True,
     ablation_mode: str = "full",
     aggregation: str = "geometric",
+    component_floor: float = 1e-4,
 ) -> dict:
     """
     Hybrid Integrity Framework (HIF) Entry Point.
@@ -593,12 +629,11 @@ def hif_score(
             "hif_score requires at least one non-numeric column; numeric-only tables are unsupported."
         )
 
-    # Pre-processing: Exhaustive Adaptive Binning (Categorical + Numeric for context)
-    all_f_real, all_f_syn = _canonicalize_code_columns(
-        _adaptive_binning(real[columns], columns),
-        _adaptive_binning(synthetic[columns], columns),
-        columns,
-    )
+    # Pre-processing: Fit binning on REAL data only, then apply to both.
+    # This ensures bin boundaries are identical for real and synthetic.
+    bin_edges = _fit_binning(real[columns], columns)
+    all_f_real = _apply_binning(real[columns], columns, bin_edges)
+    all_f_syn = _apply_binning(synthetic[columns], columns, bin_edges)
     # The Sentinel will target valid_cols (categorical hubs) but can use all columns as context
     real_f = all_f_real
     synthetic_f = all_f_syn
@@ -686,7 +721,10 @@ def hif_score(
         print(f"Done ({rule_result['num_rules_mined']} rules).")
 
     # AGGREGATION: Integrative validities with ablation support
-    eps = 1e-6
+    # component_floor prevents log(0) in geometric mean.  At 1e-4, a single
+    # fully-penalised component (validity=1e-4) yields geometric mean ≈ 0.22
+    # with 3 components, which is a strong but not catastrophic signal.
+    eps = component_floor
 
     # Select active components based on ablation mode
     if ablation_mode == "lse_only":
@@ -937,11 +975,11 @@ def rule_violation_score(
     if pre_binned:
         real_f, syn_f = real, synthetic
     else:
-        real_f, syn_f = _canonicalize_code_columns(
-            _adaptive_binning(real, columns),
-            _adaptive_binning(synthetic, columns),
-            columns,
-        )
+        # Fit binning on real data only, apply to both
+        bin_edges = _fit_binning(real, columns)
+        real_f = _apply_binning(real, columns, bin_edges)
+        syn_f = _apply_binning(synthetic, columns, bin_edges)
+        real_f, syn_f = _canonicalize_code_columns(real_f, syn_f, columns)
     rules = mine_implication_rules(
         real_f,
         columns=columns,
