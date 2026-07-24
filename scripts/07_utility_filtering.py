@@ -121,12 +121,10 @@ def run_benchmark_seed(
     cat_cols: List[str],
 ) -> List[Dict]:
     """Runs the benchmark for a single seed."""
-    from tabular_polygraph.generators.cross_sectional.gaussian_copula import (
+    from tabular_polygraph.generators.ctgan import CTGANGenerator
+    from tabular_polygraph.generators.forest_diffusion import ForestDiffusionGenerator
+    from tabular_polygraph.generators.gaussian_copula import (
         GaussianCopulaGenerator,
-    )
-    from tabular_polygraph.generators.deep.ctgan import CTGANGenerator
-    from tabular_polygraph.generators.deep.forest_diffusion import (
-        ForestDiffusionGenerator,
     )
 
     gen_map = {

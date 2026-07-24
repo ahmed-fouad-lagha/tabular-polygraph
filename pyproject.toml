@@ -41,6 +41,14 @@ deep = [
     "ForestDiffusion>=0.0.1",
     "torch>=1.13"
 ]
+ctgan = [
+    "ctgan>=0.7.1",
+    "torch>=1.13"
+]
+forest = [
+    "ForestDiffusion>=0.0.1",
+    "torch>=1.13"
+]
 dp = [
     "diffprivlib>=0.6"
 ]
@@ -85,10 +93,8 @@ known-first-party = ["tabular_polygraph"]
 source = ["tabular_polygraph"]
 omit = [
     "tabular_polygraph/cli.py",
-    "tabular_polygraph/catalog/downloader.py",
-    "tabular_polygraph/generators/cross_sectional/vine_copula.py",
-    "tabular_polygraph/generators/time_series/vecm_garch.py",
-    "tabular_polygraph/generators/deep/ctgan.py"
+    "tabular_polygraph/generators/vine_copula.py",
+    "tabular_polygraph/generators/ctgan.py"
 ]
 
 [tool.coverage.report]

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tabular_polygraph.generators.deep.ctgan import CTGANGenerator
+from tabular_polygraph.generators.ctgan import CTGANGenerator
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def test_ctgan_discovery_logic(sample_data):
     gen = CTGANGenerator(epochs=1)
 
     # We need to mock _require_ctgan to avoid dependency issues during discovery check if not installed
-    # But for a real test we assume it's installed as we just did 'pip install .[deep]'
+    # But for a real test we assume it's installed as we just did 'pip install .[ctgan]'
     pytest.importorskip("ctgan")
 
     gen.fit(sample_data)

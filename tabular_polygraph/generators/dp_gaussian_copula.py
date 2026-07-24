@@ -1,5 +1,5 @@
 """
-tabular_polygraph.generators.cross_sectional.dp_gaussian_copula
+tabular_polygraph.generators.dp_gaussian_copula
 ----------------------------------------------------------
 Differentially Private Gaussian Copula generator.
 
@@ -24,7 +24,7 @@ Requirements
 
 Usage
 -----
-    from tabular_polygraph.generators.cross_sectional import DPGaussianCopulaGenerator
+    from tabular_polygraph.generators import DPGaussianCopulaGenerator
 
     gen = DPGaussianCopulaGenerator(epsilon=1.0, delta=1e-5)
     gen.fit(real_df)
@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..base import BaseGenerator
+from .base import BaseGenerator
 from .gaussian_copula import _CategoricalMarginal, _NumericMarginal
 
 warnings.filterwarnings("ignore")

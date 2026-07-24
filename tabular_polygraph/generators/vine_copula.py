@@ -1,5 +1,5 @@
 """
-tabular_polygraph.generators.cross_sectional.vine_copula
+tabular_polygraph.generators.vine_copula
 --------------------------------------------------
 Vine (Pair) Copula generator for cross-sectional data.
 
@@ -18,7 +18,7 @@ Requirements
 
 Usage
 -----
-    from tabular_polygraph.generators.cross_sectional import VineCopulaGenerator
+    from tabular_polygraph.generators import VineCopulaGenerator
 
     gen = VineCopulaGenerator()
     gen.fit(real_df)
@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..base import BaseGenerator
+from .base import BaseGenerator
 
 warnings.filterwarnings("ignore")
 

@@ -145,7 +145,7 @@ class TestAdvancedGenerators:
         except ImportError:
             pytest.skip("diffprivlib not installed")
 
-        from tabular_polygraph.generators.cross_sectional import (
+        from tabular_polygraph.generators import (
             DPGaussianCopulaGenerator,
         )
 

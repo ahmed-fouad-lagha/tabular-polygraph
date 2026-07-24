@@ -36,14 +36,6 @@ def _shared_columns(
     ]
 
 
-def _stylized_facts_section(
-    real: pd.DataFrame,
-    synthetic: pd.DataFrame,
-    num_cols: list[str],
-) -> dict:
-    return tabular_stylized_facts(real, synthetic, num_cols)
-
-
 def _downstream_section(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
@@ -224,16 +216,15 @@ def fidelity_report(
     Parameters
     ----------
     real, synthetic  : DataFrames to compare
-    dataset_type     : dataset type (cross_sectional)
+    dataset_type     : label stored in report output
     target_col       : if given, runs TSTR downstream evaluation
     include_downstream : run TSTR if target_col is provided
-    include_logical  : run HIF for logical constraint validation
     columns          : restrict to these columns (default: all shared)
 
     Returns
     -------
     Nested dict with sections: moment_matching, distribution_fit, joint, stylized_facts, downstream (optional),
-    stylized_facts, downstream (optional), logical (optional), summary.
+    logical, summary.
     """
     t0 = time.time()
 
@@ -266,7 +257,7 @@ def fidelity_report(
     }
 
     # ── Stylized facts ────────────────────────────────────────────────────────
-    report["stylized_facts"] = _stylized_facts_section(real, syn, num_cols)
+    report["stylized_facts"] = tabular_stylized_facts(real, syn, num_cols)
 
     # ── Downstream ────────────────────────────────────────────────────────────
     downstream_report = _downstream_section(
@@ -386,9 +377,7 @@ def format_report(report: dict, width: int = 60) -> str:
         lines.append(
             f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}"
         )
-        lines.append(
-            f"    Ratio   : {d.get('ratio')}  — {d.get('interpretation', '')[:50]}"
-        )
+        lines.append(f"    Ratio   : {d.get('ratio')}")
 
     lg = report.get("logical", {})
     lines.append("")

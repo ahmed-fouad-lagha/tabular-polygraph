@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import median_abs_deviation
-from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils import check_random_state
@@ -376,8 +376,7 @@ class NeighborInvariantContinuity:
         self.z_thresholds: Dict[str, float] = {}
         self.gamma_scalings: Dict[str, float] = {}
         self.marginal_references: Dict[str, np.ndarray] = {}
-        self.training_prediction_vars: Dict[str, float] = {}
-        self.pca: PCA | None = None
+        self.pca: TruncatedSVD | None = None
         self.latent_scaler = StandardScaler(with_mean=False)
         self.encoder = ManifoldEncoder()
         self.random_state = random_state
@@ -465,7 +464,6 @@ class NeighborInvariantContinuity:
                 print("Done.")
 
             y_pred = reg.predict(latent_valid)
-            self.training_prediction_vars[col] = float(np.var(y_pred))
             residuals = np.abs(y_scaled - y_pred)
 
             self.regressors[col] = reg
@@ -928,9 +926,9 @@ def rule_violation_score(
     if not columns or max_rules < 1:
         return {
             "rule_violation_rate": 0.0,
-            "num_rule_violations": 0,
+            "total_rule_hits": 0,
             "num_rules_mined": 0,
-            "rows_with_rule_violations": 0,
+            "num_rows_with_violations": 0,
             "rows_evaluated": len(synthetic),
             "top_violated_rules": [],
             "violation_examples": [],
@@ -958,9 +956,9 @@ def rule_violation_score(
     if not rules:
         return {
             "rule_violation_rate": 0.0,
-            "num_rule_violations": 0,
+            "total_rule_hits": 0,
             "num_rules_mined": 0,
-            "rows_with_rule_violations": 0,
+            "num_rows_with_violations": 0,
             "rows_evaluated": len(syn_f),
             "top_violated_rules": [],
             "violation_examples": [],

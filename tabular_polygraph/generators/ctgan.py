@@ -1,5 +1,5 @@
 """
-tabular_polygraph.generators.deep.ctgan
+tabular_polygraph.generators.ctgan
 ---------------------------------
 Stub for CTGAN (Conditional Tabular GAN) deep generator.
 
@@ -9,7 +9,7 @@ CTGAN significantly outperforms Gaussian Copula on:
   - Complex non-linear inter-column relationships
 
 Requirements:
-    pip install .[deep]   # installs ctgan, torch
+    pip install .[ctgan]   # installs ctgan, torch
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Any
 
 import pandas as pd
 
-from ..base import BaseGenerator
+from .base import BaseGenerator
 
 
 class CTGANGenerator(BaseGenerator):

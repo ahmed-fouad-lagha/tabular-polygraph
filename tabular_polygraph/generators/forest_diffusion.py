@@ -1,11 +1,11 @@
 """
-tabular_polygraph.generators.deep.forest_diffusion
+tabular_polygraph.generators.forest_diffusion
 ---------------------------------
 ForestDiffusion generator: A modern, high-quality, and computationally efficient
 diffusion model for tabular data based on XGBoost.
 
 Installation:
-    pip install .[deep]   # installs ForestDiffusion, torch
+    pip install .[forest]   # installs ForestDiffusion, torch
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from typing import Any
 
 import pandas as pd
 
-from ..base import BaseGenerator
+from .base import BaseGenerator
 
 
 class ForestDiffusionGenerator(BaseGenerator):
     """
     ForestDiffusion generator based on XGBoost-based diffusion.
 
-    Requires: pip install .[deep]
+    Requires: pip install .[forest]
 
     Usage:
         gen = ForestDiffusionGenerator()
@@ -42,7 +42,7 @@ class ForestDiffusionGenerator(BaseGenerator):
             import ForestDiffusion  # noqa: F401
         except ImportError:
             raise ImportError(
-                "ForestDiffusion is not installed.\nRun: pip install .[deep]\n"
+                "ForestDiffusion is not installed.\nRun: pip install .[forest]\n"
             ) from None
 
     def fit(self, data: pd.DataFrame) -> "ForestDiffusionGenerator":

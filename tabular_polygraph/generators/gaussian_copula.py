@@ -1,5 +1,5 @@
 """
-tabular_polygraph.generators.cross_sectional.gaussian_copula
+tabular_polygraph.generators.gaussian_copula
 ------------------------------------------------------
 Gaussian Copula generator for cross-sectional tabular data.
 
@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from ..base import BaseGenerator
+from .base import BaseGenerator
 
 
 class _NumericMarginal:
@@ -112,7 +112,7 @@ class GaussianCopulaGenerator(BaseGenerator):
 
     Usage
     -----
-        from tabular_polygraph.generators.cross_sectional import GaussianCopulaGenerator
+        from tabular_polygraph.generators import GaussianCopulaGenerator
 
         gen = GaussianCopulaGenerator()
         gen.fit(real_df)
