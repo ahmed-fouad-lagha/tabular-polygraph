@@ -38,15 +38,15 @@ advanced = [
 ]
 deep = [
     "ctgan>=0.7.1",
-    "ForestDiffusion>=0.0.1",
+    "sdv>=1.0",
     "torch>=1.13"
 ]
 ctgan = [
     "ctgan>=0.7.1",
     "torch>=1.13"
 ]
-forest = [
-    "ForestDiffusion>=0.0.1",
+tvae = [
+    "sdv>=1.0",
     "torch>=1.13"
 ]
 dp = [

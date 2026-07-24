@@ -194,10 +194,10 @@ def _load_generator(
         from tabular_polygraph.generators import CTGANGenerator
 
         gen = CTGANGenerator(**kwargs)
-    elif generator_type == "forest_diffusion":
-        from tabular_polygraph.generators import ForestDiffusionGenerator
+    elif generator_type == "tvae":
+        from tabular_polygraph.generators import TVAEGenerator
 
-        gen = ForestDiffusionGenerator(**kwargs)
+        gen = TVAEGenerator(**kwargs)
     else:
         gen = GaussianCopulaGenerator(**kwargs)
 
@@ -753,7 +753,7 @@ def main():
         type=str,
         default="auto",
         metavar="TYPE",
-        help="auto | copula | ctgan | forest_diffusion",
+        help="auto | copula | ctgan | tvae",
     )
     p.add_argument(
         "--fit-rows",

@@ -1,8 +1,8 @@
 from .base import BaseGenerator
 from .ctgan import CTGANGenerator
 from .dp_gaussian_copula import DPGaussianCopulaGenerator
-from .forest_diffusion import ForestDiffusionGenerator
 from .gaussian_copula import GaussianCopulaGenerator
+from .tvae import TVAEGenerator
 
 
 def VineCopulaGenerator(*args, **kwargs):
@@ -20,5 +20,5 @@ __all__ = [
     "DPGaussianCopulaGenerator",
     "VineCopulaGenerator",
     "CTGANGenerator",
-    "ForestDiffusionGenerator",
+    "TVAEGenerator",
 ]

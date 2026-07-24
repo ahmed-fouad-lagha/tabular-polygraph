@@ -2,12 +2,19 @@
 Example 7: Utility Filtering Audit (Generating Table 1).
 Evaluates how filtering synthetic data by HIF scores improves downstream utility.
 Cleaned and refactored for production-ready benchmarking.
+
+Flow:
+  1. Load raw (continuous) data, compute discretization bins
+  2. Split into train/test
+  3. Train generator on raw train data (continuous target preserved)
+  4. Generate synthetic data
+  5. Discretize targets (real test + synthetic) using shared bins for TSTR
 """
 
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -24,38 +31,34 @@ from tabular_polygraph.fidelity.logical import rule_violation_score  # noqa: E40
 from tabular_polygraph.utils import numeric_columns  # noqa: E402
 
 
-def discretize_target(df: pd.DataFrame, target: str) -> pd.DataFrame:
-    """Discretizes the target column into binary labels (0/1)."""
-    df = df.copy()
-    if pd.api.types.is_numeric_dtype(df[target]):
-        unique_vals = sorted(df[target].dropna().unique().tolist())
-        if len(unique_vals) <= 2:
-            if set(unique_vals).issubset({0, 1}):
-                df[target] = df[target].astype(int)
-            else:
-                mapping = {v: i for i, v in enumerate(unique_vals)}
-                df[target] = df[target].map(mapping).fillna(0).astype(int)
-        elif len(unique_vals) <= 5:
-            # Few unique numeric values: map to integer codes preserving order
-            mapping = {v: i for i, v in enumerate(unique_vals)}
-            df[target] = df[target].map(mapping).fillna(0).astype(int)
-        else:
-            # Use quintiles for the main manuscript experiment (5-class)
-            try:
-                df[target] = pd.qcut(df[target], q=5, labels=False, duplicates="drop")
-                df[target] = df[target].astype(int)
-            except Exception:
-                # Fallback to median split if qcut fails for pathological distributions
-                median_val = df[target].median()
-                df[target] = (df[target] >= median_val).astype(int)
-    else:
-        cat_codes = df[target].astype("category").cat.codes
-        if len(df[target].unique()) <= 2:
-            df[target] = cat_codes.astype(int)
-        else:
-            median_code = cat_codes.median()
-            df[target] = (cat_codes >= median_code).astype(int)
-    return df
+def compute_target_bins(series: pd.Series, n_classes: int = 5) -> Optional[np.ndarray]:
+    """Compute discretization bin edges from a continuous target series.
+
+    Returns an array of bin edges usable with ``pd.cut``, or ``None`` if the
+    column is already discrete.
+    """
+    unique_vals = sorted(series.dropna().unique().tolist())
+    if len(unique_vals) <= n_classes:
+        return None  # already discrete
+    try:
+        _, bins = pd.qcut(
+            series, q=n_classes, labels=False, duplicates="drop", retbins=True
+        )
+        return bins
+    except Exception:
+        return None
+
+
+def discretize_series(series: pd.Series, bins: Optional[np.ndarray]) -> pd.Series:
+    """Discretize a continuous series using pre-computed bin edges.
+
+    If ``bins`` is ``None`` the series is returned unchanged (already discrete).
+    """
+    if bins is None:
+        return (
+            series.astype(int) if not pd.api.types.is_integer_dtype(series) else series
+        )
+    return pd.cut(series, bins=bins, include_lowest=True).cat.codes.astype(int)
 
 
 def prepare_utility_features(
@@ -114,23 +117,29 @@ def evaluate_utility(
 
 def run_benchmark_seed(
     seed: int,
-    real_train: pd.DataFrame,
+    real_train_raw: pd.DataFrame,
     real_test: pd.DataFrame,
     args: argparse.Namespace,
     num_cols: List[str],
     cat_cols: List[str],
+    target_bins: Optional[np.ndarray],
 ) -> List[Dict]:
-    """Runs the benchmark for a single seed."""
+    """Runs the benchmark for a single seed.
+
+    ``real_train_raw`` is the raw (continuous-target) training split.
+    The generator fits on this raw data; discretization happens only for
+    TSTR evaluation.
+    """
     from tabular_polygraph.generators.ctgan import CTGANGenerator
-    from tabular_polygraph.generators.forest_diffusion import ForestDiffusionGenerator
     from tabular_polygraph.generators.gaussian_copula import (
         GaussianCopulaGenerator,
     )
+    from tabular_polygraph.generators.tvae import TVAEGenerator
 
     gen_map = {
         "gaussian": GaussianCopulaGenerator,
         "ctgan": CTGANGenerator,
-        "forest": ForestDiffusionGenerator,
+        "tvae": TVAEGenerator,
     }
 
     gen_class = gen_map.get(args.generator, GaussianCopulaGenerator)
@@ -138,30 +147,45 @@ def run_benchmark_seed(
         gen = gen_class(epochs=args.epochs)
     else:
         gen = gen_class()
-    gen.fit(real_train)
-    syn = gen.generate(args.rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
+    gen.fit(real_train_raw)
+    syn_raw = gen.generate(args.rows, seed=seed).drop(
+        columns=["syn_id"], errors="ignore"
+    )
+
+    # Discretize targets for TSTR evaluation using shared bins.
+    # The real test target is also discretized here so both sides match.
+    real_test_eval = real_test.copy()
+    real_test_eval[args.target] = discretize_series(
+        real_test_eval[args.target], target_bins
+    )
+    syn_eval = syn_raw.copy()
+    syn_eval[args.target] = discretize_series(syn_eval[args.target], target_bins)
 
     # Base evaluation data (X_test/y_test from REAL test set)
     X_test_df, _, y_test, _ = prepare_utility_features(
-        real_test, syn, args.target, num_cols, cat_cols
+        real_test_eval, syn_eval, args.target, num_cols, cat_cols
     )
 
     results = []
     variants = {
-        "Full synthetic": syn,
+        "Full synthetic": syn_eval,
         "Rule-only Baseline": None,
         "HIF Oracle (Combined)": None,
     }
 
-    # Audit logic
-    audit_cols = [c for c in real_train.columns if c != args.target]
-    rv = rule_violation_score(real_train, syn, columns=audit_cols, max_rules=50)
-    syn_rules = syn[rv["row_violation_mask"] == 0]
+    # Audit logic — audit columns are all features except the target
+    audit_cols = [c for c in real_train_raw.columns if c != args.target]
+    rv = rule_violation_score(real_train_raw, syn_raw, columns=audit_cols, max_rules=50)
+    syn_rules = syn_eval[rv["row_violation_mask"] == 0]
     variants["Rule-only Baseline"] = syn_rules
 
     if not syn_rules.empty:
         hif = hif_score(
-            real_train, syn_rules, columns=audit_cols, hif_hubs=5, random_state=seed
+            real_train_raw,
+            syn_raw[rv["row_violation_mask"] == 0],
+            columns=audit_cols,
+            hif_hubs=5,
+            random_state=seed,
         )
         variants["HIF Oracle (Combined)"] = syn_rules.iloc[
             np.argsort(hif["row_penalties"])[: int(len(syn_rules) * 0.80)]
@@ -171,9 +195,14 @@ def run_benchmark_seed(
         if subset is None or subset.empty:
             continue
 
-        # Corrected: Train on Synthetic (subset), Test on Real (X_test_df)
+        # Train on Synthetic (subset), Test on Real (X_test_df)
         _, X_train_df, _, y_train = prepare_utility_features(
-            real_train, subset, args.target, num_cols, cat_cols, reference_df=X_test_df
+            real_test_eval,
+            subset,
+            args.target,
+            num_cols,
+            cat_cols,
+            reference_df=X_test_df,
         )
         f1, acc = evaluate_utility(
             X_train_df.values, y_train, X_test_df.values, y_test, seed
@@ -186,7 +215,7 @@ def run_benchmark_seed(
                     "seed": seed,
                     "f1": f1,
                     "acc": acc,
-                    "retention": (len(subset) / len(syn)) * 100,
+                    "retention": (len(subset) / len(syn_eval)) * 100,
                 }
             )
 
@@ -208,20 +237,31 @@ def main():
     )
     args = parser.parse_args()
 
+    # Load raw data — target stays continuous for the generator
     real = load_dataset(args.dataset)
-    real = discretize_target(real, args.target)
+    target_bins = compute_target_bins(real[args.target])
 
     num_cols = numeric_columns(real)
     cat_cols = [c for c in real.columns if c not in num_cols]
 
-    real_train, real_test_full = train_test_split(real, test_size=0.3, random_state=42)
+    real_train_raw, real_test_full = train_test_split(
+        real, test_size=0.3, random_state=42
+    )
     real_test = real_test_full.sample(n=min(5000, len(real_test_full)), random_state=42)
 
     all_results = []
     for seed in range(42, 42 + args.seeds):
         print(f"[Seed {seed}] Processing...")
         all_results.extend(
-            run_benchmark_seed(seed, real_train, real_test, args, num_cols, cat_cols)
+            run_benchmark_seed(
+                seed,
+                real_train_raw,
+                real_test,
+                args,
+                num_cols,
+                cat_cols,
+                target_bins,
+            )
         )
 
         # Incremental save

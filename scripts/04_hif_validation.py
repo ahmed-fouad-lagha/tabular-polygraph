@@ -51,8 +51,8 @@ from tabular_polygraph.fidelity.logical import rule_violation_score
 from tabular_polygraph.generators import (
     BaseGenerator,
     CTGANGenerator,
-    ForestDiffusionGenerator,
     GaussianCopulaGenerator,
+    TVAEGenerator,
 )
 from tabular_polygraph.utils import numeric_columns
 
@@ -94,8 +94,8 @@ def _generate_synthetic(
     gen: BaseGenerator
     if generator_type == "ctgan":
         gen = CTGANGenerator()
-    elif generator_type == "forest_diffusion":
-        gen = ForestDiffusionGenerator()
+    elif generator_type == "tvae":
+        gen = TVAEGenerator()
     else:
         gen = GaussianCopulaGenerator()
 
@@ -782,9 +782,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=str, default="results")
     parser.add_argument(
         "--generator",
-        choices=["gaussian_copula", "ctgan", "forest_diffusion"],
+        choices=["gaussian_copula", "ctgan", "tvae"],
         default="gaussian_copula",
-        help="Synthetic data generator to evaluate (default: forest_diffusion)",
+        help="Synthetic data generator to evaluate (default: gaussian_copula)",
     )
     args = parser.parse_args()
 

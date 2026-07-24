@@ -161,13 +161,13 @@ class TestAdvancedGenerators:
         syn = gen.generate(10)
         assert len(syn) == 10
 
-    def test_forest_diffusion_smoke(self):
+    def test_tvae_smoke(self):
         try:
-            import ForestDiffusion  # noqa: F401
+            from sdv.single_table import TVAESynthesizer  # noqa: F401
         except ImportError:
-            pytest.skip("ForestDiffusion not installed")
+            pytest.skip("sdv not installed")
 
-        from tabular_polygraph.generators import ForestDiffusionGenerator
+        from tabular_polygraph.generators import TVAEGenerator
 
         df = pd.DataFrame(
             {
@@ -176,7 +176,7 @@ class TestAdvancedGenerators:
                 "c": np.random.choice(["X", "Y"], 100),
             }
         )
-        gen = ForestDiffusionGenerator(n_t=5)
+        gen = TVAEGenerator(epochs=10)
         gen.fit(df)
         syn = gen.generate(10)
         assert len(syn) == 10

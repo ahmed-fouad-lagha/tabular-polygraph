@@ -28,8 +28,8 @@ from tabular_polygraph.dataset.downloader import load_cached
 from tabular_polygraph.fidelity import fidelity_report
 from tabular_polygraph.generators import (
     CTGANGenerator,
-    ForestDiffusionGenerator,
     GaussianCopulaGenerator,
+    TVAEGenerator,
     VineCopulaGenerator,
 )
 from tabular_polygraph.utils import DEFAULT_DROP_LIST
@@ -42,8 +42,8 @@ def _get_generator(gen_type: str, epochs: int = 500):
         return VineCopulaGenerator()
     elif gen_type == "ctgan":
         return CTGANGenerator(epochs=epochs, batch_size=100)
-    elif gen_type == "forest":
-        return ForestDiffusionGenerator()
+    elif gen_type == "tvae":
+        return TVAEGenerator()
     else:
         raise ValueError(f"Unknown generator type: {gen_type}")
 
@@ -161,7 +161,7 @@ def main():
                 "gaussian": "Gaussian Copula",
                 "vine": "Vine Copula",
                 "ctgan": "CTGAN (Neural)",
-                "forest": "Forest Diffusion",
+                "tvae": "TVAE (Neural)",
                 "real": "Ground Truth (Real)",
             }[gen_type]
 
