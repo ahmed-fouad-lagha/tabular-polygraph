@@ -17,8 +17,6 @@ import time
 from pathlib import Path
 
 from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
-from tabular_polygraph.generators.panel import PanelDecompositionGenerator
-from tabular_polygraph.generators.time_series import VARGenerator
 from tabular_polygraph.utils import set_seed
 
 
@@ -136,9 +134,7 @@ def _critical_drop_cols(dataset_id: str | None, drop_cols: list[str]) -> list[st
     if not dataset_id or not drop_cols:
         return []
 
-    critical_by_dataset = {
-        "world_bank": {"country_code", "year", "region", "income_group"},
-    }
+    critical_by_dataset: dict[str, set[str]] = {}
     critical = critical_by_dataset.get(dataset_id, set())
     return [c for c in drop_cols if c in critical]
 
@@ -146,13 +142,6 @@ def _critical_drop_cols(dataset_id: str | None, drop_cols: list[str]) -> list[st
 def _resolve_generator_type(dataset_id: str, generator_type: str) -> str:
     if generator_type != "auto":
         return generator_type
-
-    time_series_datasets = {"fred_macro", "bls"}
-    panel_datasets = {"world_bank"}
-    if dataset_id in time_series_datasets:
-        return "var"
-    if dataset_id in panel_datasets:
-        return "panel"
     return "copula"
 
 
@@ -163,20 +152,6 @@ def _drop_existing_columns(df, drop_cols: list[str] | None):
     if not drop_present:
         return df
     return df.drop(columns=drop_present)
-
-
-def _infer_panel_columns(df):
-    entity_col = next(
-        (c for c in ["country_code", "bank_id", "entity"] if c in df.columns),
-        df.columns[0],
-    )
-    if "year" in df.columns:
-        time_col = "year"
-    elif "quarter" in df.columns:
-        time_col = "quarter"
-    else:
-        time_col = None
-    return entity_col, time_col
 
 
 def _load_generator(
@@ -226,15 +201,7 @@ def _load_generator(
         pass
 
     gen: BaseGenerator
-    if generator_type == "var":
-        time_col = "year" if "year" in seed_df.columns else None
-        gen = VARGenerator(lags=2, time_col=time_col, **kwargs)
-    elif generator_type == "panel":
-        entity_col, time_col = _infer_panel_columns(seed_df)
-        gen = PanelDecompositionGenerator(
-            entity_col=entity_col, time_col=time_col, **kwargs
-        )
-    elif generator_type == "ctgan":
+    if generator_type == "ctgan":
         from tabular_polygraph.generators import CTGANGenerator
 
         gen = CTGANGenerator(**kwargs)
@@ -336,16 +303,6 @@ def _prepare_generate_request(args):
         info(f"Filters: {filters}")
     if drop_cols:
         info(f"Dropping columns before fit/eval: {drop_cols}")
-        dropped_critical = _critical_drop_cols(dataset_id, drop_cols)
-        if dropped_critical:
-            err(
-                "Refusing to drop structural world_bank columns: "
-                f"{', '.join(dropped_critical)}"
-            )
-            err(
-                "Keep country_code, year, region, and income_group to preserve panel structure."
-            )
-            sys.exit(1)
 
     return input_file, dataset_id, filters, drop_cols
 
@@ -405,9 +362,7 @@ def _compute_generate_report(seed_df, syn, gen_type, seed=42):
     from tabular_polygraph.fidelity import fidelity_report
 
     info("Running fidelity report...")
-    dataset_type = {"var": "time_series", "panel": "panel"}.get(
-        gen_type, "cross_sectional"
-    )
+    dataset_type = "cross_sectional"
     syn_body = syn.drop(columns=["syn_id"], errors="ignore")
     try:
         return fidelity_report(
@@ -895,7 +850,7 @@ def main():
         type=str,
         default="auto",
         metavar="TYPE",
-        help="auto | copula | var | panel | ctgan | forest_diffusion",
+        help="auto | copula | ctgan | forest_diffusion",
     )
     p.add_argument(
         "--fit-rows",
@@ -953,7 +908,7 @@ def main():
         type=str,
         default="cross_sectional",
         metavar="TYPE",
-        help="cross_sectional | time_series | panel",
+        help="cross_sectional",
     )
     p.add_argument(
         "--hif-epochs", type=int, default=10, help="Training epochs for neural auditor"
@@ -1077,10 +1032,8 @@ def main():
         print()
         dim("  Examples:")
         dim("    tabular-polygraph list --vertical 'Real Estate'")
-        dim("    tabular-polygraph generate fred_macro --rows 500 --output syn.csv")
-        dim(
-            "    tabular-polygraph evaluate real.csv synthetic.csv --type time_series --target gdp_growth_yoy"
-        )
+        dim("    tabular-polygraph generate bls --rows 500 --output syn.csv")
+        dim("    tabular-polygraph evaluate real.csv synthetic.csv")
         dim("    tabular-polygraph audit real.csv synthetic.csv --attacks 500")
         dim("    tabular-polygraph validate my_data.csv")
         print()

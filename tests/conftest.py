@@ -136,21 +136,3 @@ def world_bank(all_seeds):
 @pytest.fixture(scope="module")
 def census_acs(all_seeds):
     return all_seeds.get("census_acs")
-
-
-@pytest.fixture(scope="module")
-def syn_macro(fred_macro):
-    from tabular_polygraph.generators.time_series import VARGenerator
-
-    gen = VARGenerator(lags=2, time_col="year")
-    gen.fit(fred_macro)
-    return gen.generate(300, seed=42)
-
-
-@pytest.fixture(scope="module")
-def syn_wb(world_bank):
-    from tabular_polygraph.generators.panel import PanelDecompositionGenerator
-
-    gen = PanelDecompositionGenerator(entity_col="country_code", time_col="year")
-    gen.fit(world_bank)
-    return gen.generate(300, seed=42)

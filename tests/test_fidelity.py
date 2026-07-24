@@ -192,43 +192,6 @@ class TestDownstreamFidelity:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 9. Fidelity — Temporal
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestTemporalFidelity:
-    def test_stationarity_agreement(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity.temporal.stationarity import stationarity_score
-
-        result = stationarity_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
-        assert "_summary" in result
-        rate = result["_summary"]["agreement_rate"]
-        assert 0 <= rate <= 100
-
-    def test_cointegration_agreement(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity.temporal.cointegration import (
-            cointegration_score,
-        )
-
-        result = cointegration_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
-        assert "_summary" in result
-        assert 0 <= result["_summary"]["agreement_rate"] <= 100
-
-    def test_breaks_score(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity.temporal.breaks import breaks_score
-
-        result = breaks_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
-        assert "_summary" in result
-        assert 0 <= result["_summary"]["break_match_rate"] <= 100
-
-    def test_causality_score(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity.causality import causality_score
-
-        result = causality_score(fred_macro, syn_macro.drop(columns=["syn_id"]))
-        assert "_summary" in result
-        assert 0 <= result["_summary"]["agreement_rate"] <= 100
-
-
 class TestFidelityReport:
     def test_cross_sectional_report_keys(self, census_acs):
         from tabular_polygraph.fidelity import fidelity_report
@@ -247,18 +210,6 @@ class TestFidelityReport:
             "summary",
         ]:
             assert key in report
-
-    def test_temporal_section_for_time_series(self, fred_macro, syn_macro):
-        from tabular_polygraph.fidelity import fidelity_report
-
-        report = fidelity_report(
-            fred_macro, syn_macro.drop(columns=["syn_id"]), dataset_type="time_series"
-        )
-        assert "temporal" in report
-        assert "stationarity" in report["temporal"]
-        assert "cointegration" in report["temporal"]
-        assert "breaks" in report["temporal"]
-        assert "causality" in report["temporal"]
 
     def test_format_report_returns_string(self, census_acs):
         from tabular_polygraph.fidelity import fidelity_report, format_report

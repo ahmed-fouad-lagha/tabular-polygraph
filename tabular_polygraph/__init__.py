@@ -10,8 +10,6 @@ from .dataset import get_dataset_info, list_datasets, load_dataset
 from .fidelity import fidelity_report, format_report
 from .generators.base import BaseGenerator
 from .generators.cross_sectional import GaussianCopulaGenerator
-from .generators.panel import PanelDecompositionGenerator
-from .generators.time_series import VARGenerator
 from .io import read, validate, write
 from .privacy import format_audit, privacy_audit
 
@@ -19,8 +17,6 @@ __version__ = "1.0.0"
 __all__ = [
     "BaseGenerator",
     "GaussianCopulaGenerator",
-    "VARGenerator",
-    "PanelDecompositionGenerator",
     "list_datasets",
     "get_dataset_info",
     "load_dataset",

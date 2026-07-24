@@ -117,76 +117,6 @@ class TestGaussianCopula:
         assert np.allclose(np.diag(corr.values), 1.0, atol=0.01)
 
 
-class TestVARGenerator:
-    def test_basic_generation(self, syn_macro):
-        assert len(syn_macro) == 300
-        assert "syn_id" in syn_macro.columns
-
-    def test_correct_column_count(self, fred_macro, syn_macro):
-        expected = len(fred_macro.columns)
-        assert len(syn_macro.columns) == expected
-
-    def test_numeric_columns_in_range(self, fred_macro, syn_macro):
-        for col in ["cpi_yoy", "unemployment_rate", "fed_funds_rate"]:
-            if col in syn_macro.columns:
-                r_min = fred_macro[col].min() * 4 - fred_macro[col].abs().max()
-                r_max = fred_macro[col].max() * 4
-                assert syn_macro[col].between(r_min, r_max).all(), (
-                    f"{col} values outside plausible range"
-                )
-
-    def test_bls_var_generation(self, all_seeds):
-        from tabular_polygraph.generators.time_series import VARGenerator
-
-        gen = VARGenerator(lags=2, time_col="quarter")
-        gen.fit(all_seeds["bls"])
-        out = gen.generate(100, seed=1)
-        assert len(out) == 100
-
-
-class TestPanelDecompositionGenerator:
-    def test_basic_panel_generation(self):
-        from tabular_polygraph.generators.panel import PanelDecompositionGenerator
-
-        df = pd.DataFrame(
-            {
-                "country": ["US", "US", "CA", "CA", "MX", "MX"],
-                "year": [2020, 2021, 2020, 2021, 2020, 2021],
-                "gdp": [100.0, 102.0, 50.0, 51.0, 30.0, 30.5],
-                "sector": ["tech", "tech", "oil", "oil", "agri", "agri"],
-            }
-        )
-        gen = PanelDecompositionGenerator(entity_col="country", time_col="year")
-        gen.fit(df)
-        syn = gen.generate(20, seed=42)
-
-        assert len(syn) == 20
-        assert "country" in syn.columns
-        assert "year" in syn.columns
-        assert "gdp" in syn.columns
-        assert "sector" in syn.columns
-        assert "syn_id" in syn.columns
-
-    def test_fallback_logic(self):
-        from tabular_polygraph.generators.panel import PanelDecompositionGenerator
-
-        df = pd.DataFrame(
-            {
-                "x": [1, 2, 3, 4, 5],
-                "y": [10, 20, 30, 40, 50],
-            }
-        )
-        # Should fall back to ENT-XXXX IDs since entity_col/time_col are missing
-        gen = PanelDecompositionGenerator(
-            entity_col="missing_entity", time_col="missing_time"
-        )
-        gen.fit(df)
-        syn = gen.generate(10, seed=1)
-        assert len(syn) == 10
-        assert "missing_entity" in syn.columns
-        assert syn["missing_entity"].iloc[0].startswith("ENT-")
-
-
 class TestAdvancedGenerators:
     def test_vine_copula_smoke(self):
         try:
@@ -227,26 +157,6 @@ class TestAdvancedGenerators:
             }
         )
         gen = DPGaussianCopulaGenerator(epsilon=1.0)
-        gen.fit(df)
-        syn = gen.generate(10)
-        assert len(syn) == 10
-
-    def test_vecm_garch_smoke(self):
-        try:
-            import statsmodels  # noqa: F401
-        except ImportError:
-            pytest.skip("statsmodels not installed")
-
-        from tabular_polygraph.generators.time_series import VECMGARCHGenerator
-
-        df = pd.DataFrame(
-            {
-                "a": np.cumsum(np.random.randn(100)) + 10,
-                "b": np.cumsum(np.random.randn(100)) + 10,
-            }
-        )
-        # VECM requires 2D numeric data
-        gen = VECMGARCHGenerator(use_garch=False)
         gen.fit(df)
         syn = gen.generate(10)
         assert len(syn) == 10
