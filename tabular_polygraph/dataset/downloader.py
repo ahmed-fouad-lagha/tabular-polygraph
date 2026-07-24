@@ -347,20 +347,30 @@ def _download_credit(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
     """Download Credit Card Default dataset from UCI repository."""
     url = DOWNLOADERS["credit"]["url"]
     print("    Fetching Credit Card Default dataset from UCI...")
-    df = pd.read_excel(
-        url, header=1
-    )  # Row 0 is the header names, row 1 is the actual header
-    # The actual column names are in the first data row
-    # Column 0 is ID (drop it)
+    df = pd.read_excel(url, header=1)
     if "ID" in df.columns:
         df = df.drop(columns=["ID"])
 
-    # Rename columns using the indicators mapping
     rename_map = DOWNLOADERS["credit"]["indicators"]
     df = df.rename(columns=rename_map)
-
-    # Clean column names (lowercase, underscores)
     df.columns = [c.strip().lower() for c in df.columns]
+
+    # Cast categorical columns to string so HIF can distinguish them from continuous
+    cat_cols = [
+        "sex",
+        "education",
+        "marriage",
+        "pay_0",
+        "pay_2",
+        "pay_3",
+        "pay_4",
+        "pay_5",
+        "pay_6",
+        "default_payment",
+    ]
+    for c in cat_cols:
+        if c in df.columns:
+            df[c] = df[c].astype(str)
 
     return df.sample(min(n_sample, len(df)), random_state=42)
 
