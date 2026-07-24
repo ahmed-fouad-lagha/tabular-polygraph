@@ -235,6 +235,11 @@ def set_seed(seed: int | None) -> None:
     This helper centralizes seeding for random, numpy, and torch (if available),
     ensuring that generators and fidelity metrics produce deterministic results.
 
+    Note:
+        This function uses legacy ``np.random.seed()`` to set global state for
+        backward compatibility. New code should prefer ``np.random.default_rng(seed)``
+        for independent, thread-safe random generators.
+
     Args:
         seed: The seed value to use. If None, this function does nothing.
     """

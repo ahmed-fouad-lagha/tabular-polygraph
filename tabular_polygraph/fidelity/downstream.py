@@ -21,44 +21,6 @@ from sklearn.preprocessing import LabelEncoder
 from tabular_polygraph.utils import numeric_columns
 
 
-def _gini(y_true: np.ndarray, y_score: np.ndarray) -> float:
-    """Gini coefficient from sorted predictions (proxy for AUC)."""
-    order = np.argsort(y_score)[::-1]
-    y_sorted = y_true[order]
-    n = len(y_sorted)
-    cumulative = np.cumsum(y_sorted)
-    lorenz = cumulative / (cumulative[-1] + 1e-9)
-    gini = (lorenz.sum() / n) - 0.5
-    return float(2 * gini)
-
-
-def _simple_logreg(X_train, y_train, X_test) -> np.ndarray:
-    """Minimal logistic regression via gradient descent (no sklearn needed)."""
-    X = np.column_stack([np.ones(len(X_train)), X_train])
-    Xt = np.column_stack([np.ones(len(X_test)), X_test])
-    w = np.zeros(X.shape[1])
-    lr = 0.01
-    for _ in range(200):
-        p = 1 / (1 + np.exp(-np.clip(X @ w, -10, 10)))
-        grad = X.T @ (p - y_train) / len(y_train)
-        w -= lr * grad
-    return 1 / (1 + np.exp(-np.clip(Xt @ w, -10, 10)))
-
-
-def _simple_linreg_r2(X_train, y_train, X_test, y_test) -> float:
-    """R² from OLS."""
-    X = np.column_stack([np.ones(len(X_train)), X_train])
-    Xt = np.column_stack([np.ones(len(X_test)), X_test])
-    try:
-        b = np.linalg.lstsq(X, y_train, rcond=None)[0]
-        pred = Xt @ b
-        ss_res = np.sum((y_test - pred) ** 2)
-        ss_tot = np.sum((y_test - y_test.mean()) ** 2)
-        return float(1 - ss_res / max(ss_tot, 1e-9))
-    except Exception:
-        return 0.0
-
-
 def _standardize_with_train_stats(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,

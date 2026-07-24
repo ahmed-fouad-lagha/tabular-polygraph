@@ -24,7 +24,8 @@ from tabular_polygraph.utils import normalize, numeric_columns
 def _normalise(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
     arr = df[cols].fillna(0).values.astype(float)
     result = normalize(arr, return_params=False)
-    assert isinstance(result, np.ndarray)
+    if not isinstance(result, np.ndarray):
+        raise TypeError(f"Expected np.ndarray, got {type(result)}")
     return result
 
 

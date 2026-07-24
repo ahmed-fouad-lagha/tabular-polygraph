@@ -7,7 +7,6 @@ auditors on ground-truth manifolds to detect semantic hallucinations via
 multiplicative manifold integrity penalties.
 """
 
-import random
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -135,11 +134,16 @@ class LogicalSentinelEnsemble:
     """
 
     def __init__(
-        self, top_n_hubs: int = 5, max_depth: int = 12, random_state: int = 42
+        self,
+        top_n_hubs: int = 5,
+        max_depth: int = 12,
+        random_state: int = 42,
+        confidence_percentile: float = 5.0,
     ) -> None:
         self.top_n_hubs = top_n_hubs
         self.max_depth = max_depth
         self.random_state = random_state
+        self.confidence_percentile = confidence_percentile
         self.sentinels: Dict[str, RandomForestClassifier] = {}
         self.hubs: List[str] = []
         self.confidence_floors: Dict[str, float] = {}
@@ -283,7 +287,7 @@ class LogicalSentinelEnsemble:
             # With OOB, this reflects realistic generalization uncertainty
             # rather than memorization artifacts.
             self.confidence_floors[hub_col] = max(
-                float(np.percentile(probs_true, 5.0)), 0.01
+                float(np.percentile(probs_true, self.confidence_percentile)), 0.01
             )
 
         self.is_trained = True
@@ -554,6 +558,8 @@ def hif_score(
     hif_epochs: int = 10,
     hif_hubs: int = 5,
     hif_depth: int = 12,
+    confidence_percentile: float = 5.0,
+    violation_threshold: float = 0.5,
     rule_min_confidence: float = 0.95,
     rule_min_support: float = 0.005,
     rule_max_rules: int = 25,
@@ -570,8 +576,9 @@ def hif_score(
     and Neighbor-Invariant Continuity (NIC).
     """
     seed_val = int(random_state) if random_state is not None else 42
-    np.random.seed(seed_val)
-    random.seed(seed_val)
+    from tabular_polygraph.utils import set_seed
+
+    set_seed(seed_val)
 
     if columns is None:
         columns = real.columns.intersection(synthetic.columns).tolist()
@@ -606,7 +613,10 @@ def hif_score(
 
     # 1. Categorical Layer: Manifold Sentinels
     oracle = LogicalSentinelEnsemble(
-        top_n_hubs=hif_hubs, max_depth=hif_depth, random_state=random_state
+        top_n_hubs=hif_hubs,
+        max_depth=hif_depth,
+        random_state=random_state,
+        confidence_percentile=confidence_percentile,
     )
     if verbose:
         print(
@@ -710,9 +720,9 @@ def hif_score(
     row_penalties = 1.0 - row_validity
     hif_score_val = row_validity.mean()
 
-    num_violations = (row_penalties > 0.5).sum()
+    num_violations = (row_penalties > violation_threshold).sum()
     violation_rate = float(num_violations / len(row_penalties))
-    cat_violation_rate = (cat_penalties > 0.5).mean()
+    cat_violation_rate = (cat_penalties > violation_threshold).mean()
 
     return {
         "hif_score": round(float(hif_score_val), 4),
@@ -720,7 +730,7 @@ def hif_score(
         "violation_rate": round(violation_rate, 4),
         "mean_penalty": round(float(row_penalties.mean()), 4),
         "num_violations": int(num_violations),
-        "violation_threshold": 0.5,
+        "violation_threshold": violation_threshold,
         "lse_violation_rate": round(float(cat_violation_rate), 4),
         "nic_violation_rate": round(float(nic_violation_rate), 4),
         "rule_violation_rate": round(float(rule_result["rule_violation_rate"]), 4),

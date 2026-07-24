@@ -35,6 +35,7 @@ class ForestDiffusionGenerator(BaseGenerator):
         self._n_t = n_t
         self._max_train_rows = max_train_rows
         self._model: Any | None = None
+        self._seed: int = 42
 
     def _require_forest_diffusion(self):
         try:
@@ -73,7 +74,7 @@ class ForestDiffusionGenerator(BaseGenerator):
         if len(X_np) > self._max_train_rows:
             import numpy as np
 
-            rng = np.random.RandomState(42)
+            rng = np.random.RandomState(self._seed)
             idx = rng.choice(len(X_np), self._max_train_rows, replace=False)
             X_np = X_np[idx]
             print(
@@ -92,7 +93,7 @@ class ForestDiffusionGenerator(BaseGenerator):
             duplicate_K=1,
             cat_indexes=cat_indexes,
             int_indexes=int_indexes,
-            seed=42,
+            seed=self._seed,
             n_jobs=1,
             n_batch=0,  # Turbo mode: Use standard fast DMatrix
             n_estimators=50,  # Faster training for audit

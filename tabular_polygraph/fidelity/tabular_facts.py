@@ -61,9 +61,15 @@ def tabular_stylized_facts(
         )
 
         # Rank correlation of the correlations (Spearman on correlation vectors)
-        rank_match = float(
-            stats.spearmanr(r_corr.index.map(s_corr.get), r_corr.values)[0]
-        )
+        common_idx = r_corr.index.intersection(s_corr.index)
+        if len(common_idx) < 2:
+            rank_match = 0.0
+        else:
+            rank_match = float(
+                stats.spearmanr(
+                    s_corr.loc[common_idx].values, r_corr.loc[common_idx].values
+                )[0]
+            )
         rank_match = max(0, rank_match)  # Clamp negative correlations
 
         # 3. Concentration (Lorenz-style: top 5% share)

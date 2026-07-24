@@ -180,7 +180,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         prior = self._priors.get(col)
         if prior is not None and m.kind in ("norm", "lognorm"):
             p = m._params
-            p["loc"] = prior.map_mean(p.get("loc", p.get("scale", 0)), n)
+            p["loc"] = prior.map_mean(p.get("loc", 0), n)
             p["scale"] = max(prior.map_std(p.get("scale", 1), n), 1e-6)
 
     def _fit_correlation(self, normal: np.ndarray) -> None:
