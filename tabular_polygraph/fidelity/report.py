@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import time
 
-import numpy as np
 import pandas as pd
 
 from tabular_polygraph.utils import DEFAULT_DROP_LIST, numeric_columns
@@ -122,65 +121,15 @@ def _summary_section(
     n_syn: int,
     t0: float,
 ) -> dict:
-    """
-    Compute Hybrid Integrity scores.
-    """
-    eps = 1.0
-
-    # 1. Fidelity Pillar (Stats)
-    fidelity_score = (
-        np.exp(
-            (np.log(mm_score + eps) + np.log(ks_score + eps) + np.log(corr_score + eps))
-            / 3
-        )
-        - eps
-    )
-    fidelity_score = round(float(max(0.0, min(100.0, fidelity_score))), 2)
-
-    # 2. Logic Pillar (Integrity)
-    logic_score = (
-        round(float(logical_validity), 2) if logical_validity is not None else None
-    )
-
-    # 3. Utility Pillar (Downstream)
-    u_scores = []
-    if "downstream" in utility_report and "ratio" in utility_report["downstream"]:
-        # Perfect ratio is 1.0
-        ratio = utility_report["downstream"]["ratio"]
-        tstr_val = max(0.0, (1.0 - abs(1.0 - ratio)) * 100)
-        u_scores.append(tstr_val)
-
-    if (
-        "stylized_facts" in utility_report
-        and "_summary" in utility_report["stylized_facts"]
-    ):
-        u_scores.append(
-            utility_report["stylized_facts"]["_summary"].get("mean_score", 0)
-        )
-
-    utility_score = round(float(np.mean(u_scores)), 2) if u_scores else None
-
-    # Hybrid Aggregate
-    pillars = {"fidelity": fidelity_score}
-    if logic_score is not None:
-        pillars["logic"] = logic_score
-    if utility_score is not None:
-        pillars["utility"] = utility_score
-
-    log_sum = sum(np.log(val + eps) for val in pillars.values())
-    overall = np.exp(log_sum / len(pillars)) - eps
-    overall = round(float(max(0.0, min(100.0, overall))), 2)
+    """Collect individual metric scores into a summary dict."""
 
     return {
-        "hybrid_integrity": overall,
-        "pillars": {
-            "fidelity": fidelity_score,
-            "logic": logic_score,
-            "utility": utility_score,
-        },
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
+        "logic_score": round(float(logical_validity), 2)
+        if logical_validity is not None
+        else None,
         "rows_real": n_real,
         "rows_synthetic": n_syn,
         "elapsed_seconds": round(time.time() - t0, 3),
@@ -307,21 +256,13 @@ def format_report(report: dict, width: int = 60) -> str:
         f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
     )
     lines.append("")
-    # 4-Pillar Scoreboard
     lines.append("-" * width)
-    lines.append(f"{'  PILLAR':<25} | {'SCORE':<10}")
-    lines.append("-" * width)
-    pillars = s.get("pillars", {})
-    lines.append(f"  1. Fidelity (Stats)     | {pillars.get('fidelity', 0):>6.2f}%")
-    l_score = pillars.get("logic")
-    l_str = f"{l_score:>6.2f}%" if l_score is not None else "N/A"
-    lines.append(f"  2. Logic (Integrity)    | {l_str}")
-
-    u_score = pillars.get("utility")
-    u_str = f"{u_score:>6.2f}%" if u_score is not None else "N/A"
-    lines.append(f"  3. Utility (Tasks)      | {u_str}")
-
-    lines.append(f"  HYBRID INTEGRITY (HIF)  | {s.get('hybrid_integrity', 0):>6.2f}%")
+    lines.append(f"  Moment matching : {s.get('moment_matching_score', 0):>6.2f}%")
+    lines.append(f"  KS distribution : {s.get('ks_score', 0):>6.2f}%")
+    lines.append(f"  Joint distance  : {s.get('joint_score', 0):>6.2f}%")
+    l_score = s.get("logic_score")
+    if l_score is not None:
+        lines.append(f"  HIF (structural): {l_score:>6.2f}%")
     lines.append("-" * width)
     lines.append("")
 

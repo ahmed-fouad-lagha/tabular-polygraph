@@ -116,9 +116,7 @@ def run_single(real_df, gen_type, rows, seed, epochs):
         "nic_violation_rate_pct": lg.get("nic_violation_rate_pct", 0),
         "rules_mined": lg.get("num_rules_mined", 0),
         "num_violations": lg.get("num_hif_violations", 0),
-        "fidelity_pillar": s["pillars"]["fidelity"],
-        "logic_pillar": s["pillars"]["logic"],
-        "hybrid_integrity": s["hybrid_integrity"],
+        "logic_score": s["logic_score"],
     }
 
 
@@ -237,9 +235,8 @@ def main():
             g = d_df[d_df["generator"] == gen_name]
             print(
                 f"  {gen_name:<22} "
-                f"{g['fidelity_pillar'].mean():.2f}%    "
-                f"{g['logic_pillar'].mean():.2f}%    "
-                f"{g['hybrid_integrity'].mean():.2f}%"
+                f"KS={g['ks_score'].mean():.2f}%    "
+                f"HIF={g['logic_score'].mean():.2f}%"
             )
 
     # Save raw results

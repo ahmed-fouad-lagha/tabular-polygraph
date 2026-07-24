@@ -1,16 +1,7 @@
-import numpy as np
-
 from tabular_polygraph.fidelity.report import _summary_section
 
 
-def test_weighted_geometric_mean_sensitivity():
-    """
-    Verify that a zero score in HIF results in a very low overall score,
-    unlike an arithmetic mean.
-    """
-
-    # Case 1: Perfect stats, Zero Logic
-    # geometric mean: exp(0.7*log(101) + 0.3*log(1)) - 1 ≈ 24.
+def test_summary_section_basic():
     res = _summary_section(
         mm_score=100.0,
         ks_score=100.0,
@@ -22,20 +13,19 @@ def test_weighted_geometric_mean_sensitivity():
         t0=0,
     )
 
-    hybrid_score = res["hybrid_integrity"]
-    assert hybrid_score < 40.0
-    assert "hybrid_integrity" in res
+    assert res["moment_matching_score"] == 100.0
+    assert res["ks_score"] == 100.0
+    assert res["joint_score"] == 100.0
+    assert res["logic_score"] == 0.0
+    assert "rows_real" in res
 
 
-def test_perfect_scores_return_100():
+def test_perfect_scores():
     res = _summary_section(100.0, 100.0, 100.0, 100.0, {}, 1, 1, 0)
-    assert np.isclose(res["hybrid_integrity"], 100.0)
+    assert res["moment_matching_score"] == 100.0
+    assert res["logic_score"] == 100.0
 
 
-def test_missing_hif_defaults_to_vacuous_consistency():
-    """
-    If logical_validity is not provided (e.g. no categorical columns),
-    it should treat the logic score as 100% (vacuously consistent).
-    """
-    res = _summary_section(90.0, 90.0, 90.0, 100.0, {}, 1, 1, 0)
-    assert res["hybrid_integrity"] >= 90.0
+def test_missing_hif_defaults_to_none():
+    res = _summary_section(90.0, 90.0, 90.0, None, {}, 1, 1, 0)
+    assert res["logic_score"] is None

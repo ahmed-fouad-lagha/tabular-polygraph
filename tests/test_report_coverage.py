@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 
 from tabular_polygraph.fidelity.report import (
-    _summary_section,
     fidelity_report,
     format_report,
 )
@@ -19,27 +18,12 @@ def test_fidelity_report_smoke():
     syn = real.copy()
     report = fidelity_report(real, syn, target_col="C")
     assert "summary" in report
-    assert "hybrid_integrity" in report["summary"]
+    assert "moment_matching_score" in report["summary"]
+    assert "logic_score" in report["summary"]
 
     formatted = format_report(report)
     assert "FIDELITY REPORT" in formatted
-    assert "HYBRID INTEGRITY" in formatted
-
-
-def test_summary_section_missing_utility():
-    # Test branch where utility_report is empty or doesn't have expected keys
-    res = _summary_section(
-        mm_score=90.0,
-        ks_score=90.0,
-        corr_score=90.0,
-        logical_validity=100.0,
-        utility_report={},
-        n_real=100,
-        n_syn=100,
-        t0=0,
-    )
-    assert res["pillars"]["utility"] is None
-    assert res["hybrid_integrity"] > 90.0
+    assert "Moment matching" in formatted
 
 
 def test_format_report_with_errors():
@@ -47,8 +31,10 @@ def test_format_report_with_errors():
         "summary": {
             "rows_real": 100,
             "rows_synthetic": 100,
-            "pillars": {"fidelity": 90.0, "logic": 90.0},
-            "hybrid_integrity": 90.0,
+            "moment_matching_score": 90.0,
+            "ks_score": 90.0,
+            "joint_score": 90.0,
+            "logic_score": 90.0,
             "elapsed_seconds": 1.5,
         },
         "logical": {"error": "Test error message"},
@@ -64,8 +50,10 @@ def test_format_report_with_rules():
         "summary": {
             "rows_real": 100,
             "rows_synthetic": 100,
-            "pillars": {"fidelity": 90.0, "logic": 90.0},
-            "hybrid_integrity": 90.0,
+            "moment_matching_score": 90.0,
+            "ks_score": 90.0,
+            "joint_score": 90.0,
+            "logic_score": 90.0,
             "elapsed_seconds": 1.5,
         },
         "logical": {
