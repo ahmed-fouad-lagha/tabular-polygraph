@@ -1,4 +1,4 @@
-# The Tabular Polygraph: Neurosymbolic Hallucination Detection in Synthetic Data
+# Beyond Fidelity: When Statistical Quality Metrics Miss Structural Violations in Synthetic Tabular Data
 
 <div align="center">
 
