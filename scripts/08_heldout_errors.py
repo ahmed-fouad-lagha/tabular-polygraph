@@ -33,7 +33,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.generators import GaussianCopulaGenerator
 

@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tabular_polygraph.catalog import load_dataset  # noqa: E402
+from tabular_polygraph.dataset import load_dataset  # noqa: E402
 from tabular_polygraph.fidelity import hif_score  # noqa: E402
 from tabular_polygraph.fidelity.logical import rule_violation_score  # noqa: E402
 from tabular_polygraph.utils import numeric_columns  # noqa: E402

@@ -49,7 +49,7 @@ class TestCustomGeneration:
 
     def test_cli_list_shows_all_datasets(self):
         """The list command should show all catalog datasets."""
-        from tabular_polygraph.catalog import DATASETS, list_datasets
+        from tabular_polygraph.dataset import DATASETS, list_datasets
 
         df = list_datasets()
         assert len(df) == len(DATASETS)

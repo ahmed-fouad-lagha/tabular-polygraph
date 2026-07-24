@@ -24,7 +24,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.catalog.downloader import load_cached
+from tabular_polygraph.dataset.downloader import load_cached
 from tabular_polygraph.fidelity import fidelity_report
 from tabular_polygraph.generators import (
     CTGANGenerator,
@@ -51,7 +51,7 @@ def _get_generator(gen_type: str, epochs: int = 500):
 def load_real_data(dataset_id: str) -> pd.DataFrame:
     df = load_cached(dataset_id)
     if df is None:
-        from tabular_polygraph.catalog import load_dataset
+        from tabular_polygraph.dataset import load_dataset
 
         df = load_dataset(dataset_id, n=50000)
 

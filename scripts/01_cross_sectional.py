@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 from tabular_polygraph.calibration.priors import get_priors
-from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import fidelity_report
 from tabular_polygraph.generators import GaussianCopulaGenerator
 from tabular_polygraph.privacy import privacy_audit

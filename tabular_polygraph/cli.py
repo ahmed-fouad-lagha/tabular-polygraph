@@ -5,8 +5,6 @@ Commands:
     generate <dataset>          Generate synthetic data
     evaluate <real> <syn>       Full fidelity report
     audit <real> <syn>          Full privacy audit
-    scenario list               List built-in scenarios
-    scenario apply <scenario>   Apply scenario to a CSV
     validate <file>             Validate a real data file
     download                    Fetch real-world datasets
 """
@@ -189,8 +187,8 @@ def _load_generator(
     **kwargs,
 ):
     """Load and fit a generator for the given dataset."""
-    from tabular_polygraph.catalog import load_dataset
-    from tabular_polygraph.catalog.downloader import load_cached
+    from tabular_polygraph.dataset import load_dataset
+    from tabular_polygraph.dataset.downloader import load_cached
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
@@ -403,32 +401,6 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
     return gen, seed_df, gen_type
 
 
-def _run_scenario_if_requested(syn, args):
-    if not getattr(args, "scenario", None):
-        return syn
-
-    from tabular_polygraph.calibration import apply_scenario
-
-    info(f"Applying scenario: {args.scenario}  (intensity={args.intensity})")
-    syn = apply_scenario(syn, args.scenario, intensity=args.intensity)
-    ok("Scenario applied")
-    return syn
-
-
-def _run_calibration_if_requested(syn, seed_df, args):
-    if not getattr(args, "calibrate", False):
-        return syn
-
-    from tabular_polygraph.calibration import match_moments
-
-    info("Running moment calibration...")
-    syn_body = syn.drop(columns=["syn_id"], errors="ignore")
-    syn_body = match_moments(seed_df, syn_body)
-    syn_body.insert(0, "syn_id", syn["syn_id"])
-    ok("Moments calibrated")
-    return syn_body
-
-
 def _compute_generate_report(seed_df, syn, gen_type, seed=42):
     from tabular_polygraph.fidelity import fidelity_report
 
@@ -571,7 +543,7 @@ def _save_generated_output(syn, output_path: str):
 
 
 def cmd_list(args):
-    from tabular_polygraph.catalog import list_datasets
+    from tabular_polygraph.dataset import list_datasets
 
     df = list_datasets(vertical=args.vertical if hasattr(args, "vertical") else None)
     header(
@@ -592,7 +564,7 @@ def cmd_list(args):
 
 
 def cmd_info(args):
-    from tabular_polygraph.catalog import get_dataset_info
+    from tabular_polygraph.dataset import get_dataset_info
 
     try:
         meta = get_dataset_info(args.dataset)
@@ -637,9 +609,6 @@ def cmd_generate(args):
     t1 = time.time()
     syn = gen.generate(args.rows, filters=filters or None, seed=args.seed)
     ok(f"{len(syn):,} rows generated  ({time.time() - t1:.1f}s)")
-
-    syn = _run_scenario_if_requested(syn, args)
-    syn = _run_calibration_if_requested(syn, seed_df, args)
 
     report = _compute_generate_report(
         seed_df,
@@ -770,64 +739,6 @@ def cmd_audit(args):
     print()
 
 
-def cmd_scenario_list(args):
-    from tabular_polygraph.calibration import list_scenarios
-
-    header("Built-in scenarios")
-    df = list_scenarios()
-    for _, row in df.iterrows():
-        print(f"\n    {_c(row['name'], C.BOLD)}")
-        print(f"    {_c(row['description'], C.GRAY)}")
-        print(f"    {row['columns_affected']} columns affected")
-    print()
-    dim(
-        "  Usage: tabular-polygraph scenario apply <name> --input data.csv --output stressed.csv"
-    )
-    print()
-
-
-def cmd_scenario_apply(args):
-    set_seed(args.seed)
-    from tabular_polygraph.calibration import apply_scenario
-    from tabular_polygraph.io import read, write
-
-    header(f"Applying scenario: {args.scenario}", f"intensity={args.intensity}")
-
-    if not Path(args.input).exists():
-        err(f"File not found: {args.input}")
-        sys.exit(1)
-
-    info(f"Loading: {args.input}")
-    df = read(args.input)
-    info(f"Rows: {len(df):,}  columns: {len(df.columns)}")
-
-    try:
-        result = apply_scenario(df, args.scenario, intensity=args.intensity)
-    except ValueError as e:
-        err(str(e))
-        sys.exit(1)
-
-    output = Path(args.output)
-    write(result, output)
-    ok(f"Saved → {_c(str(output), C.CYAN)}")
-
-    # Show which columns shifted
-    num_cols = [
-        c for c in df.columns if df[c].dtype.kind in "if" and c in result.columns
-    ]
-    if num_cols:
-        section("Column shifts")
-        for col in num_cols[:8]:
-            before = df[col].mean()
-            after = result[col].mean()
-            delta = after - before
-            sign = "+" if delta >= 0 else ""
-            print(
-                f"    {col:<28}  {before:>10.2f} → {after:>10.2f}  ({sign}{delta:.2f})"
-            )
-    print()
-
-
 def cmd_validate(args):
     from tabular_polygraph.io import read, validate
 
@@ -881,7 +792,7 @@ def cmd_validate(args):
 
 
 def cmd_download(args):
-    from tabular_polygraph.catalog.downloader import (
+    from tabular_polygraph.dataset.downloader import (
         DOWNLOADERS,
         download,
         is_cached,
@@ -999,25 +910,6 @@ def main():
         action="append",
         metavar="EXPR",
         help="e.g. --filter state:CA,TX  --filter dti_min:45",
-    )
-    p.add_argument(
-        "--scenario",
-        type=str,
-        default=None,
-        metavar="NAME",
-        help="Apply built-in scenario: recession | rate_shock | credit_crisis ...",
-    )
-    p.add_argument(
-        "--intensity",
-        type=float,
-        default=1.0,
-        metavar="F",
-        help="Scenario intensity 0.0–1.0 (default: 1.0)",
-    )
-    p.add_argument(
-        "--calibrate",
-        action="store_true",
-        help="Run moment calibration after generation",
     )
     p.add_argument(
         "--epochs",
@@ -1156,27 +1048,6 @@ def main():
     p.add_argument("--seed", type=int, default=42, metavar="N")
     p.set_defaults(func=cmd_audit)
 
-    # scenario
-    p_sc = sub.add_parser("scenario", help="Scenario management.")
-    sc_sub = p_sc.add_subparsers(dest="scenario_cmd", metavar="<subcommand>")
-
-    p_scl = sc_sub.add_parser("list", help="List built-in scenarios.")
-    p_scl.set_defaults(func=cmd_scenario_list)
-
-    p_sca = sc_sub.add_parser("apply", help="Apply a scenario to a CSV.")
-    p_sca.add_argument("scenario")
-    p_sca.add_argument("--input", type=str, required=True, metavar="FILE")
-    p_sca.add_argument("--output", type=str, required=True, metavar="FILE")
-    p_sca.add_argument("--intensity", type=float, default=1.0, metavar="F")
-    p_sca.add_argument("--seed", type=int, default=42, metavar="N")
-    p_sca.set_defaults(func=cmd_scenario_apply)
-
-    def _scenario_help(_args):
-        p_sc.print_help()
-        print()
-
-    p_sc.set_defaults(func=_scenario_help)
-
     # validate
     p = sub.add_parser("validate", help="Validate a real data file before fitting.")
     p.add_argument("file")
@@ -1211,18 +1082,9 @@ def main():
             "    tabular-polygraph evaluate real.csv synthetic.csv --type time_series --target gdp_growth_yoy"
         )
         dim("    tabular-polygraph audit real.csv synthetic.csv --attacks 500")
-        dim("    tabular-polygraph scenario list")
-        dim(
-            "    tabular-polygraph scenario apply recession --input syn.csv --output stressed.csv"
-        )
         dim("    tabular-polygraph validate my_data.csv")
         print()
         sys.exit(0)
-
-    # Handle scenario sub-subcommand routing
-    if args.command == "scenario" and not getattr(args, "scenario_cmd", None):
-        cmd_scenario_list(args)
-        return
 
     args.func(args)
 

@@ -35,7 +35,7 @@ class CTGANGenerator(BaseGenerator):
 
     def _init(
         self,
-        epochs: int = 300,
+        epochs: int = 50,
         batch_size: int = 500,
         generator_lr: float = 2e-4,
         discriminator_lr: float = 2e-4,

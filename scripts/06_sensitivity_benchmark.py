@@ -18,7 +18,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 
 

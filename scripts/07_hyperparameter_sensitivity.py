@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.utils import set_seed
 

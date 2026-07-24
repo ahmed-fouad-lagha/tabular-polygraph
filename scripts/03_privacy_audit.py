@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-from tabular_polygraph.catalog import load_dataset
+from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.generators import GaussianCopulaGenerator
 

@@ -1,10 +1,10 @@
 """
-Download data from public government sources and cache it locally.
+Download data from public sources and cache it locally.
 
 Usage
 -----
     # Download one dataset
-    from tabular_polygraph.catalog.downloader import download, status
+    from tabular_polygraph.dataset.downloader import download, status
     download("fred_macro")
 
     # Download all
@@ -524,7 +524,7 @@ def download(
 
     Example
     -------
-        from tabular_polygraph.catalog.downloader import download
+        from tabular_polygraph.dataset.downloader import download
         df = download("world_bank")
         all_data = download("all")  # yields a dictionary
     """

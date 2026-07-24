@@ -1,6 +1,6 @@
 import pytest
 
-from tabular_polygraph.catalog.downloader import (
+from tabular_polygraph.dataset.downloader import (
     DOWNLOADERS,
     cache_path,
     is_cached,
@@ -51,7 +51,7 @@ class TestSchemaIntegrity:
         Validate that all cached datasets have the expected core columns.
         This provides the guardrail previously in _validate_df.
         """
-        from tabular_polygraph.catalog.loader import DATASETS
+        from tabular_polygraph.dataset.loader import DATASETS
 
         for did in DATASETS:
             if is_cached(did):

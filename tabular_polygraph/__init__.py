@@ -1,14 +1,12 @@
 """
 Quick start:
     from tabular_polygraph.generators import GaussianCopulaGenerator
-    from tabular_polygraph.catalog    import load_dataset
+    from tabular_polygraph.dataset    import load_dataset
     from tabular_polygraph.fidelity   import fidelity_report
     from tabular_polygraph.privacy    import privacy_audit
-    from tabular_polygraph.calibration import apply_scenario
 """
 
-from .calibration import apply_scenario, list_scenarios
-from .catalog import get_dataset_info, list_datasets, load_dataset
+from .dataset import get_dataset_info, list_datasets, load_dataset
 from .fidelity import fidelity_report, format_report
 from .generators.base import BaseGenerator
 from .generators.cross_sectional import GaussianCopulaGenerator
@@ -30,8 +28,6 @@ __all__ = [
     "format_report",
     "privacy_audit",
     "format_audit",
-    "apply_scenario",
-    "list_scenarios",
     "read",
     "write",
     "validate",
