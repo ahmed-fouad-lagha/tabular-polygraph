@@ -5,36 +5,6 @@ from __future__ import annotations
 import pandas as pd
 
 DATASETS: dict[str, dict] = {
-    "fred_macro": {
-        "name": "FRED Macroeconomic Indicators",
-        "vertical": "Macro & Central Bank",
-        "source": "Federal Reserve FRED 2000-2023",
-        "description": "Monthly panel: GDP, CPI, unemployment, fed funds rate, yield curve, M2, VIX.",
-        "columns": [
-            "year",
-            "gdp_growth_yoy",
-            "cpi_yoy",
-            "core_cpi_yoy",
-            "unemployment_rate",
-            "fed_funds_rate",
-            "t10y_rate",
-            "t2y_rate",
-            "yield_curve_spread",
-            "m2_growth",
-            "housing_starts",
-            "industrial_production",
-            "consumer_sentiment",
-            "oil_price_yoy",
-            "vix",
-        ],
-        "col_count": 15,
-        "tags": ["CSV", "Parquet", "JSON"],
-        "use_cases": [
-            "Macro regime models",
-            "Rate forecasting",
-            "Recession probability",
-        ],
-    },
     "bls": {
         "name": "BLS Employment & Wages",
         "vertical": "Macro & Central Bank",
@@ -57,33 +27,6 @@ DATASETS: dict[str, dict] = {
             "Labour market models",
             "Wage inflation forecasting",
             "Regional economic analysis",
-        ],
-    },
-    "world_bank": {
-        "name": "World Bank Development Indicators",
-        "vertical": "Macro & Central Bank",
-        "source": "World Bank WDI 2022",
-        "description": "Cross-country annual panel: GDP per capita, inflation, current account, FDI, debt-to-GDP.",
-        "columns": [
-            "country_code",
-            "income_group",
-            "region",
-            "year",
-            "gdp_per_capita",
-            "gdp_growth",
-            "inflation",
-            "current_account_pct_gdp",
-            "fdi_pct_gdp",
-            "govt_debt_pct_gdp",
-            "population_growth",
-            "gini",
-        ],
-        "col_count": 12,
-        "tags": ["CSV", "Parquet", "JSON"],
-        "use_cases": [
-            "Sovereign risk models",
-            "EM macro forecasting",
-            "ESG country scoring",
         ],
     },
     "census_acs": {
@@ -176,13 +119,12 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
 
     All datasets are real, downloadable public data. To use, first download:
         from tabular_polygraph.dataset.downloader import download
-        download("fred_macro")   # requires FRED_API_KEY env var
         download("bls")
-        download("world_bank")
         download("census_acs")
+        download("adult")
 
     Args:
-        dataset_id: One of ["fred_macro", "bls", "world_bank", "census_acs"]
+        dataset_id: One of ["bls", "census_acs", "adult"]
         n: Max number of records to return (default 2000)
 
     Returns:

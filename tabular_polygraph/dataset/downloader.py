@@ -5,7 +5,7 @@ Usage
 -----
     # Download one dataset
     from tabular_polygraph.dataset.downloader import download, status
-    download("fred_macro")
+    download("bls")
 
     # Download all
     download("all")
@@ -15,14 +15,13 @@ Usage
 
 CLI
 ---
-    tabular-polygraph download fred_macro
+    tabular-polygraph download bls
     tabular-polygraph download all
     tabular-polygraph download status
 
 Sources
 -------
-All sources are public, and require no authentication except FRED
-(which needs a free API key from fred.stlouisfed.org/docs/api/api_key.html).
+All sources are public datasets.
 """
 
 from __future__ import annotations
@@ -35,7 +34,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 
@@ -59,28 +57,6 @@ def is_cached(dataset_id: str) -> bool:
 
 
 DOWNLOADERS: dict[str, dict] = {
-    "fred_macro": {
-        "name": "FRED Macroeconomic Indicators",
-        "source": "Federal Reserve FRED",
-        "url": "https://api.stlouisfed.org/fred/series/observations",
-        "method": "fred_api",
-        "size_hint": "~1 MB — fast",
-        "requires": "FRED_API_KEY environment variable",
-        "indicators": {
-            "GDP": "gdp_growth_yoy",
-            "CPIAUCSL": "cpi_yoy",
-            "CPILFESL": "core_cpi_yoy",
-            "UNRATE": "unemployment_rate",
-            "FEDFUNDS": "fed_funds_rate",
-            "GS10": "t10y_rate",
-            "GS2": "t2y_rate",
-            "M2SL": "m2_growth",
-            "HOUST": "housing_starts",
-            "INDPRO": "industrial_production",
-            "UMCSENT": "consumer_sentiment",
-            "VIXCLS": "vix",
-        },
-    },
     "bls": {
         "name": "BLS Employment & Wages",
         "source": "Bureau of Labor Statistics QCEW",
@@ -98,23 +74,6 @@ DOWNLOADERS: dict[str, dict] = {
             "qtrly_estabs": "establishments",
             "qtr": "quarter",
             "year": "year",
-        },
-    },
-    "world_bank": {
-        "name": "World Bank Development Indicators",
-        "source": "World Bank WDI API",
-        "url": "https://api.worldbank.org/v2/country/all/indicator",
-        "method": "worldbank_api",
-        "size_hint": "~5 MB — fast",
-        "indicators": {
-            "NY.GDP.MKTP.KD.ZG": "gdp_growth",
-            "NY.GDP.PCAP.KD": "gdp_per_capita",
-            "FP.CPI.TOTL.ZG": "inflation",
-            "BN.CAB.XOKA.GD.ZS": "current_account_pct_gdp",
-            "BX.KLT.DINV.WD.GD.ZS": "fdi_pct_gdp",
-            "GC.DOD.TOTL.GD.ZS": "govt_debt_pct_gdp",
-            "SP.POP.GROW": "population_growth",
-            "SI.POV.GINI": "gini",
         },
     },
     "census_acs": {
@@ -162,147 +121,6 @@ DOWNLOADERS: dict[str, dict] = {
         },
     },
 }
-
-
-def _download_world_bank(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download World Bank WDI via API. No key needed."""
-
-    indicators = DOWNLOADERS["world_bank"]["indicators"]
-    base_url = DOWNLOADERS["world_bank"]["url"]
-    frames = {}
-
-    for code, col_name in indicators.items():
-        url = f"{base_url}/{code}?format=json&per_page=20000&mrv=25&date=2000:2023"
-        print(f"    Fetching {col_name} ({code})...", end=" ", flush=True)
-        try:
-            with urllib.request.urlopen(url, timeout=30) as r:
-                data = json.loads(r.read())
-            records = data[1] if len(data) > 1 else []
-            rows = []
-            for rec in records:
-                if rec.get("value") is not None:
-                    rows.append(
-                        {
-                            "country_code": rec.get("countryiso3code"),
-                            "year": int(rec["date"]),
-                            col_name: float(rec["value"]),
-                        }
-                    )
-            frames[col_name] = pd.DataFrame(rows)
-            print(f"{len(rows)} rows")
-        except Exception as e:
-            print(f"FAILED ({e})")
-            continue
-        time.sleep(0.3)  # be polite to the API
-
-    if not frames:
-        raise RuntimeError("No World Bank data downloaded")
-
-    # Merge all indicators on country_code + year
-    df = None
-    for _col_name, frame in frames.items():
-        if df is None:
-            df = frame
-        else:
-            # Ensure we don't multiply rows during indicator merge
-            df = df.merge(frame, on=["country_code", "year"], how="outer")
-
-    if df is None:
-        raise RuntimeError("No World Bank data merged")
-
-    # Add metadata columns
-    meta_url = "https://api.worldbank.org/v2/country?format=json&per_page=300"
-    try:
-        with urllib.request.urlopen(meta_url, timeout=30) as r:
-            meta_data = json.loads(r.read())
-        meta_rows = []
-        for c in meta_data[1]:
-            meta_rows.append(
-                {
-                    "country_code": c.get("id"),
-                    "income_group": c.get("incomeLevel", {}).get("value", "Unknown"),
-                    "region": c.get("region", {}).get("value", "Unknown"),
-                }
-            )
-        meta_df = pd.DataFrame(meta_rows).drop_duplicates(subset=["country_code"])
-        df = df.merge(meta_df, on="country_code", how="left")
-    except Exception:
-        df["income_group"] = "Unknown"
-        df["region"] = "Unknown"
-
-    df = df.dropna(subset=["gdp_growth"]) if "gdp_growth" in df.columns else df.dropna()
-    df = df.reset_index(drop=True)
-    return df.sample(min(n_sample, len(df)), random_state=42)
-
-
-def _download_fred(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download FRED series via API. Requires FRED_API_KEY env var."""
-
-    api_key = os.environ.get("FRED_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "FRED_API_KEY environment variable not set.\n"
-            "Get a free key at: https://fred.stlouisfed.org/docs/api/api_key.html\n"
-            "Then: export FRED_API_KEY=your_key_here"
-        )
-
-    indicators = DOWNLOADERS["fred_macro"]["indicators"]
-    base_url = "https://api.stlouisfed.org/fred/series/observations"
-    frames = {}
-
-    for series_id, col_name in indicators.items():
-        params = urllib.parse.urlencode(
-            {
-                "series_id": series_id,
-                "api_key": api_key,
-                "file_type": "json",
-                "observation_start": "2000-01-01",
-                "frequency": "m",
-            }
-        )
-        url = f"{base_url}?{params}"
-        print(f"    Fetching {col_name} ({series_id})...", end=" ", flush=True)
-        try:
-            with urllib.request.urlopen(url, timeout=30) as r:
-                data = json.loads(r.read())
-            rows = [
-                {"date": obs["date"], col_name: float(obs["value"])}
-                for obs in data["observations"]
-                if obs["value"] != "."
-            ]
-            frames[col_name] = pd.DataFrame(rows)
-            print(f"{len(rows)} observations")
-        except Exception as e:
-            print(f"FAILED ({e})")
-        time.sleep(0.2)
-
-    if not frames:
-        raise RuntimeError("No FRED data downloaded")
-
-    df = None
-    for _col_name, frame in frames.items():
-        if df is None:
-            df = frame
-        else:
-            df = df.merge(frame, on="date", how="outer")
-    if df is None:
-        raise RuntimeError("No FRED data merged")
-
-    df["date"] = pd.to_datetime(df["date"])
-    df["year"] = df["date"].dt.year
-    # Target specific indicator for dropna to avoid fragility
-    primary_col = (
-        "gdp_growth_yoy"
-        if "gdp_growth_yoy" in df.columns
-        else list(indicators.values())[0]
-    )
-    df = df.dropna(subset=[primary_col])
-
-    # Add VIX if available (it's in a different series)
-    if "vix" not in df.columns:
-        df["vix"] = np.nan
-
-    return df.sample(min(n_sample, len(df)), random_state=42)
 
 
 def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
@@ -494,8 +312,6 @@ def _download_adult(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
 
 # Mapping of registry methods to internal downloader functions
 METHOD_MAP = {
-    "worldbank_api": _download_world_bank,
-    "fred_api": _download_fred,
     "bls_api": _download_bls,
     "census_api": _download_census,
     "direct_csv": _download_adult,
