@@ -4,7 +4,6 @@ Commands:
     info <dataset>              Full dataset metadata
     generate <dataset>          Generate synthetic data
     evaluate <real> <syn>       Full fidelity report
-    audit <real> <syn>          Full privacy audit
     validate <file>             Validate a real data file
     download                    Fetch real-world datasets
 """
@@ -598,71 +597,6 @@ def cmd_evaluate(args):
         ok(f"Report saved → {args.output}")
 
 
-def cmd_audit(args):
-    set_seed(args.seed)
-    header("TAMIS Privacy Oracle audit", f"{args.real}  vs  {args.synthetic}")
-
-    for p in [Path(args.real), Path(args.synthetic)]:
-        if not p.exists():
-            err(f"File not found: {p}")
-            sys.exit(1)
-
-    from tabular_polygraph.io import read
-    from tabular_polygraph.privacy import format_audit, privacy_audit
-
-    info(f"Loading real:      {args.real}")
-    real = read(args.real)
-    info(f"Loading synthetic: {args.synthetic}")
-    syn = read(args.synthetic)
-    info(f"Rows — real: {len(real):,}  synthetic: {len(syn):,}")
-    info(f"Running {args.attacks} TAMIS attacks per test...")
-    print()
-
-    report = privacy_audit(
-        real,
-        syn,
-        n_attacks=args.attacks,
-        seed=args.seed,
-    )
-
-    print(format_audit(report))
-
-    v = report["verdict"]
-    section("Detailed results")
-    ec = report["exact_copies"]
-    mi = report["membership_inference"]
-    so = report["singling_out"]
-    lk = report["linkability"]
-
-    print(f"    {'Exact copies':<28}{ec['count']}  [{risk_colour(ec['risk_level'])}]")
-    print(
-        f"    {'Membership inference AUC':<28}{mi.get('attack_auc', '—')}  [{risk_colour(mi.get('risk_level', '—'))}]"
-    )
-    print(f"      {_c(mi.get('interpretation', ''), C.GRAY)}")
-    print(
-        f"    {'Singling-out rate':<28}{so.get('singling_out_rate', '—')}  [{risk_colour(so.get('risk_level', '—'))}]"
-    )
-    print(
-        f"    {'Linkability rate':<28}{lk.get('linkability_rate', '—')}  [{risk_colour(lk.get('risk_level', '—'))}]"
-    )
-    print(f"      lift {lk.get('lift_over_baseline_pct', '—')}% over baseline")
-    print()
-    print(f"    {_c('Recommendation:', C.BOLD)}")
-    print(f"    {v['recommendation']}")
-
-    if getattr(args, "json", False):
-        import json as _json
-
-        print(_json.dumps(report, indent=2, default=str))
-
-    if getattr(args, "output", None):
-        import json as _json
-
-        Path(args.output).write_text(_json.dumps(report, indent=2, default=str))
-        ok(f"Audit saved → {args.output}")
-    print()
-
-
 def cmd_validate(args):
     from tabular_polygraph.io import read, validate
 
@@ -956,21 +890,6 @@ def main():
         help="Maximum antecedent size for mined logical rules (default: 2)",
     )
     p.set_defaults(func=cmd_evaluate)
-
-    # audit
-    p = sub.add_parser("audit", help="Full TAMIS privacy audit.")
-    p.add_argument("real")
-    p.add_argument("synthetic")
-    p.add_argument(
-        "--attacks",
-        type=int,
-        default=300,
-        metavar="N",
-        help="Number of TAMIS attack attempts per test (default: 300)",
-    )
-    p.add_argument("--output", type=str, default=None, metavar="FILE")
-    p.add_argument("--seed", type=int, default=42, metavar="N")
-    p.set_defaults(func=cmd_audit)
 
     # validate
     p = sub.add_parser("validate", help="Validate a real data file before fitting.")

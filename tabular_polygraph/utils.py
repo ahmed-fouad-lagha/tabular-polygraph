@@ -1,5 +1,5 @@
 """
-Shared utilities and helpers used across fidelity, generators, and privacy modules.
+Shared utilities and helpers used across fidelity and generators modules.
 
 Provides:
   - Column filtering (numeric, categorical, shared)

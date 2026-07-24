@@ -32,7 +32,6 @@ def test_summary_section_missing_utility():
         mm_score=90.0,
         ks_score=90.0,
         corr_score=90.0,
-        privacy_score=95.0,
         logical_validity=100.0,
         utility_report={},
         n_real=100,
@@ -48,7 +47,7 @@ def test_format_report_with_errors():
         "summary": {
             "rows_real": 100,
             "rows_synthetic": 100,
-            "pillars": {"fidelity": 90.0, "logic": 90.0, "privacy": 90.0},
+            "pillars": {"fidelity": 90.0, "logic": 90.0},
             "hybrid_integrity": 90.0,
             "elapsed_seconds": 1.5,
         },
@@ -65,7 +64,7 @@ def test_format_report_with_rules():
         "summary": {
             "rows_real": 100,
             "rows_synthetic": 100,
-            "pillars": {"fidelity": 90.0, "logic": 90.0, "privacy": 90.0},
+            "pillars": {"fidelity": 90.0, "logic": 90.0},
             "hybrid_integrity": 90.0,
             "elapsed_seconds": 1.5,
         },

@@ -118,7 +118,6 @@ def run_single(real_df, gen_type, rows, seed, epochs):
         "num_violations": lg.get("num_hif_violations", 0),
         "fidelity_pillar": s["pillars"]["fidelity"],
         "logic_pillar": s["pillars"]["logic"],
-        "privacy_pillar": s["pillars"]["privacy"],
         "hybrid_integrity": s["hybrid_integrity"],
     }
 
@@ -240,7 +239,6 @@ def main():
                 f"  {gen_name:<22} "
                 f"{g['fidelity_pillar'].mean():.2f}%    "
                 f"{g['logic_pillar'].mean():.2f}%    "
-                f"{g['privacy_pillar'].mean():.2f}%    "
                 f"{g['hybrid_integrity'].mean():.2f}%"
             )
 

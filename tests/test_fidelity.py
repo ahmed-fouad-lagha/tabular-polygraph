@@ -206,7 +206,6 @@ class TestFidelityReport:
             "distribution_fit",
             "joint",
             "stylized_facts",
-            "privacy_basic",
             "summary",
         ]:
             assert key in report

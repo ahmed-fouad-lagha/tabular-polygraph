@@ -116,7 +116,6 @@ def _summary_section(
     mm_score: float,
     ks_score: float,
     corr_score: float,
-    privacy_score: float,
     logical_validity: float | None,
     utility_report: dict,
     n_real: int,
@@ -124,7 +123,7 @@ def _summary_section(
     t0: float,
 ) -> dict:
     """
-    Compute 4-Pillar Hybrid Integrity scores.
+    Compute Hybrid Integrity scores.
     """
     eps = 1.0
 
@@ -161,12 +160,8 @@ def _summary_section(
 
     utility_score = round(float(np.mean(u_scores)), 2) if u_scores else None
 
-    # 4. Privacy Pillar
-    p_score = round(float(privacy_score), 2)
-
     # Hybrid Aggregate
-    # If utility is missing, we average the 3 available pillars
-    pillars = {"fidelity": fidelity_score, "privacy": p_score}
+    pillars = {"fidelity": fidelity_score}
     if logic_score is not None:
         pillars["logic"] = logic_score
     if utility_score is not None:
@@ -182,7 +177,6 @@ def _summary_section(
             "fidelity": fidelity_score,
             "logic": logic_score,
             "utility": utility_score,
-            "privacy": p_score,
         },
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
@@ -266,17 +260,6 @@ def fidelity_report(
     if downstream_report is not None:
         report["downstream"] = downstream_report
 
-    # ── Privacy (basic — full audit is in privacy/audit.py) ──────────────────
-    real_hashes = set(pd.util.hash_pandas_object(real[cols], index=False))
-    syn_hashes = pd.util.hash_pandas_object(
-        syn[[c for c in cols if c in syn.columns]], index=False
-    )
-    exact_copies = int(syn_hashes.isin(real_hashes).sum())
-    report["privacy_basic"] = {
-        "exact_copies": exact_copies,
-        "privacy_score": round((1 - exact_copies / max(len(syn), 1)) * 100, 2),
-    }
-
     logical_report, logical_validity = _logical_section(
         real,
         syn,
@@ -301,7 +284,6 @@ def fidelity_report(
         mm_score=mm_score,
         ks_score=ks_score,
         corr_score=corr_score,
-        privacy_score=report["privacy_basic"]["privacy_score"],
         logical_validity=logical_validity,
         utility_report=report,  # Contains stylized_facts and downstream
         n_real=len(real),
@@ -339,7 +321,6 @@ def format_report(report: dict, width: int = 60) -> str:
     u_str = f"{u_score:>6.2f}%" if u_score is not None else "N/A"
     lines.append(f"  3. Utility (Tasks)      | {u_str}")
 
-    lines.append(f"  4. Privacy (Audit)      | {pillars.get('privacy', 0):>6.2f}%")
     lines.append(f"  HYBRID INTEGRITY (HIF)  | {s.get('hybrid_integrity', 0):>6.2f}%")
     lines.append("-" * width)
     lines.append("")
