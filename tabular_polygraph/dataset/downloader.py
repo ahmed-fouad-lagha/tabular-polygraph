@@ -120,6 +120,39 @@ DOWNLOADERS: dict[str, dict] = {
             "income": "income",
         },
     },
+    "credit": {
+        "name": "Credit Card Default",
+        "source": "UCI Machine Learning Repository",
+        "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls",
+        "method": "direct_excel",
+        "size_hint": "~2 MB — fast",
+        "indicators": {
+            "LIMIT_BAL": "limit_bal",
+            "SEX": "sex",
+            "EDUCATION": "education",
+            "MARRIAGE": "marriage",
+            "AGE": "age",
+            "PAY_0": "pay_0",
+            "PAY_2": "pay_2",
+            "PAY_3": "pay_3",
+            "PAY_4": "pay_4",
+            "PAY_5": "pay_5",
+            "PAY_6": "pay_6",
+            "BILL_AMT1": "bill_amt1",
+            "BILL_AMT2": "bill_amt2",
+            "BILL_AMT3": "bill_amt3",
+            "BILL_AMT4": "bill_amt4",
+            "BILL_AMT5": "bill_amt5",
+            "BILL_AMT6": "bill_amt6",
+            "PAY_AMT1": "pay_amt1",
+            "PAY_AMT2": "pay_amt2",
+            "PAY_AMT3": "pay_amt3",
+            "PAY_AMT4": "pay_amt4",
+            "PAY_AMT5": "pay_amt5",
+            "PAY_AMT6": "pay_amt6",
+            "default payment next month": "default_payment",
+        },
+    },
 }
 
 
@@ -310,11 +343,34 @@ def _download_adult(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
+def _download_credit(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+    """Download Credit Card Default dataset from UCI repository."""
+    url = DOWNLOADERS["credit"]["url"]
+    print("    Fetching Credit Card Default dataset from UCI...")
+    df = pd.read_excel(
+        url, header=1
+    )  # Row 0 is the header names, row 1 is the actual header
+    # The actual column names are in the first data row
+    # Column 0 is ID (drop it)
+    if "ID" in df.columns:
+        df = df.drop(columns=["ID"])
+
+    # Rename columns using the indicators mapping
+    rename_map = DOWNLOADERS["credit"]["indicators"]
+    df = df.rename(columns=rename_map)
+
+    # Clean column names (lowercase, underscores)
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    return df.sample(min(n_sample, len(df)), random_state=42)
+
+
 # Mapping of registry methods to internal downloader functions
 METHOD_MAP = {
     "bls_api": _download_bls,
     "census_api": _download_census,
     "direct_csv": _download_adult,
+    "direct_excel": _download_credit,
 }
 
 
