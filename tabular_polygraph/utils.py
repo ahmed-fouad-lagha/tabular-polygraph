@@ -10,14 +10,9 @@ Provides:
 from __future__ import annotations
 
 import random
-from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
-
-# Type aliases
-FloatArray: TypeAlias = np.ndarray  # 1D or 2D float array
-
 
 # ============================================================================
 # Global Constants
@@ -66,27 +61,6 @@ def categorical_columns(df: pd.DataFrame) -> list[str]:
         List of column names with non-numeric dtype.
     """
     return [c for c in df.columns if not pd.api.types.is_numeric_dtype(df[c])]
-
-
-def shared_columns(
-    real: pd.DataFrame,
-    synthetic: pd.DataFrame,
-    exclude: list[str] | None = None,
-) -> list[str]:
-    """Return common column names between real and synthetic data.
-
-    Args:
-        real: Real data DataFrame.
-        synthetic: Synthetic data DataFrame.
-        exclude: Columns to exclude from result (e.g. ["syn_id"]).
-
-    Returns:
-        List of shared column names.
-    """
-    if exclude is None:
-        exclude = ["syn_id"]
-    shared = [c for c in real.columns if c in synthetic.columns]
-    return [c for c in shared if c not in exclude]
 
 
 # ============================================================================
@@ -176,52 +150,6 @@ def normalize(
     if return_params:
         return normalized, mu, sigma
     return normalized
-
-
-def denormalize(
-    arr: np.ndarray,
-    mean: np.ndarray,
-    std: np.ndarray,
-) -> np.ndarray:
-    """Reverse normalization applied by normalize().
-
-    Args:
-        arr: Normalized array.
-        mean: Mean from normalize(return_params=True).
-        std: Std from normalize(return_params=True).
-
-    Returns:
-        Original-scale array.
-    """
-    return (arr * std) + mean
-
-
-# ============================================================================
-# Display Utilities (Low Priority - Optional CLI Use)
-# ============================================================================
-
-
-def format_score_bar(
-    score: float,
-    max_score: float = 100.0,
-    width: int = 20,
-) -> str:
-    """Generate a Unicode progress bar for a score.
-
-    Args:
-        score: Numeric score value.
-        max_score: Maximum possible score (default 100).
-        width: Width of bar in characters (default 20).
-
-    Returns:
-        String with filled/unfilled blocks representing the score.
-
-    Example:
-        >>> format_score_bar(85, max_score=100, width=20)
-        '████████████████░░░░'  (17 filled, 3 empty)
-    """
-    filled = int((score / max_score) * width)
-    return "█" * filled + "░" * (width - filled)
 
 
 # ============================================================================

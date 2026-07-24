@@ -84,11 +84,10 @@ def _write_arrow(df, path, **kw):
     try:
         import pyarrow as pa
         import pyarrow.feather as feather
-
-        table = pa.Table.from_pandas(df)
-        feather.write_feather(table, str(path))
     except ImportError:
         raise ImportError("Arrow format requires: pip install pyarrow") from None
+    table = pa.Table.from_pandas(df)
+    feather.write_feather(table, str(path), **kw)
 
 
 def _write_json(df, path, **kw):
@@ -146,10 +145,9 @@ def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
 def _read_arrow(path, **kw) -> pd.DataFrame:
     try:
         import pyarrow.feather as feather
-
-        return feather.read_feather(str(path)).to_pandas()
     except ImportError:
         raise ImportError("Arrow format requires: pip install pyarrow") from None
+    return feather.read_feather(str(path), **kw)
 
 
 def _read_sas(path, **kw) -> pd.DataFrame:

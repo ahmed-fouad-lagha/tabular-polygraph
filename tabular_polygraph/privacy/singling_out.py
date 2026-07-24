@@ -52,9 +52,7 @@ def singling_out_risk(
     )
 
     for _, syn_row in syn_sample.iterrows():
-        # Pick a random subset of 2–4 quasi-identifiers
         if len(qi_cols) < 2:
-            n_singled += 0
             continue
         k = int(rng.integers(2, min(5, len(qi_cols) + 1)))
         cols = list(rng.choice(qi_cols, size=k, replace=False))
