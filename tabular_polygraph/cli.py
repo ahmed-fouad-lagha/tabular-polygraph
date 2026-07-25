@@ -14,9 +14,12 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from tabular_polygraph.generators import BaseGenerator, GaussianCopulaGenerator
 from tabular_polygraph.utils import set_seed
+
+if TYPE_CHECKING:
+    from tabular_polygraph.generators import BaseGenerator
 
 
 class C:
@@ -203,6 +206,8 @@ def _load_generator(
 
         gen = VineCopulaGenerator(**kwargs)
     else:
+        from tabular_polygraph.generators import GaussianCopulaGenerator
+
         gen = GaussianCopulaGenerator(**kwargs)
 
     gen.fit(seed_df)
@@ -264,10 +269,20 @@ def _rule_params_from_args(args) -> dict:
 
 
 def _json_clean(obj):
+    import numpy as _np
+
     if isinstance(obj, dict):
         return {k: _json_clean(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_json_clean(v) for v in obj]
+    if isinstance(obj, (_np.integer,)):
+        return int(obj)
+    if isinstance(obj, (_np.floating,)):
+        return round(float(obj), 6)
+    if isinstance(obj, (_np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, _np.ndarray):
+        return obj.tolist()
     if isinstance(obj, float):
         return round(obj, 6)
     return obj
@@ -300,16 +315,22 @@ def _prepare_generate_request(args):
     return input_file, dataset_id, filters, drop_cols
 
 
-def _fit_custom_input_generator(input_file: str, drop_cols: list[str]):
+def _fit_custom_input_generator(
+    input_file: str,
+    drop_cols: list[str],
+    generator_type: str = "copula",
+    epochs: int | None = None,
+):
     if not Path(input_file).exists():
         raise FileNotFoundError(input_file)
 
-    from tabular_polygraph.generators import GaussianCopulaGenerator
     from tabular_polygraph.io import read
     from tabular_polygraph.io import validate as validate_df
+    from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     seed_df = read(input_file)
-    seed_df = _drop_existing_columns(seed_df, drop_cols)
+    all_drop = list(set((drop_cols or []) + list(DEFAULT_DROP_LIST)))
+    seed_df = _drop_existing_columns(seed_df, all_drop)
     result = validate_df(seed_df, min_rows=10)
     if not result.passed:
         raise ValueError("\n".join(result.errors))
@@ -317,12 +338,33 @@ def _fit_custom_input_generator(input_file: str, drop_cols: list[str]):
         for w_msg in result.warnings:
             warn(w_msg)
 
-    gen = GaussianCopulaGenerator()
+    gen_kwargs = {}
+    if epochs is not None:
+        gen_kwargs["epochs"] = epochs
+
+    gen: BaseGenerator
+    if generator_type == "ctgan":
+        from tabular_polygraph.generators import CTGANGenerator
+
+        gen = CTGANGenerator(**gen_kwargs)
+    elif generator_type == "tvae":
+        from tabular_polygraph.generators import TVAEGenerator
+
+        gen = TVAEGenerator(**gen_kwargs)
+    elif generator_type == "vine":
+        from tabular_polygraph.generators import VineCopulaGenerator
+
+        gen = VineCopulaGenerator(**gen_kwargs)
+    else:
+        from tabular_polygraph.generators import GaussianCopulaGenerator
+
+        gen = GaussianCopulaGenerator(**gen_kwargs)
+
     gen.fit(seed_df)
     info(
         f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}"
     )
-    return gen, seed_df, "copula"
+    return gen, seed_df, generator_type
 
 
 def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
@@ -331,7 +373,12 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
     info("Fitting generator...")
     try:
         if input_file:
-            gen, seed_df, gen_type = _fit_custom_input_generator(input_file, drop_cols)
+            gen, seed_df, gen_type = _fit_custom_input_generator(
+                input_file,
+                drop_cols,
+                generator_type=getattr(args, "generator", "copula"),
+                epochs=getattr(args, "epochs", None),
+            )
         else:
             gen_kwargs = {}
             if getattr(args, "epochs", None) is not None:

@@ -8,7 +8,8 @@ def test_summary_section_basic():
         corr_score=100.0,
         logical_validity=0.0,
         coverage={},
-        utility_report={},
+        stylized_mean=None,
+        tstr_ratio=None,
         n_real=1,
         n_syn=1,
         t0=0,
@@ -19,16 +20,20 @@ def test_summary_section_basic():
     assert res["joint_score"] == 100.0
     assert res["logic_score"] == 0.0
     assert "rows_real" in res
+    assert res["stylized_facts_score"] is None
+    assert res["tstr_ratio"] is None
 
 
 def test_perfect_scores():
-    res = _summary_section(100.0, 100.0, 100.0, 100.0, {}, {}, 1, 1, 0)
+    res = _summary_section(100.0, 100.0, 100.0, 100.0, {}, 90.0, 0.85, 1, 1, 0)
     assert res["moment_matching_score"] == 100.0
     assert res["logic_score"] == 100.0
+    assert res["stylized_facts_score"] == 90.0
+    assert res["tstr_ratio"] == 0.85
 
 
 def test_missing_hif_defaults_to_none():
-    res = _summary_section(90.0, 90.0, 90.0, None, {}, {}, 1, 1, 0)
+    res = _summary_section(90.0, 90.0, 90.0, None, {}, None, None, 1, 1, 0)
     assert res["logic_score"] is None
 
 
@@ -39,7 +44,8 @@ def test_coverage_scores_in_summary():
         corr_score=85.0,
         logical_validity=80.0,
         coverage={"alpha_precision": 0.92, "beta_recall": 0.33, "authenticity": 0.64},
-        utility_report={},
+        stylized_mean=72.5,
+        tstr_ratio=0.91,
         n_real=100,
         n_syn=100,
         t0=0,
@@ -47,3 +53,5 @@ def test_coverage_scores_in_summary():
     assert res["alpha_precision"] == 0.92
     assert res["beta_recall"] == 0.33
     assert res["authenticity"] == 0.64
+    assert res["stylized_facts_score"] == 72.5
+    assert res["tstr_ratio"] == 0.91

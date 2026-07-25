@@ -18,8 +18,10 @@ import pandas as pd
 # Global Constants
 # ============================================================================
 
-# DEFAULT_DROP_LIST: Columns that should be automatically excluded from
-# both generation and evaluation (IDs, internal keys, high-cardinality noise).
+# DEFAULT_DROP_LIST: Truly generic identifier columns that should be
+# automatically excluded from both generation and evaluation.
+# Dataset-specific drops (e.g. zero-inflated columns) belong in
+# the dataset metadata in loader.py, NOT here.
 DEFAULT_DROP_LIST: set[str] = {
     "syn_id",
     "id",
@@ -31,9 +33,6 @@ DEFAULT_DROP_LIST: set[str] = {
     "serial_no",
     "fips_code",
     "ip_address",
-    # Zero-inflated columns (92%+ zeros) — no copula-based generator can model them
-    "capital_gain",
-    "capital_loss",
 }
 
 

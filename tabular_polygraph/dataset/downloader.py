@@ -26,6 +26,8 @@ All sources are public datasets.
 
 from __future__ import annotations
 
+__all__ = ["download", "status", "cache_path", "is_cached", "load_cached"]
+
 import io
 import json
 import os
@@ -65,7 +67,6 @@ DOWNLOADERS: dict[str, dict] = {
         "size_hint": "~200 MB",
         "indicators": {
             "industry_code": "naics_sector",
-            "own_code": "ownership",
             "area_fips": "state",
             "avg_wkly_wage": "avg_weekly_wage",
             "month3_emplvl": "total_employment",
@@ -223,7 +224,7 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
                 data = json.loads(r.read())
             headers = data[0]
             for row in data[1:]:
-                all_rows.append(dict(zip(headers, row, strict=False)))
+                all_rows.append(dict(zip(headers, row, strict=True)))
             if int(state) % 10 == 0:
                 print(f"    Progress: {state}/56 states...", flush=True)
         except Exception:
@@ -349,9 +350,6 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
             "quarter",
         ]
     )
-
-    # Drop constant columns
-    df = df.drop(columns=["ownership"], errors="ignore")
 
     return df.sample(min(n_sample, len(df)), random_state=42)
 
@@ -584,10 +582,21 @@ def download(
 def load_cached(dataset_id: str) -> pd.DataFrame | None:
     """
     Load cached real data if available, else return None.
+    Applies per-dataset column drops defined in loader.DATASETS.
     """
     p = cache_path(dataset_id)
     if p.exists():
-        return pd.read_parquet(p)
+        df = pd.read_parquet(p)
+        # Apply per-dataset drops
+        from tabular_polygraph.dataset.loader import DATASETS
+
+        ds_meta = DATASETS.get(dataset_id, {})
+        drop_cols = ds_meta.get("drop_cols", [])
+        if drop_cols:
+            existing = [c for c in drop_cols if c in df.columns]
+            if existing:
+                df = df.drop(columns=existing)
+        return df
     return None
 
 

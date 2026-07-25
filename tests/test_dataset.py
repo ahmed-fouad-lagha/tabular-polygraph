@@ -49,6 +49,7 @@ class TestSchemaIntegrity:
             if is_cached(did):
                 df = load_cached(did)
                 expected = set(DATASETS[did].get("columns", []))
+                drop_cols = set(DATASETS[did].get("drop_cols", []))
                 actual = set(df.columns)
-                missing = expected - actual
+                missing = (expected - drop_cols) - actual
                 assert not missing, f"Dataset '{did}' missing columns: {missing}"

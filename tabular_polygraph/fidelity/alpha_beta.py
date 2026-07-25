@@ -12,26 +12,49 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import LabelEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 def _encode_for_alpha_precision(
     real: pd.DataFrame, syn: pd.DataFrame
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Encode categorical columns to integers for numeric metric computation."""
-    real_enc = real.copy()
-    syn_enc = syn.copy()
-    cat_cols = real_enc.select_dtypes(include=["object", "category"]).columns.tolist()
-    for col in cat_cols:
-        le = LabelEncoder()
-        combined = pd.concat([real_enc[col], syn_enc[col]], ignore_index=True).astype(
-            str
+    """Preprocess data for distance metrics: impute, one-hot encode, and standard scale."""
+    num_cols = real.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = real.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    transformers = []
+    if num_cols:
+        num_pipe = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+            ]
         )
-        le.fit(combined)
-        real_enc[col] = le.transform(real_enc[col].astype(str))
-        syn_enc[col] = le.transform(syn_enc[col].astype(str))
-    return real_enc.values.astype(float), syn_enc.values.astype(float)
+        transformers.append(("num", num_pipe, num_cols))
+
+    if cat_cols:
+        cat_pipe = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            ]
+        )
+        transformers.append(("cat", cat_pipe, cat_cols))
+
+    if not transformers:
+        return np.array([]), np.array([])
+
+    preprocessor = ColumnTransformer(transformers)
+
+    # Fit on real data, transform both
+    real_transformed = preprocessor.fit_transform(real)
+    syn_transformed = preprocessor.transform(syn)
+
+    return real_transformed.astype(float), syn_transformed.astype(float)
 
 
 def alpha_precision_beta_recall(
@@ -74,25 +97,28 @@ def alpha_precision_beta_recall(
         )
 
     emb_center = np.mean(X, axis=0)
-    synth_center = np.mean(X_syn, axis=0)
 
     alphas = np.linspace(0, 1, n_steps)
 
+    # Compute quantile radii from real-to-center distances (the paper's definition)
     Radii = np.quantile(np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas)
     synth_to_center = np.sqrt(np.sum((X_syn - emb_center) ** 2, axis=1))
 
+    # Nearest real neighbor (for authenticity)
     nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(X)
     real_to_real, _ = nbrs_real.kneighbors(X)
     real_to_real = real_to_real[:, 1].squeeze()
 
+    # Nearest synthetic neighbor (for beta-recall + authenticity)
     nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(X_syn)
-    real_to_synth, real_to_synth_args = nbrs_synth.kneighbors(X)
-
+    real_to_synth_args = nbrs_synth.kneighbors(X, return_distance=False)
     real_synth_closest = X_syn[real_to_synth_args.squeeze()]
+    # Distance from each real point's nearest synth neighbor to the real center
+    # (measures whether the synth neighbor falls within the real distribution's ball)
     real_synth_closest_d = np.sqrt(
-        np.sum((real_synth_closest - synth_center) ** 2, axis=1)
+        np.sum((real_synth_closest - emb_center) ** 2, axis=1)
     )
-    closest_synth_Radii = np.quantile(real_synth_closest_d, alphas)
+    real_to_synth_d = np.sqrt(np.sum((real_synth_closest - X) ** 2, axis=1))
 
     alpha_precision_curve = []
     beta_coverage_curve = []
@@ -101,12 +127,9 @@ def alpha_precision_beta_recall(
         precision_audit_mask = synth_to_center <= Radii[k]
         alpha_precision_curve.append(np.mean(precision_audit_mask))
 
-        beta_coverage_curve.append(
-            np.mean(
-                (real_to_synth <= real_to_real)
-                * (real_synth_closest_d <= closest_synth_Radii[k])
-            )
-        )
+        # Beta-recall: fraction of real samples whose nearest synthetic
+        # neighbor falls within the α-quantile ball of the real distribution
+        beta_coverage_curve.append(np.mean(real_synth_closest_d <= Radii[k]))
 
     delta_precision = 1 - np.sum(
         np.abs(alphas - np.array(alpha_precision_curve))
@@ -115,7 +138,8 @@ def alpha_precision_beta_recall(
         np.abs(alphas - np.array(beta_coverage_curve))
     ) / np.sum(alphas)
 
-    authen = real_to_real[real_to_synth_args.squeeze()] < real_to_synth.squeeze()
+    # Authenticity: nearest synthetic neighbor is closer than nearest real neighbor
+    authen = real_to_synth_d < real_to_real
     authenticity = np.mean(authen)
 
     return {

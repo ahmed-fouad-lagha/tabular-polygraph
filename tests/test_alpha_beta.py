@@ -47,6 +47,6 @@ class TestAlphaPrecisionBetaRecall:
         real = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         syn = pd.DataFrame({"a": [4, 5, 6], "b": ["x", "y", "z"]})
         X, X_s = _encode_for_alpha_precision(real, syn)
-        assert X.shape == (3, 2)
-        assert X_s.shape == (3, 2)
+        assert X.shape == (3, 4)
+        assert X_s.shape == (3, 4)
         assert X.dtype == float

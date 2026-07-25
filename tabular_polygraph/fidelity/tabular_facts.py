@@ -72,11 +72,20 @@ def tabular_stylized_facts(
             )
         rank_match = max(0, rank_match)  # Clamp negative correlations
 
-        # 3. Concentration (Lorenz-style: top 5% share)
-        r_sorted = np.sort(r)
-        s_sorted = np.sort(s)
-        r_top5_share = r_sorted[int(0.95 * len(r)) :].sum() / (r_sorted.sum() + 1e-9)
-        s_top5_share = s_sorted[int(0.95 * len(s)) :].sum() / (s_sorted.sum() + 1e-9)
+        # 3. Concentration (Lorenz-style: top 5% share of absolute values)
+        # Use absolute values so the metric works for columns with negative values
+        r_abs = np.abs(r)
+        s_abs = np.abs(s)
+        r_sorted = np.sort(r_abs)
+        s_sorted = np.sort(s_abs)
+        r_sum = r_sorted.sum()
+        s_sum = s_sorted.sum()
+        r_top5_share = (
+            r_sorted[int(0.95 * len(r)) :].sum() / (r_sum + 1e-9) if r_sum > 0 else 0.0
+        )
+        s_top5_share = (
+            s_sorted[int(0.95 * len(s)) :].sum() / (s_sum + 1e-9) if s_sum > 0 else 0.0
+        )
         conc_match = 1.0 - min(
             abs(r_top5_share - s_top5_share) / (r_top5_share + 1e-9), 1.0
         )

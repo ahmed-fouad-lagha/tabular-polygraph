@@ -60,12 +60,12 @@ def moment_matching_scores(
         if not np.isfinite(kurt_s):
             kurt_s = 0.0
 
-        mean_err = abs(mean_s - mean_r) / (abs(mean_r) + eps)
-        std_err = abs(std_s - std_r) / (std_r + eps)
+        mean_err = min(abs(mean_s - mean_r) / max(abs(mean_r), eps), 1.0)
+        std_err = min(abs(std_s - std_r) / max(std_r, eps), 1.0)
         # Regularization for skew/kurtosis: when true moments are near zero,
         # use Laplace smoothing to dampen error (0.5, 1.0 are tuned defaults)
-        skew_err = abs(skew_s - skew_r) / (abs(skew_r) + 0.5)
-        kurt_err = abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0)
+        skew_err = min(abs(skew_s - skew_r) / (abs(skew_r) + 0.5), 1.0)
+        kurt_err = min(abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0), 1.0)
 
         score = 100.0 * (
             1.0 - 0.40 * mean_err - 0.35 * std_err - 0.15 * skew_err - 0.10 * kurt_err

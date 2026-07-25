@@ -12,7 +12,6 @@ DATASETS: dict[str, dict] = {
         "description": "Quarterly employment and wage data by NAICS industry, ownership and state.",
         "columns": [
             "naics_sector",
-            "ownership",
             "state",
             "avg_weekly_wage",
             "total_employment",
@@ -20,8 +19,10 @@ DATASETS: dict[str, dict] = {
             "yoy_wage_change",
             "establishments",
             "quarter",
+            "year",
         ],
         "col_count": 9,
+        "drop_cols": ["year"],
         "tags": ["CSV", "Parquet"],
         "use_cases": [
             "Labour market models",
@@ -48,6 +49,7 @@ DATASETS: dict[str, dict] = {
             "education",
         ],
         "col_count": 11,
+        "drop_cols": ["puma"],
         "tags": ["GDPR safe", "CSV", "Parquet"],
         "use_cases": [
             "Affordability models",
@@ -76,6 +78,7 @@ DATASETS: dict[str, dict] = {
             "income",
         ],
         "col_count": 13,
+        "drop_cols": ["capital_gain", "capital_loss"],
         "tags": ["CSV", "Classification", "Benchmark"],
         "use_cases": [
             "Income prediction",

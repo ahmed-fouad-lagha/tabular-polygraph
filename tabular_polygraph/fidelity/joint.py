@@ -37,21 +37,28 @@ def correlation_distance_score(
     R_real = _spearman_matrix(real[cols])
     R_syn = _spearman_matrix(synthetic[cols])
 
-    max_possible = np.sqrt(2 * len(cols) * (len(cols) - 1))  # all ±1 → 0
+    # Max Frobenius norm when every off-diagonal pair is flipped (±1):
+    # diagonal diff is always 0, off-diagonal max diff is 2, squared = 4
+    max_possible = 2.0 * np.sqrt(len(cols) * (len(cols) - 1))
     dist = np.linalg.norm(R_real - R_syn, "fro")
     score = max(0.0, 1 - dist / max(max_possible, 1e-8)) * 100
     return round(float(score), 2)
 
 
 def _spearman_matrix(df: pd.DataFrame) -> np.ndarray:
-    """Compute pairwise Spearman correlation matrix, handling NaNs."""
+    """Compute pairwise Spearman correlation matrix using pairwise complete observations."""
     num_df = df.select_dtypes(include="number")
-    arr = num_df.fillna(num_df.median()).values.astype(float)
-    n = arr.shape[1]
+    n = num_df.shape[1]
+    cols = num_df.columns.tolist()
     mat = np.eye(n)
     for i in range(n):
         for j in range(i + 1, n):
-            r, _ = spearmanr(arr[:, i], arr[:, j])
+            mask = num_df[cols[i]].notna() & num_df[cols[j]].notna()
+            if mask.sum() < 2:
+                continue
+            r, _ = spearmanr(
+                num_df.loc[mask, cols[i]].values, num_df.loc[mask, cols[j]].values
+            )
             mat[i, j] = mat[j, i] = r if np.isfinite(r) else 0.0
     return mat
 
@@ -80,8 +87,6 @@ def pairwise_correlation_report(
             syn_pair = synthetic[[ca, cb]].dropna()
 
             if len(real_pair) < 2 or len(syn_pair) < 2:
-                # Skip pair if insufficient data
-                result[f"{ca} × {cb}"] = 0.0
                 continue
 
             r_real, _ = spearmanr(

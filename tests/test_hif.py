@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from tabular_polygraph.fidelity.logical import (
     LogicalSentinelEnsemble,
@@ -116,12 +115,13 @@ def test_hif_score_full_pipeline():
 
 
 def test_hif_numeric_only():
-    # Numeric-only datasets are currently unsupported by HIF because
-    # categorical manifold context is required for LSE/NIC coupling.
+    # Numeric-only datasets have no categorical manifold for LSE/NIC.
+    # hif_score should return gracefully without crashing.
     real = pd.DataFrame({"x": [1, 2, 3, 4, 5], "y": [10, 20, 30, 40, 50]})
     syn = pd.DataFrame({"x": [100, 200, 300, 400, 500], "y": [11, 22, 33, 44, 55]})
-    with pytest.raises(ValueError, match="numeric-only tables are unsupported"):
-        hif_score(real, syn, verbose=False, hif_epochs=2)
+    result = hif_score(real, syn, verbose=False, hif_epochs=2)
+    assert "hif_score" in result
+    assert result["violation_rate"] == 0.0
 
 
 def test_binning_cross_distribution():

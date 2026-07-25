@@ -7,7 +7,9 @@ auditors on ground-truth manifolds to detect semantic hallucinations via
 multiplicative manifold integrity penalties.
 """
 
-from typing import Any, Dict, List, Tuple
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -84,7 +86,7 @@ def _apply_binning(
                     df_binned[col] = "bin_0"
                 else:
                     # Discrete numeric with few unique values: label as bin_<value>
-                    df_binned[col] = df[col].apply(lambda x: f"bin_{x}")
+                    df_binned[col] = "bin_" + df[col].astype(str)
             else:
                 df_binned[col] = df[col].astype(str)
             continue
@@ -141,8 +143,8 @@ class ManifoldEncoder:
 
     def __init__(self) -> None:
         self.encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-        self.feature_names: List[str] = []
-        self.feature_map: Dict[str, List[str]] = {}
+        self.feature_names: list[str] = []
+        self.feature_map: dict[str, list[str]] = {}
         self.is_fitted = False
 
     def fit(self, df: pd.DataFrame) -> None:
@@ -187,9 +189,9 @@ class LogicalSentinelEnsemble:
         self.max_depth = max_depth
         self.random_state = random_state
         self.confidence_percentile = confidence_percentile
-        self.sentinels: Dict[str, RandomForestClassifier] = {}
-        self.hubs: List[str] = []
-        self.confidence_floors: Dict[str, float] = {}
+        self.sentinels: dict[str, RandomForestClassifier] = {}
+        self.hubs: list[str] = []
+        self.confidence_floors: dict[str, float] = {}
         self.encoder = ManifoldEncoder()
         self.is_trained: bool = False
 
@@ -197,8 +199,8 @@ class LogicalSentinelEnsemble:
         self,
         df: pd.DataFrame,
         x_encoded: pd.DataFrame,
-        potential_hubs: List[str] | None = None,
-    ) -> List[str]:
+        potential_hubs: list[str] | None = None,
+    ) -> list[str]:
         """Discover 'Manifold Hubs' using predictive synergy (captures higher-order interactions)."""
         cols = potential_hubs if potential_hubs is not None else df.columns
         scores = {}
@@ -253,7 +255,7 @@ class LogicalSentinelEnsemble:
         hif_epochs: int = 10,
         verbose: bool = True,
         x_precomputed: pd.DataFrame | None = None,
-        potential_hubs: List[str] | None = None,
+        potential_hubs: list[str] | None = None,
     ):
         """Train Sentinels using stateful manifold projection.
 
@@ -362,7 +364,7 @@ class LogicalSentinelEnsemble:
 
     def audit(
         self, df: pd.DataFrame, x_precomputed: pd.DataFrame | None = None
-    ) -> Tuple[float, np.ndarray, Dict[str, Any]]:
+    ) -> tuple[float, np.ndarray, dict[str, Any]]:
         """Audit synthetic rows for 'Logical Ruptures' using reference manifold."""
         if not self.is_trained:
             raise ValueError("LogicalSentinelEnsemble must be fitted before audit().")
@@ -439,11 +441,11 @@ class NeighborInvariantContinuity:
     """
 
     def __init__(self, random_state: int = 42):
-        self.regressors: Dict[str, HistGradientBoostingRegressor] = {}
-        self.scalers: Dict[str, StandardScaler] = {}
-        self.z_thresholds: Dict[str, float] = {}
-        self.gamma_scalings: Dict[str, float] = {}
-        self.marginal_references: Dict[str, np.ndarray] = {}
+        self.regressors: dict[str, HistGradientBoostingRegressor] = {}
+        self.scalers: dict[str, StandardScaler] = {}
+        self.z_thresholds: dict[str, float] = {}
+        self.gamma_scalings: dict[str, float] = {}
+        self.marginal_references: dict[str, np.ndarray] = {}
         self.pca: TruncatedSVD | None = None
         self.latent_scaler = StandardScaler(with_mean=False)
         self.encoder = ManifoldEncoder()
@@ -553,7 +555,7 @@ class NeighborInvariantContinuity:
         categorical_df: pd.DataFrame,
         continuous_df: pd.DataFrame,
         x_precomputed: pd.DataFrame | None = None,
-    ) -> Tuple[float, np.ndarray]:
+    ) -> tuple[float, np.ndarray]:
         """Score continuous features for manifold continuity violations."""
         if self.pca is None or not self.regressors:
             raise ValueError(
@@ -603,8 +605,9 @@ class NeighborInvariantContinuity:
         # flagging 5% of rows, max gives ~51% false positive rate. Mean-aggregation
         # keeps the false positive rate proportional to the fraction of columns
         # that flag a row.
-        if len(continuous_df.columns) > 0:
-            row_penalties = row_penalties / len(continuous_df.columns)
+        n_regressed = len(self.regressors)
+        if n_regressed > 0:
+            row_penalties = row_penalties / n_regressed
 
         return float(1.0 - row_penalties.mean()), row_penalties
 
@@ -655,11 +658,6 @@ def hif_score(
         else:
             valid_cols.append(col)
 
-    if not valid_cols and skipped_cols:
-        raise ValueError(
-            "hif_score requires at least one non-numeric column; numeric-only tables are unsupported."
-        )
-
     # Pre-processing: Fit binning on REAL data only, then apply to both.
     # This ensures bin boundaries are identical for real and synthetic.
     bin_edges = _fit_binning(real[columns], columns)
@@ -691,13 +689,17 @@ def hif_score(
         hif_epochs=hif_epochs,
         verbose=verbose,
         x_precomputed=x_real_cat,
-        potential_hubs=valid_cols,
+        potential_hubs=columns,
     )
     _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
     # 2. Continuous Layer: Neighbor-Invariant Continuity (NIC)
     nic_violation_rate = 0.0
     nic_penalties = np.zeros(len(synthetic))
-    if skipped_cols:
+
+    # Target leakage prevention: Do not regress continuous columns that were selected as Hubs
+    nic_targets = [c for c in skipped_cols if c not in oracle.hubs]
+
+    if nic_targets:
         if verbose:
             print(
                 "  [HIF NIC] Training Neighbor-Invariant Continuity Auditor...",
@@ -712,15 +714,18 @@ def hif_score(
 
         nic_auditor.fit(
             cat_context_real,
-            real[skipped_cols],
+            real[nic_targets],
             x_precomputed=None,
             verbose=verbose,
         )
         _, nic_penalties_raw = nic_auditor.score(
-            cat_context_syn, synthetic[skipped_cols], x_precomputed=None
+            cat_context_syn, synthetic[nic_targets], x_precomputed=None
         )
-        # Continuous continuity cannot exist if the categorical manifold has ruptured.
-        nic_penalties = np.maximum(nic_penalties_raw, cat_penalties)
+        # Use raw NIC penalties directly. The geometric mean aggregation
+        # handles the interaction: if both LSE and NIC are bad, the score
+        # drops multiplicatively. Taking np.maximum here would double-count
+        # categorical violations already captured by cat_penalties.
+        nic_penalties = nic_penalties_raw
         nic_violation_rate = (nic_penalties > 0.5).mean()
         if verbose:
             print("Done.")
@@ -761,7 +766,7 @@ def hif_score(
     if ablation_mode == "lse_only":
         active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
     elif ablation_mode == "nic_only":
-        if skipped_cols:
+        if nic_targets:
             active_components = [np.clip(1.0 - nic_penalties, eps, 1.0)]
         else:
             active_components = [np.ones(len(synthetic))]
@@ -769,11 +774,11 @@ def hif_score(
         active_components = [np.clip(1.0 - rule_penalties, eps, 1.0)]
     elif ablation_mode == "lse_nic":
         active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
-        if skipped_cols:
+        if nic_targets:
             active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
     else:  # "full" — default
         active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
-        if skipped_cols:
+        if nic_targets:
             active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
         active_components.append(np.clip(1.0 - rule_penalties, eps, 1.0))
 
@@ -993,8 +998,8 @@ def rule_violation_score(
     random_state: int | None = None,
     pre_binned: bool = False,
 ) -> dict[str, Any]:
-    rule_diagnostics: List[Dict[str, Any]] = []
-    violation_examples: List[Dict[str, Any]] = []
+    rule_diagnostics: list[dict[str, Any]] = []
+    violation_examples: list[dict[str, Any]] = []
 
     if not columns or max_rules < 1:
         return {

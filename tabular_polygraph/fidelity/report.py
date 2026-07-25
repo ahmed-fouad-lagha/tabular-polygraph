@@ -3,8 +3,7 @@ Assembles a complete fidelity report by running all available metrics.
 Returns a structured dict suitable for JSON serialisation or CLI display.
 """
 
-from __future__ import annotations
-
+import logging
 import time
 
 import pandas as pd
@@ -46,7 +45,10 @@ def _downstream_section(
     if not (include_downstream and target_col and target_col in real.columns):
         return None
 
-    return tstr_score(real, synthetic, target_col=target_col, seed=seed)
+    result = tstr_score(real, synthetic, target_col=target_col, seed=seed)
+    if "error" in result:
+        return {"status": "skipped", "reason": result["error"]}
+    return result
 
 
 def _logical_section(
@@ -118,7 +120,8 @@ def _summary_section(
     corr_score: float,
     logical_validity: float | None,
     coverage: dict,
-    utility_report: dict,
+    stylized_mean: float | None,
+    tstr_ratio: float | None,
     n_real: int,
     n_syn: int,
     t0: float,
@@ -135,6 +138,8 @@ def _summary_section(
         "logic_score": round(float(logical_validity), 2)
         if logical_validity is not None
         else None,
+        "stylized_facts_score": stylized_mean,
+        "tstr_ratio": tstr_ratio,
         "rows_real": n_real,
         "rows_synthetic": n_syn,
         "elapsed_seconds": round(time.time() - t0, 3),
@@ -194,7 +199,7 @@ def fidelity_report(
 
     # ── Alpha-precision / Beta-recall (geometric coverage) ───────────────────
     try:
-        n_min = min(len(real), len(syn))
+        n_min = min(len(real), len(syn), 10000)
         if n_min >= 10:
             ab_result = alpha_precision_beta_recall(
                 real.sample(n_min, random_state=random_state).reset_index(drop=True),
@@ -206,7 +211,8 @@ def fidelity_report(
                 "beta_recall": None,
                 "authenticity": None,
             }
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Alpha-precision/Beta-recall computation failed: {e}")
         ab_result = {"alpha_precision": None, "beta_recall": None, "authenticity": None}
     report["coverage"] = ab_result
 
@@ -252,13 +258,19 @@ def fidelity_report(
     mm_score = report["moment_matching"]["mean_score"]
     ks_score = report["distribution_fit"]["mean_score"]
 
+    stylized_mean = (
+        report.get("stylized_facts", {}).get("_summary", {}).get("mean_score")
+    )
+    tstr_ratio = report.get("downstream", {}).get("ratio")
+
     report["summary"] = _summary_section(
         mm_score=mm_score,
         ks_score=ks_score,
         corr_score=corr_score,
         logical_validity=logical_validity,
         coverage=report["coverage"],
-        utility_report=report,  # Contains stylized_facts and downstream
+        stylized_mean=stylized_mean,
+        tstr_ratio=tstr_ratio,
         n_real=len(real),
         n_syn=len(syn),
         t0=t0,
@@ -326,11 +338,14 @@ def format_report(report: dict, width: int = 60) -> str:
         d = report["downstream"]
         lines.append("")
         lines.append("  Downstream (TSTR):")
-        lines.append(f"    Target  : {d.get('target_col')}")
-        lines.append(
-            f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}"
-        )
-        lines.append(f"    Ratio   : {d.get('ratio')}")
+        if d.get("status") == "skipped":
+            lines.append(f"    Skipped: {d.get('reason')}")
+        else:
+            lines.append(f"    Target  : {d.get('target_col')}")
+            lines.append(
+                f"    Metric  : {d.get('metric')} | TSTR {d.get('tstr_score')} | TRR {d.get('trr_score')}"
+            )
+            lines.append(f"    Ratio   : {d.get('ratio')}")
 
     lg = report.get("logical", {})
     lines.append("")

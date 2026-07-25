@@ -183,8 +183,7 @@ class VineCopulaGenerator(BaseGenerator):
         n_gen = n * (6 if filters else 1)
 
         # Simulate from vine
-        if self._vine is None:
-            raise RuntimeError("Vine model is not fitted. Call fit() first.")
+
         U_syn = self._vine.simulate(n_gen)
         U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
@@ -203,9 +202,10 @@ class VineCopulaGenerator(BaseGenerator):
         # Sample categorical columns independently from their marginals.
         # NOTE: The vine copula models only continuous dependence; joint
         # categorical-numeric dependence is NOT captured.
+        rng = np.random.default_rng(seed)
         for col in self._cat_cols:
             m = self._cat_marginals[col]
-            records[col] = np.random.choice(m["cats"], size=n_gen, p=m["probs"])
+            records[col] = rng.choice(m["cats"], size=n_gen, p=m["probs"])
 
         df = pd.DataFrame(records)[self._columns]
         df = self._cast_types(df)
@@ -225,11 +225,26 @@ class VineCopulaGenerator(BaseGenerator):
         if self._vine is None:
             return {}
         report = {}
+        n_vars = len(self._numeric_cols)
         for i, ci in enumerate(self._numeric_cols):
-            for j in range(i + 1, len(self._numeric_cols)):
+            for j in range(i + 1, n_vars):
                 cj = self._numeric_cols[j]
                 try:
-                    bicop = self._vine.get_pair_copula(0, i)
+                    # In a vine, the pair (i, j) may not be in tree 0.
+                    # Search through trees to find the pair copula for this combination.
+                    bicop = None
+                    for tree_idx in range(n_vars - 1):
+                        try:
+                            pc = self._vine.get_pair_copula(
+                                tree_idx, i if tree_idx == 0 else j - 1
+                            )
+                            if pc is not None:
+                                bicop = pc
+                                break
+                        except (IndexError, Exception):
+                            continue
+                    if bicop is None:
+                        continue
                     report[f"{ci} x {cj}"] = {
                         "family": str(bicop.family),
                         "parameters": bicop.parameters.tolist(),

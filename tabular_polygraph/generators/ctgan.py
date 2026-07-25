@@ -107,6 +107,7 @@ class CTGANGenerator(BaseGenerator):
         self._require_ctgan()
         if self._model is None:
             raise RuntimeError("CTGAN model is not initialised. Call fit() first.")
+
         if seed is not None:
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)

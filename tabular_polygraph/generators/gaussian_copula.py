@@ -222,8 +222,6 @@ class GaussianCopulaGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         n_gen = n * (6 if filters else 1)
-        if self._corr is None:
-            raise RuntimeError("Correlation matrix is not fitted. Call fit() first.")
 
         # Correlated normal samples via modern Generator
         rng = np.random.default_rng(seed)
@@ -283,10 +281,10 @@ class GaussianCopulaGenerator(BaseGenerator):
         col = self._resolve_col(key)
         if not col:
             return df
-        vals = [str(v) for v in val] if isinstance(val, list) else val
-        if isinstance(vals, list):
-            return df[df[col].isin(vals)]
-        return df[df[col] == vals]
+        # Don't stringify — keep original types so numeric columns match numeric values
+        if isinstance(val, list):
+            return df[df[col].isin(val)]
+        return df[df[col] == val]
 
     # ── introspection ─────────────────────────────────────────────────────────
 
