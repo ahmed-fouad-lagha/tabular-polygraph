@@ -113,9 +113,19 @@ class TVAEGenerator(BaseGenerator):
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            df = self._model.sample(n * (4 if filters else 1))
+            df = self._model.sample(n * (10 if filters else 1))
 
         df = self._cast_types(df)
         if filters:
             df = self._apply_filters(df, filters)
+            attempts = 0
+            while len(df) < n and attempts < 5:
+                attempts += 1
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=FutureWarning)
+                    df_more = self._model.sample(n * 10)
+                df_more = self._cast_types(df_more)
+                df_more = self._apply_filters(df_more, filters)
+                df = pd.concat([df, df_more], ignore_index=True)
+
         return self._add_syn_id(df.head(n))

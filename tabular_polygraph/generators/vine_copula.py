@@ -265,6 +265,34 @@ class VineCopulaGenerator(BaseGenerator):
 
         if filters:
             df = self._apply_filters(df, filters)
+            attempts = 0
+            while len(df) < n and attempts < 5:
+                attempts += 1
+                n_more = n * 10
+                U_syn_more = self._vine.simulate(n_more)
+                U_syn_more = np.clip(U_syn_more, 1e-4, 1 - 1e-4)
+                rec_more = {}
+                for i, col in enumerate(self._numeric_cols):
+                    m = self._marginals[col]
+                    if m["n"] == 0:
+                        rec_more[col] = np.full(n_more, 0.0)
+                        continue
+                    quantile_idx = U_syn_more[:, i] * (m["n"] - 1)
+                    lower = np.floor(quantile_idx).astype(int)
+                    upper = np.minimum(lower + 1, m["n"] - 1)
+                    frac = quantile_idx - lower
+                    values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
+                    rec_more[col] = np.clip(values, m["min"], m["max"])
+                for col in self._cat_cols:
+                    m = self._cat_marginals[col]
+                    if not m["cats"]:
+                        rec_more[col] = np.full(n_more, "unknown", dtype=object)
+                        continue
+                    rec_more[col] = rng.choice(m["cats"], size=n_more, p=m["probs"])
+                df_more = pd.DataFrame(rec_more)[self._columns]
+                df_more = self._cast_types(df_more)
+                df_more = self._apply_filters(df_more, filters)
+                df = pd.concat([df, df_more], ignore_index=True)
 
         return self._add_syn_id(df.head(n))
 

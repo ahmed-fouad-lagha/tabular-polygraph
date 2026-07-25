@@ -203,7 +203,7 @@ def fidelity_report(
         if n_min >= 10:
             ab_result = alpha_precision_beta_recall(
                 real.sample(n_min, random_state=random_state).reset_index(drop=True),
-                syn.sample(n_min, random_state=random_state).reset_index(drop=True),
+                syn.sample(n_min, random_state=random_state + 1).reset_index(drop=True),
             )
         else:
             ab_result = {

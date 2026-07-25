@@ -65,6 +65,23 @@ def tstr_score(
     real_clean = real[feature_cols + [target_col]].dropna()
     syn_clean = synthetic[feature_cols + [target_col]].dropna()
 
+    if len(real_clean) < 50:
+        import warnings
+
+        warnings.warn(
+            f"Real evaluation dataset clean sample size ({len(real_clean)} rows) is < 50 after dropna().",
+            UserWarning,
+            stacklevel=2,
+        )
+    if len(syn_clean) < 50:
+        import warnings
+
+        warnings.warn(
+            f"Synthetic evaluation dataset clean sample size ({len(syn_clean)} rows) is < 50 after dropna().",
+            UserWarning,
+            stacklevel=2,
+        )
+
     real_train, real_test = train_test_split(
         real_clean, test_size=test_frac, random_state=seed
     )

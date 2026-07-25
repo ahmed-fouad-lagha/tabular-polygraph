@@ -97,8 +97,20 @@ def _write_json(df, path, **kw):
 def _write_stata(df, path, **kw):
     # Stata can't handle string columns > 244 chars or certain dtypes
     df_stata = df.copy()
+    truncated_cols = []
     for col in df_stata.select_dtypes(include="object").columns:
-        df_stata[col] = df_stata[col].astype(str).str[:244]
+        str_s = df_stata[col].astype(str)
+        if (str_s.str.len() > 244).any():
+            truncated_cols.append(col)
+        df_stata[col] = str_s.str[:244]
+    if truncated_cols:
+        import warnings
+
+        warnings.warn(
+            f"Stata export truncated string values > 244 chars in columns: {truncated_cols}",
+            UserWarning,
+            stacklevel=2,
+        )
     df_stata.to_stata(path, write_index=False, version=118, **kw)
 
 

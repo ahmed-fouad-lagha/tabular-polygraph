@@ -127,9 +127,13 @@ def validate(
                 f"Column '{col}' has {null_frac:.1%} nulls (threshold: {null_threshold:.1%})"
             )
 
-        if is_const:
+        if n_unique == 0:
             warnings.append(
-                f"Column '{col}' is constant (all values = {s.dropna().iloc[0] if len(s.dropna()) else 'NA'})"
+                f"Column '{col}' is all-NaN (contains no valid non-null values)"
+            )
+        elif is_const:
+            warnings.append(
+                f"Column '{col}' is constant (all values = {s.dropna().iloc[0]})"
             )
 
         if not pd.api.types.is_numeric_dtype(s) and n_unique > max_cardinality:

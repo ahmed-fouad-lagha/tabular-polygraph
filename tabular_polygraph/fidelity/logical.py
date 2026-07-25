@@ -98,9 +98,7 @@ def _apply_binning(
             continue
 
         bin_edges = edges[col]
-        if bin_edges is None:
-            df_binned[col] = df[col].apply(lambda v: v if pd.isna(v) else str(v))
-            continue
+        assert bin_edges is not None
         try:
             bin_indices = np.digitize(df[col].values, bin_edges[1:-1])
             df_binned[col] = [

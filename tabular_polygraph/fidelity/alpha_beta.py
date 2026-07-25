@@ -107,12 +107,12 @@ def alpha_precision_beta_recall(
     # Nearest real neighbor (for authenticity)
     nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(X)
     real_to_real, _ = nbrs_real.kneighbors(X)
-    real_to_real = real_to_real[:, 1].squeeze()
+    real_to_real = real_to_real[:, 1].reshape(-1)
 
     # Nearest synthetic neighbor (for beta-recall + authenticity)
     nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(X_syn)
     real_to_synth_args = nbrs_synth.kneighbors(X, return_distance=False)
-    real_synth_closest = X_syn[real_to_synth_args.squeeze()]
+    real_synth_closest = X_syn[real_to_synth_args.reshape(-1)]
     # Distance from each real point's nearest synth neighbor to the real center
     # (measures whether the synth neighbor falls within the real distribution's ball)
     real_synth_closest_d = np.sqrt(
@@ -131,12 +131,14 @@ def alpha_precision_beta_recall(
         # neighbor falls within the α-quantile ball of the real distribution
         beta_coverage_curve.append(np.mean(real_synth_closest_d <= Radii[k]))
 
-    delta_precision = 1 - np.sum(
-        np.abs(alphas - np.array(alpha_precision_curve))
-    ) / np.sum(alphas)
-    delta_coverage = 1 - np.sum(
-        np.abs(alphas - np.array(beta_coverage_curve))
-    ) / np.sum(alphas)
+    denom = np.sum(alphas)
+    if denom < 1e-9:
+        denom = 1.0
+
+    delta_precision = (
+        1 - np.sum(np.abs(alphas - np.array(alpha_precision_curve))) / denom
+    )
+    delta_coverage = 1 - np.sum(np.abs(alphas - np.array(beta_coverage_curve))) / denom
 
     # Authenticity: nearest synthetic neighbor is closer than nearest real neighbor
     authen = real_to_synth_d < real_to_real

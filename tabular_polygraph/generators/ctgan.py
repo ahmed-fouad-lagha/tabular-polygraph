@@ -93,7 +93,7 @@ class CTGANGenerator(BaseGenerator):
             log_frequency=self._log_frequency,
             verbose=self._verbose,
         )
-        self._model.fit(data, discrete_columns=discrete_cols)
+        self._model.fit(data[self._columns], discrete_columns=discrete_cols)
         self._fitted = True
         return self
 
@@ -112,8 +112,16 @@ class CTGANGenerator(BaseGenerator):
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
 
-        df = self._model.sample(n * (4 if filters else 1))
+        df = self._model.sample(n * (10 if filters else 1))
         df = self._cast_types(df)
         if filters:
             df = self._apply_filters(df, filters)
+            attempts = 0
+            while len(df) < n and attempts < 5:
+                attempts += 1
+                df_more = self._model.sample(n * 10)
+                df_more = self._cast_types(df_more)
+                df_more = self._apply_filters(df_more, filters)
+                df = pd.concat([df, df_more], ignore_index=True)
+
         return self._add_syn_id(df.head(n))

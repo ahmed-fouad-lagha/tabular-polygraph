@@ -228,7 +228,14 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
                 all_rows.append(dict(zip(headers, row, strict=True)))
             if int(state) % 10 == 0:
                 print(f"    Progress: {state}/56 states...", flush=True)
-        except Exception:
+        except Exception as exc:
+            import warnings
+
+            warnings.warn(
+                f"Census ACS download failed for state {state}: {exc}",
+                UserWarning,
+                stacklevel=2,
+            )
             continue
         time.sleep(0.05)
 
@@ -305,7 +312,7 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
             for area_code in area_codes:
                 url = f"{base_url}/{year}/{qtr}/area/{area_code}.csv"
                 try:
-                    with urllib.request.urlopen(url, timeout=5) as r:
+                    with urllib.request.urlopen(url, timeout=15) as r:
                         df_q = pd.read_csv(
                             io.BytesIO(r.read()),
                             dtype={"area_fips": str, "qtr": str, "industry_code": str},
@@ -317,7 +324,14 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
                         ]
                         if not df_q.empty:
                             frames.append(df_q)
-                except Exception:
+                except Exception as exc:
+                    import warnings
+
+                    warnings.warn(
+                        f"BLS request failed ({year} Q{qtr} area {area_code}): {exc}",
+                        UserWarning,
+                        stacklevel=2,
+                    )
                     continue
                 time.sleep(0.005)
 

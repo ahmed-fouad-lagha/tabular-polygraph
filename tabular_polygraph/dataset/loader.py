@@ -198,11 +198,13 @@ def list_datasets(vertical: str | None = None) -> pd.DataFrame:
 
 def get_dataset_info(dataset_id: str) -> dict:
     """Return full metadata for a single dataset profile."""
+    import copy
+
     if dataset_id not in DATASETS:
         raise ValueError(
             f"Unknown dataset '{dataset_id}'. Available: {', '.join(sorted(DATASETS))}"
         )
-    return DATASETS[dataset_id]
+    return copy.deepcopy(DATASETS[dataset_id])
 
 
 def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:

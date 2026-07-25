@@ -32,12 +32,24 @@ class BaseGenerator(ABC):
     # e.g. ["cross_sectional"]
     supported_types: list[str] = []
 
+    # Default shorthand column aliases (subclasses or instances may override)
+    _ALIASES: dict[str, str] = {
+        "dti": "debt_to_income",
+        "income": "applicant_income",
+        "loan": "loan_amount",
+        "gdp": "gdp_growth_yoy",
+        "ffr": "fed_funds_rate",
+        "assets": "total_assets",
+    }
+    _float_decimals: int = 4
+
     def __init__(self, **kwargs: Any):
         self._fitted = False
         self._n_fit = 0  # rows seen during fit
         self._columns: list[str] = []  # column order from fit
         self._dtypes: dict[str, Any] = {}  # original dtypes
         self._meta: dict = {}  # arbitrary metadata subclasses may store
+        self._syn_id_counter = 100_000
         self._init(**kwargs)
 
     @abstractmethod
@@ -72,6 +84,7 @@ class BaseGenerator(ABC):
             from tabular_polygraph.utils import set_seed
 
             set_seed(seed)
+            self._syn_id_counter = 100_000
 
         return self._generate(n, filters=filters, seed=seed)
 
@@ -153,7 +166,7 @@ class BaseGenerator(ABC):
                     # Use nullable Int64 to handle NaN without IntCastingNaNError
                     df[col] = df[col].round(0).astype("Int64")
                 elif _pd.api.types.is_float_dtype(dtype):
-                    df[col] = df[col].round(4)
+                    df[col] = df[col].round(self._float_decimals)
             except Exception:
                 pass
         return df
@@ -161,7 +174,9 @@ class BaseGenerator(ABC):
     def _add_syn_id(self, df: pd.DataFrame) -> pd.DataFrame:
         """Prepend a unique synthetic row identifier."""
         df = df.reset_index(drop=True)
-        df.insert(0, "syn_id", [f"SYN-{100_000 + i}" for i in range(len(df))])
+        start_id = self._syn_id_counter
+        self._syn_id_counter += len(df)
+        df.insert(0, "syn_id", [f"SYN-{start_id + i}" for i in range(len(df))])
         return df
 
     # ── Repr ──────────────────────────────────────────────────────────────────
@@ -172,24 +187,40 @@ class BaseGenerator(ABC):
 
     # ── Filters ───────────────────────────────────────────────────────────────
 
+    def _resolve_col(self, key: str, columns: list[str] | None = None) -> str | None:
+        """Resolve abbreviated key → actual column name."""
+        cols = columns if columns is not None else self._columns
+        if not cols:
+            return None
+        if key in cols:
+            return key
+        if key in self._ALIASES and self._ALIASES[key] in cols:
+            return self._ALIASES[key]
+        matches = [c for c in cols if c == key or c.startswith(key + "_")]
+        return matches[0] if len(matches) == 1 else None
+
     def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         """Apply column filters to a generated DataFrame.
 
-        Supports exact match, ``_min``, and ``_max`` suffixes.
-        Subclasses may override for alias resolution or other logic.
+        Supports exact match, ``_min``, and ``_max`` suffixes with alias resolution.
         """
+        cols = list(df.columns)
         for key, val in filters.items():
             if key.endswith("_min"):
-                col = key[:-4]
-                if col in df.columns:
+                base_key = key[:-4]
+                col = self._resolve_col(base_key, cols)
+                if col and col in df.columns:
                     df = df[df[col] >= val]
             elif key.endswith("_max"):
-                col = key[:-4]
-                if col in df.columns:
+                base_key = key[:-4]
+                col = self._resolve_col(base_key, cols)
+                if col and col in df.columns:
                     df = df[df[col] <= val]
-            elif key in df.columns:
-                if isinstance(val, list):
-                    df = df[df[key].isin(val)]
-                else:
-                    df = df[df[key] == val]
+            else:
+                col = self._resolve_col(key, cols)
+                if col and col in df.columns:
+                    if isinstance(val, list):
+                        df = df[df[col].isin(val)]
+                    else:
+                        df = df[df[col] == val]
         return df

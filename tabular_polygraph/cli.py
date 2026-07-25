@@ -151,6 +151,33 @@ def _drop_existing_columns(df, drop_cols: list[str] | None):
     return df.drop(columns=drop_present)
 
 
+def _positive_int(val: str) -> int:
+    ival = int(val)
+    if ival <= 0:
+        raise argparse.ArgumentTypeError(f"Must be a positive integer > 0, got {val}")
+    return ival
+
+
+def _create_generator_instance(generator_type: str, **kwargs) -> BaseGenerator:
+    """Instantiate a generator of the given type with kwargs."""
+    if generator_type == "ctgan":
+        from tabular_polygraph.generators import CTGANGenerator
+
+        return CTGANGenerator(**kwargs)
+    elif generator_type == "tvae":
+        from tabular_polygraph.generators import TVAEGenerator
+
+        return TVAEGenerator(**kwargs)
+    elif generator_type == "vine":
+        from tabular_polygraph.generators import VineCopulaGenerator
+
+        return VineCopulaGenerator(**kwargs)
+    else:
+        from tabular_polygraph.generators import GaussianCopulaGenerator
+
+        return GaussianCopulaGenerator(**kwargs)
+
+
 def _load_generator(
     dataset_id,
     generator_type="auto",
@@ -197,24 +224,7 @@ def _load_generator(
         # Just generic info that we've cleaned the dataset
         pass
 
-    gen: BaseGenerator
-    if generator_type == "ctgan":
-        from tabular_polygraph.generators import CTGANGenerator
-
-        gen = CTGANGenerator(**kwargs)
-    elif generator_type == "tvae":
-        from tabular_polygraph.generators import TVAEGenerator
-
-        gen = TVAEGenerator(**kwargs)
-    elif generator_type == "vine":
-        from tabular_polygraph.generators import VineCopulaGenerator
-
-        gen = VineCopulaGenerator(**kwargs)
-    else:
-        from tabular_polygraph.generators import GaussianCopulaGenerator
-
-        gen = GaussianCopulaGenerator(**kwargs)
-
+    gen = _create_generator_instance(generator_type, **kwargs)
     gen.fit(seed_df)
     return gen, seed_df, generator_type
 
@@ -347,24 +357,7 @@ def _fit_custom_input_generator(
     if epochs is not None:
         gen_kwargs["epochs"] = epochs
 
-    gen: BaseGenerator
-    if generator_type == "ctgan":
-        from tabular_polygraph.generators import CTGANGenerator
-
-        gen = CTGANGenerator(**gen_kwargs)
-    elif generator_type == "tvae":
-        from tabular_polygraph.generators import TVAEGenerator
-
-        gen = TVAEGenerator(**gen_kwargs)
-    elif generator_type == "vine":
-        from tabular_polygraph.generators import VineCopulaGenerator
-
-        gen = VineCopulaGenerator(**gen_kwargs)
-    else:
-        from tabular_polygraph.generators import GaussianCopulaGenerator
-
-        gen = GaussianCopulaGenerator(**gen_kwargs)
-
+    gen = _create_generator_instance(generator_type, **gen_kwargs)
     gen.fit(seed_df)
     info(
         f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}"
@@ -440,6 +433,9 @@ def _compute_generate_report(
         )
     except Exception as fe:
         warn(f"Fidelity report skipped: {fe}")
+        import logging
+
+        logging.debug("Fidelity report failure traceback:", exc_info=True)
         return None
 
 
@@ -821,7 +817,7 @@ def main():
         metavar="FILE",
         help="Path to your own CSV. Fit the generator on it instead of a built-in dataset.",
     )
-    p.add_argument("--rows", type=int, default=1000, metavar="N")
+    p.add_argument("--rows", type=_positive_int, default=1000, metavar="N")
     p.add_argument(
         "--output",
         type=str,

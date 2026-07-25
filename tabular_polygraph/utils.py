@@ -104,14 +104,24 @@ def to_numeric_array(
 
     if fill_method == "dropna":
         return s.dropna().astype(float).values
-    elif fill_method == "mean":
-        s = s.fillna(s.mean())
-    elif fill_method == "median":
-        s = s.fillna(s.median())
+    elif fill_method in ("mean", "median"):
+        val = s.mean() if fill_method == "mean" else s.median()
+        if pd.isna(val):
+            import warnings
+
+            warnings.warn(
+                f"to_numeric_array('{fill_method}') encountered an all-NaN series. Filling with 0.0 fallback.",
+                UserWarning,
+                stacklevel=2,
+            )
+            val = 0.0
+        s = s.fillna(val)
     elif fill_method == "zero":
         s = s.fillna(0.0)
     elif fill_method == "forward":
         s = s.ffill().bfill()
+        if s.isna().any():
+            s = s.fillna(0.0)
     elif fill_method == "value":
         if fill_value is None:
             raise ValueError("fill_value required when fill_method='value'")
@@ -145,6 +155,16 @@ def normalize(
     Returns:
         Normalized array, or tuple of (normalized, mean, std) if return_params=True.
     """
+    if arr.size == 0:
+        empty_params = (
+            np.array([])
+            if arr.ndim <= 1
+            else np.empty((0, arr.shape[1] if arr.ndim > 1 else 0))
+        )
+        if return_params:
+            return arr.copy(), empty_params, empty_params
+        return arr.copy()
+
     mu = np.mean(arr, axis=0)
     sigma = np.std(arr, axis=0)
 

@@ -96,7 +96,7 @@ class _CategoricalMarginal:
         if not self._cats:
             return np.full(len(series), 0.5)
         mapping = {c: (i + 0.5) / len(self._cats) for i, c in enumerate(self._cats)}
-        return np.array([mapping.get(v, 0.5) for v in series.fillna(self._cats[0])])
+        return np.array([mapping.get(v, 0.5) if pd.notna(v) else 0.5 for v in series])
 
     def from_uniform(self, u: np.ndarray) -> list:
         if not self._cats:
@@ -227,10 +227,11 @@ class GaussianCopulaGenerator(BaseGenerator):
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        n_gen = n * (6 if filters else 1)
+        n_gen = n * (10 if filters else 1)
 
         # Correlated normal samples via modern Generator
         rng = np.random.default_rng(seed)
+        assert self._corr is not None
         try:
             L = np.linalg.cholesky(self._corr)
             z = rng.standard_normal((n_gen, len(self._columns))) @ L.T
@@ -248,19 +249,41 @@ class GaussianCopulaGenerator(BaseGenerator):
 
         if filters:
             df = self._apply_filters(df, filters)
+            attempts = 0
+            while len(df) < n and attempts < 5:
+                attempts += 1
+                n_more = n * 10
+                z_more = rng.standard_normal((n_more, len(self._columns)))
+                try:
+                    assert self._corr is not None
+                    L = np.linalg.cholesky(self._corr)
+                    z_more = z_more @ L.T
+                except np.linalg.LinAlgError:
+                    pass
+                u_more = stats.norm.cdf(z_more)
+                rec_more = {
+                    col: self._marginals[col].from_uniform(u_more[:, i])
+                    for i, col in enumerate(self._columns)
+                }
+                df_more = self._cast_types(pd.DataFrame(rec_more))
+                df_more = self._apply_filters(df_more, filters)
+                df = pd.concat([df, df_more], ignore_index=True)
 
         return self._add_syn_id(df.head(n))
 
     # ── filter helpers ────────────────────────────────────────────────────────
 
-    def _resolve_col(self, key: str) -> str | None:
+    def _resolve_col(self, key: str, columns: list[str] | None = None) -> str | None:
         """Resolve abbreviated key → actual column name."""
-        if key in self._columns:
+        cols = columns if columns is not None else self._columns
+        if not cols:
+            return None
+        if key in cols:
             return key
-        if key in self._ALIASES and self._ALIASES[key] in self._columns:
+        if key in self._ALIASES and self._ALIASES[key] in cols:
             return self._ALIASES[key]
         # unambiguous prefix match
-        matches = [c for c in self._columns if c == key or c.startswith(key + "_")]
+        matches = [c for c in cols if c == key or c.startswith(key + "_")]
         return matches[0] if len(matches) == 1 else None
 
     def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
