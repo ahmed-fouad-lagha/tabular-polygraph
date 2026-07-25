@@ -153,6 +153,50 @@ DOWNLOADERS: dict[str, dict] = {
             "default payment next month": "default_payment",
         },
     },
+    "supermarket_sales": {
+        "name": "Supermarket Sales",
+        "source": "Plotly Datasets (Open)",
+        "url": "https://raw.githubusercontent.com/plotly/datasets/master/supermarket_Sales.csv",
+        "method": "supermarket_csv",
+        "size_hint": "~100 KB — instant",
+        "indicators": {
+            "Invoice ID": "invoice_id",
+            "Branch": "branch",
+            "City": "city",
+            "Customer type": "customer_type",
+            "Gender": "gender",
+            "Product line": "product_line",
+            "Unit price": "unit_price",
+            "Quantity": "quantity",
+            "Tax 5%": "tax_5pct",
+            "Total": "total",
+            "Date": "date",
+            "Time": "time",
+            "Payment": "payment",
+            "Cost of goods sold": "cogs",
+            "Gross margin percentage": "gross_margin_pct",
+            "Gross income": "gross_income",
+            "Customer stratification rating": "customer_rating",
+        },
+    },
+    "online_purchases": {
+        "name": "Online Purchases (2006-2019)",
+        "source": "ptvan/datasets (Open)",
+        "url": "https://raw.githubusercontent.com/ptvan/datasets/master/online_purchases/purchases_2006-2019.csv",
+        "method": "purchases_csv",
+        "size_hint": "~500 KB — fast",
+        "indicators": {
+            "order_date": "order_date",
+            "shipment_date": "shipment_date",
+            "category": "category",
+            "list_price_per_unit": "list_price",
+            "purchase_price_per_unit": "purchase_price",
+            "quantity": "quantity",
+            "item_subtotal": "item_subtotal",
+            "item_tax": "item_tax",
+            "item_total": "item_total",
+        },
+    },
 }
 
 
@@ -375,12 +419,84 @@ def _download_credit(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
+def _download_supermarket_sales(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+    """Download Supermarket Sales dataset from Plotly datasets."""
+    url = DOWNLOADERS["supermarket_sales"]["url"]
+    print("    Fetching Supermarket Sales dataset from Plotly...")
+
+    df = pd.read_csv(url)
+
+    # Rename columns using indicators
+    rename_map = DOWNLOADERS["supermarket_sales"]["indicators"]
+    df = df.rename(columns=rename_map)
+
+    # Cast categorical columns to string
+    cat_cols = [
+        "invoice_id",
+        "branch",
+        "city",
+        "customer_type",
+        "gender",
+        "product_line",
+        "payment",
+        "customer_rating",
+    ]
+    for c in cat_cols:
+        if c in df.columns:
+            df[c] = df[c].astype(str)
+
+    # Drop date/time for now (keep numeric + categorical)
+    df = df.drop(columns=["date", "time"], errors="ignore")
+
+    return df.sample(min(n_sample, len(df)), random_state=42)
+
+
+def _download_online_purchases(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+    """Download Online Purchases dataset from GitHub."""
+    url = DOWNLOADERS["online_purchases"]["url"]
+    print("    Fetching Online Purchases dataset from GitHub...")
+
+    df = pd.read_csv(url)
+
+    # Rename columns using indicators
+    rename_map = DOWNLOADERS["online_purchases"]["indicators"]
+    df = df.rename(columns=rename_map)
+
+    # Clean price columns (remove $ sign if present)
+    for col in [
+        "list_price",
+        "purchase_price",
+        "item_subtotal",
+        "item_tax",
+        "item_total",
+    ]:
+        if col in df.columns:
+            if df[col].dtype == object:
+                df[col] = (
+                    df[col]
+                    .str.replace("$", "", regex=False)
+                    .str.replace(",", "", regex=False)
+                )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Cast category to string
+    if "category" in df.columns:
+        df["category"] = df["category"].fillna("Unknown").astype(str)
+
+    # Drop date columns for now
+    df = df.drop(columns=["order_date", "shipment_date"], errors="ignore")
+
+    return df.sample(min(n_sample, len(df)), random_state=42)
+
+
 # Mapping of registry methods to internal downloader functions
 METHOD_MAP = {
     "bls_api": _download_bls,
     "census_api": _download_census,
     "direct_csv": _download_adult,
     "direct_excel": _download_credit,
+    "supermarket_csv": _download_supermarket_sales,
+    "purchases_csv": _download_online_purchases,
 }
 
 
