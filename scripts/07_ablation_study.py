@@ -295,7 +295,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--generator", default="gaussian_copula", choices=["gaussian_copula", "ctgan"]
     )
-    parser.add_argument("--output-dir", default="results/rebuttal")
+    parser.add_argument("--output-dir", default="outputs/rebuttal")
     args = parser.parse_args()
 
     run_ablation(

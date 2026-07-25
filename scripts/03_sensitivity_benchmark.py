@@ -94,5 +94,7 @@ if __name__ == "__main__":
     print("=" * 72)
 
     # Save for appendix
-    df.to_csv("results/sensitivity_analysis.csv", index=False)
-    print("\nResults saved to results/sensitivity_analysis.csv")
+    output_path = Path("outputs/sensitivity_analysis.csv")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False)
+    print(f"\nResults saved to {output_path}")

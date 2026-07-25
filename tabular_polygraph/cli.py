@@ -411,6 +411,7 @@ def _compute_generate_report(
     hif_depth=12,
     rule_params=None,
     verbose=False,
+    target_col=None,
 ):
     from tabular_polygraph.fidelity import fidelity_report
 
@@ -423,7 +424,8 @@ def _compute_generate_report(
             seed_df,
             syn_body,
             dataset_type=dataset_type,
-            include_downstream=False,
+            target_col=target_col,
+            include_downstream=bool(target_col),
             hif_epochs=hif_epochs,
             hif_hubs=hif_hubs,
             hif_depth=hif_depth,
@@ -520,12 +522,37 @@ def _print_generate_logical(report):
     )
 
 
+def _print_generate_downstream(report):
+    ds = report.get("downstream")
+    if not ds or "error" in ds or ds.get("status") == "skipped":
+        return
+    section("Downstream ML Utility (TSTR)")
+    task = ds.get("task", "")
+    metric = ds.get("metric", "")
+    trr = ds.get("trr_score")
+    tstr = ds.get("tstr_score")
+    ratio = ds.get("ratio")
+    target_col = ds.get("target_col", "")
+
+    if trr is not None and tstr is not None:
+        print(f"    {_c('Target column          ', C.GRAY):<28}{target_col} ({task})")
+        print(f"    {_c('TRTR Real baseline     ', C.GRAY):<28}{trr:.4f} ({metric})")
+        print(f"    {_c('TSTR Synthetic trained ', C.GRAY):<28}{tstr:.4f} ({metric})")
+        ret_pct = ratio * 100.0 if ratio is not None else 0.0
+        c_fmt = C.GREEN if ret_pct >= 90 else C.YELLOW
+        print(
+            f"    {_c('ML Retention ratio     ', C.GRAY):<28}{_c(f'{ret_pct:.1f}%', c_fmt)}"
+        )
+        print()
+
+
 def _print_generate_report(report):
     if report is None:
         return
 
     _print_generate_bars(report)
     _print_generate_logical(report)
+    _print_generate_downstream(report)
     _print_generate_stylized(report)
 
 
@@ -619,6 +646,8 @@ def cmd_generate(args):
         hif_epochs=getattr(args, "hif_epochs", 10),
         hif_hubs=getattr(args, "hif_hubs", 5),
         hif_depth=getattr(args, "hif_depth", 12),
+        target_col=getattr(args, "target", None),
+        verbose=getattr(args, "verbose", False),
     )
     _print_generate_report(report)
 
@@ -857,6 +886,14 @@ def main():
         default=None,
         metavar="N",
         help="Override default training epochs for deep generators",
+    )
+    p.add_argument(
+        "-t",
+        "--target",
+        type=str,
+        default=None,
+        metavar="COL",
+        help="Target column for downstream TSTR ML evaluation",
     )
     p.add_argument("--seed", type=int, default=42, metavar="INT")
     p.add_argument(
