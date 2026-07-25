@@ -13,6 +13,8 @@ Requirements:
 
 from __future__ import annotations
 
+import pandas as pd
+
 from .base import BaseGenerator
 
 
@@ -60,7 +62,7 @@ class TVAEGenerator(BaseGenerator):
                 "This installs sdv and its dependencies."
             ) from None
 
-    def fit(self, data):
+    def fit(self, data: pd.DataFrame) -> "TVAEGenerator":
         self._require_sdv()
         from sdv.metadata import SingleTableMetadata
         from sdv.single_table import TVAESynthesizer
@@ -81,34 +83,28 @@ class TVAEGenerator(BaseGenerator):
             loss_factor=self._loss_factor,
             verbose=False,
         )
+        assert self._model is not None
         self._model.fit(data[self._columns])
         self._fitted = True
         return self
 
-    def _generate(self, n, filters=None, seed=None):
+    def _generate(
+        self,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
         self._require_sdv()
         self._require_fitted()
         if self._model is None:
             raise RuntimeError("TVAE model is not initialised. Call fit() first.")
 
         if seed is not None:
-            import numpy as np
-
-            np.random.seed(seed)
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
 
         df = self._model.sample(n * (4 if filters else 1))
         df = self._cast_types(df)
         if filters:
-            df = self._apply_basic_filters(df, filters)
+            df = self._apply_filters(df, filters)
         return self._add_syn_id(df.head(n))
-
-    def _apply_basic_filters(self, df, filters):
-        for key, val in filters.items():
-            if key in df.columns:
-                if isinstance(val, list):
-                    df = df[df[key].isin(val)]
-                else:
-                    df = df[df[key] == val]
-        return df

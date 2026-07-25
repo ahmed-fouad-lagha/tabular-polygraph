@@ -168,3 +168,27 @@ class BaseGenerator(ABC):
     def __repr__(self) -> str:
         status = f"fitted on {self._n_fit:,} rows" if self._fitted else "not fitted"
         return f"{self.__class__.__name__}({status})"
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+
+    def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+        """Apply column filters to a generated DataFrame.
+
+        Supports exact match, ``_min``, and ``_max`` suffixes.
+        Subclasses may override for alias resolution or other logic.
+        """
+        for key, val in filters.items():
+            if key.endswith("_min"):
+                col = key[:-4]
+                if col in df.columns:
+                    df = df[df[col] >= val]
+            elif key.endswith("_max"):
+                col = key[:-4]
+                if col in df.columns:
+                    df = df[df[col] <= val]
+            elif key in df.columns:
+                if isinstance(val, list):
+                    df = df[df[key].isin(val)]
+                else:
+                    df = df[df[key] == val]
+        return df

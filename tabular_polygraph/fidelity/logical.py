@@ -18,10 +18,14 @@ from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils import check_random_state
 
+try:
+    from pandas.errors import PerformanceWarning
+except ImportError:
+    PerformanceWarning = Warning
+
 # --- HIF AUDIT CONSTANTS ---
 MAX_RULE_CANDIDATES = 10000
 LSE_MIN_SAMPLES_LEAF = 5
-LSE_MIN_SUPPORT = 0.005
 NIC_COLLAPSE_THRESHOLD = 0.5
 NIC_COLLAPSE_PENALTY = 0.6
 NIC_Z_PERCENTILE = 95
@@ -53,11 +57,11 @@ def _fit_binning(
                 df[col], q=n_bins, labels=False, duplicates="drop", retbins=True
             )
             edges[col] = bin_edges
-        except Exception:
+        except (ValueError, TypeError):
             try:
                 _, bin_edges = pd.cut(df[col], bins=n_bins, labels=False, retbins=True)
                 edges[col] = bin_edges
-            except Exception:
+            except (ValueError, TypeError):
                 edges[col] = None
     return edges
 
@@ -95,7 +99,7 @@ def _apply_binning(
                 f"bin_{int(i)}" if pd.notna(v) else v
                 for i, v in zip(bin_indices, df[col].values, strict=True)
             ]
-        except Exception:
+        except (ValueError, TypeError):
             df_binned[col] = df[col].astype(str)
     return df_binned
 
@@ -237,7 +241,7 @@ class LogicalSentinelEnsemble:
             try:
                 cv_scores = cross_val_score(clf, X, y, cv=n_splits, scoring="accuracy")
                 scores[hub_col] = float(cv_scores.mean())
-            except Exception:
+            except (ValueError, TypeError):
                 continue
 
         sorted_hubs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -251,7 +255,25 @@ class LogicalSentinelEnsemble:
         x_precomputed: pd.DataFrame | None = None,
         potential_hubs: List[str] | None = None,
     ):
-        """Train Sentinels using stateful manifold projection."""
+        """Train Sentinels using stateful manifold projection.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Binned real data (categorical hub candidates).
+        hif_epochs : int
+            Multiplier for the number of Random Forest trees per sentinel:
+            ``n_trees = max(10, hif_epochs * 10)``.  This is NOT training
+            epochs — RF classifiers are non-iterative.  Higher values give
+            more stable OOB estimates at the cost of memory and fit time.
+        verbose : bool
+            Print progress messages.
+        x_precomputed : pd.DataFrame or None
+            Pre-encoded categorical manifold (OneHot).  If None, the
+            internal encoder is fitted on *df*.
+        potential_hubs : list[str] or None
+            Subset of columns to consider as hub candidates.
+        """
         if x_precomputed is not None:
             x_encoded = x_precomputed
             # feature_map must be built manually if precomputed
@@ -563,14 +585,7 @@ class NeighborInvariantContinuity:
             y_valid = y[valid_mask]
             latent_valid = latent[valid_mask]
 
-            # Clip synthetic values to the real range before computing residuals.
-            # This ensures genuine outliers (e.g. income=500000 when real max=90000)
-            # produce large residuals and get flagged, rather than being silently
-            # mapped to the real distribution via quantile alignment.
-            y_sorted_real = self.marginal_references[col]
-            y_clipped = np.clip(y_valid, y_sorted_real.min(), y_sorted_real.max())
-
-            y_scaled = self.scalers[col].transform(y_clipped.reshape(-1, 1)).flatten()
+            y_scaled = self.scalers[col].transform(y_valid.reshape(-1, 1)).flatten()
             y_pred = self.regressors[col].predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
@@ -618,6 +633,12 @@ def hif_score(
     Hybrid Integrity Framework (HIF) Entry Point.
     Orchestrates the Tabular Polygraph via Logical Sentinel Ensemble (LSE)
     and Neighbor-Invariant Continuity (NIC).
+
+    Parameters
+    ----------
+    hif_epochs : int
+        Multiplier for RF tree count per sentinel (NOT training epochs):
+        ``n_trees = max(10, hif_epochs * 10)``.
     """
     seed_val = int(random_state) if random_state is not None else 42
     from tabular_polygraph.utils import set_seed
@@ -758,12 +779,12 @@ def hif_score(
 
     # Aggregate using chosen method
     if aggregation == "arithmetic":
-        row_validity = sum(active_components) / len(active_components)
+        row_validity = np.asarray(sum(active_components) / len(active_components))
     else:  # "geometric" — default
         log_sum = sum(np.log(c) for c in active_components)
-        row_validity = np.exp(log_sum / len(active_components))
+        row_validity = np.asarray(np.exp(log_sum / len(active_components)))
 
-    row_penalties = 1.0 - row_validity
+    row_penalties = np.asarray(1.0 - row_validity)
     hif_score_val = row_validity.mean()
 
     num_violations = (row_penalties > violation_threshold).sum()
@@ -801,6 +822,7 @@ def mine_implication_rules(
     min_lift: float = 1.0,
     max_antecedents: int = 2,
     random_state: int | None = None,
+    pre_binned: bool = False,
 ) -> list[dict[str, Any]]:
     n_rows = len(real)
     if n_rows == 0:
@@ -810,6 +832,9 @@ def mine_implication_rules(
     cat = pd.DataFrame(index=real.index)
     for col in columns:
         col_data = real[col]
+        if pre_binned:
+            cat[col] = col_data.astype(str)
+            continue
         # Skip binning if the data is already discrete/categorical
         if pd.api.types.is_object_dtype(col_data) or isinstance(
             col_data.dtype, pd.CategoricalDtype
@@ -999,6 +1024,7 @@ def rule_violation_score(
         min_lift=min_lift,
         max_antecedents=max_antecedents,
         random_state=random_state,
+        pre_binned=pre_binned,
     )
 
     if not rules:

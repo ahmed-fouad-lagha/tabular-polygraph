@@ -208,13 +208,14 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
 
     To use, first download:
         from tabular_polygraph.dataset.downloader import download
-        download("bls")
         download("census_acs")
         download("adult")
         download("credit")
+        download("supermarket_sales")
+        download("online_purchases")
 
     Args:
-        dataset_id: One of ["bls", "census_acs", "adult", "credit"]
+        dataset_id: One of ["census_acs", "adult", "credit", "supermarket_sales", "online_purchases"]
         n: Max number of records to return (default 2000)
 
     Returns:

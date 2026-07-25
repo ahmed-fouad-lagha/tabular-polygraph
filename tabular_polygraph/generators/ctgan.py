@@ -41,6 +41,7 @@ class CTGANGenerator(BaseGenerator):
         discriminator_lr: float = 2e-4,
         discriminator_steps: int = 1,
         log_frequency: bool = True,
+        verbose: bool = False,
         discrete_columns: list[str] | None = None,
         discrete_threshold: int = 20,
         **kwargs,
@@ -51,6 +52,7 @@ class CTGANGenerator(BaseGenerator):
         self._discriminator_lr = discriminator_lr
         self._discriminator_steps = discriminator_steps
         self._log_frequency = log_frequency
+        self._verbose = verbose
         self._user_discrete_columns = discrete_columns
         self._discrete_threshold = discrete_threshold
         self._model: Any | None = None
@@ -89,7 +91,7 @@ class CTGANGenerator(BaseGenerator):
             discriminator_lr=self._discriminator_lr,
             discriminator_steps=self._discriminator_steps,
             log_frequency=self._log_frequency,
-            verbose=True,
+            verbose=self._verbose,
         )
         self._model.fit(data, discrete_columns=discrete_cols)
         self._fitted = True
@@ -106,25 +108,11 @@ class CTGANGenerator(BaseGenerator):
         if self._model is None:
             raise RuntimeError("CTGAN model is not initialised. Call fit() first.")
         if seed is not None:
-            import numpy as np
-            import torch
-
-            np.random.seed(seed)
-            torch.manual_seed(seed)
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
 
         df = self._model.sample(n * (4 if filters else 1))
         df = self._cast_types(df)
         if filters:
-            df = self._apply_basic_filters(df, filters)
+            df = self._apply_filters(df, filters)
         return self._add_syn_id(df.head(n))
-
-    def _apply_basic_filters(self, df, filters):
-        for key, val in filters.items():
-            if key in df.columns:
-                if isinstance(val, list):
-                    df = df[df[key].isin(val)]
-                else:
-                    df = df[df[key] == val]
-        return df

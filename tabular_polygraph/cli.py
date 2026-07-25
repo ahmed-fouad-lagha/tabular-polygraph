@@ -354,24 +354,37 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
     return gen, seed_df, gen_type
 
 
-def _compute_generate_report(seed_df, syn, gen_type, seed=42):
+def _compute_generate_report(
+    seed_df,
+    syn,
+    gen_type,
+    seed=42,
+    hif_epochs=10,
+    hif_hubs=5,
+    hif_depth=12,
+    rule_params=None,
+):
     from tabular_polygraph.fidelity import fidelity_report
 
     info("Running fidelity report...")
     dataset_type = "cross_sectional"
     syn_body = syn.drop(columns=["syn_id"], errors="ignore")
+    rp = rule_params or {}
     try:
         return fidelity_report(
             seed_df,
             syn_body,
             dataset_type=dataset_type,
             include_downstream=False,
+            hif_epochs=hif_epochs,
+            hif_hubs=hif_hubs,
+            hif_depth=hif_depth,
             random_state=seed,
-            rule_min_confidence=0.95,
-            rule_min_support=0.005,
-            rule_max_rules=25,
-            rule_min_lift=1.0,
-            rule_max_antecedents=2,
+            rule_min_confidence=rp.get("rule_min_confidence", 0.95),
+            rule_min_support=rp.get("rule_min_support", 0.005),
+            rule_max_rules=rp.get("rule_max_rules", 25),
+            rule_min_lift=rp.get("rule_min_lift", 1.0),
+            rule_max_antecedents=rp.get("rule_max_antecedents", 2),
         )
     except Exception as fe:
         warn(f"Fidelity report skipped: {fe}")
@@ -554,6 +567,9 @@ def cmd_generate(args):
         syn,
         gen_type,
         seed=args.seed,
+        hif_epochs=getattr(args, "hif_epochs", 10),
+        hif_hubs=getattr(args, "hif_hubs", 5),
+        hif_depth=getattr(args, "hif_depth", 12),
     )
     _print_generate_report(report)
 
@@ -939,7 +955,6 @@ def main():
         dim("    tabular-polygraph list --vertical 'Real Estate'")
         dim("    tabular-polygraph generate bls --rows 500 --output syn.csv")
         dim("    tabular-polygraph evaluate real.csv synthetic.csv")
-        dim("    tabular-polygraph audit real.csv synthetic.csv --attacks 500")
         dim("    tabular-polygraph validate my_data.csv")
         print()
         sys.exit(0)

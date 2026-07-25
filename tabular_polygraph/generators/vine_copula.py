@@ -12,6 +12,12 @@ Improves on Gaussian Copula in two key ways:
 This matters for financial data where correlations are higher in downturns
 than in normal periods — the Gaussian Copula misses this completely.
 
+Limitations
+-----------
+Categorical columns are sampled independently from their marginal distributions.
+The vine copula models only the continuous features' joint structure. Joint
+dependence between categorical and numeric features is NOT captured.
+
 Requirements
 -----------
     pip install pyvinecopulib
@@ -27,7 +33,6 @@ Usage
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
@@ -35,8 +40,6 @@ import pandas as pd
 from scipy import stats
 
 from .base import BaseGenerator
-
-warnings.filterwarnings("ignore")
 
 
 def _require_pyvine():
@@ -48,6 +51,41 @@ def _require_pyvine():
             "Install it with: pip install .[vine]\n"
             "  or: pip install pyvinecopulib"
         ) from None
+
+
+def _resolve_family_set(family_set):
+    """Convert a user-facing family_set spec to a list of BicopFamily enums."""
+    _require_pyvine()
+    import pyvinecopulib as pv
+
+    if isinstance(family_set, list):
+        return family_set
+
+    if family_set == "parametric":
+        return [
+            pv.BicopFamily.gaussian,
+            pv.BicopFamily.student,
+            pv.BicopFamily.clayton,
+            pv.BicopFamily.gumbel,
+            pv.BicopFamily.frank,
+            pv.BicopFamily.joe,
+        ]
+
+    if family_set == "all":
+        return list(pv.BicopFamily.__members__.values())
+
+    if family_set == "tll":
+        return [pv.BicopFamily.tll]
+
+    # Try direct enum lookup
+    members = pv.BicopFamily.__members__
+    if family_set in members:
+        return [members[family_set]]
+
+    raise ValueError(
+        f"Unknown family_set '{family_set}'. "
+        f"Choose from: 'parametric', 'all', 'tll', or a list of BicopFamily enums."
+    )
 
 
 class VineCopulaGenerator(BaseGenerator):
@@ -79,7 +117,7 @@ class VineCopulaGenerator(BaseGenerator):
     def _init(self, family_set: str = "parametric", trunc_lvl: int = 0, **kwargs):
         self._family_set = family_set
         self._trunc_lvl = trunc_lvl
-        self._vine = None
+        self._vine: Any = None
         self._marginals: dict[str, dict[str, Any]] = {}
         self._numeric_cols: list[str] = []
         self._cat_cols: list[str] = []
@@ -124,19 +162,9 @@ class VineCopulaGenerator(BaseGenerator):
         U = np.clip(U, 1e-4, 1 - 1e-4)
 
         # Fit vine copula
+        families = _resolve_family_set(self._family_set)
         controls = pv.FitControlsVinecop(
-            family_set=pv.BicopFamily.__members__.get(
-                self._family_set, list(pv.BicopFamily.__members__.values())[:8]
-            )
-            if isinstance(self._family_set, str) and self._family_set != "parametric"
-            else [
-                pv.BicopFamily.gaussian,
-                pv.BicopFamily.student,
-                pv.BicopFamily.clayton,
-                pv.BicopFamily.gumbel,
-                pv.BicopFamily.frank,
-                pv.BicopFamily.joe,
-            ],
+            family_set=families,
             trunc_lvl=self._trunc_lvl,
             num_threads=1,
         )
@@ -172,7 +200,9 @@ class VineCopulaGenerator(BaseGenerator):
             values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
             records[col] = np.clip(values, m["min"], m["max"])
 
-        # Sample categorical columns independently (vine doesn't model categoricals)
+        # Sample categorical columns independently from their marginals.
+        # NOTE: The vine copula models only continuous dependence; joint
+        # categorical-numeric dependence is NOT captured.
         for col in self._cat_cols:
             m = self._cat_marginals[col]
             records[col] = np.random.choice(m["cats"], size=n_gen, p=m["probs"])
@@ -185,37 +215,22 @@ class VineCopulaGenerator(BaseGenerator):
 
         return self._add_syn_id(df.head(n))
 
-    def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
-        for key, val in filters.items():
-            if key.endswith("_min"):
-                col = key[:-4]
-                if col in df.columns:
-                    df = df[df[col] >= val]
-            elif key.endswith("_max"):
-                col = key[:-4]
-                if col in df.columns:
-                    df = df[df[col] <= val]
-            elif key in df.columns:
-                if isinstance(val, list):
-                    df = df[df[key].isin([str(v) for v in val])]
-                else:
-                    df = df[df[key] == val]
-        return df
-
     def tail_dependence_report(self) -> dict:
         """
         Return upper and lower tail dependence coefficients for each pair.
-        High values (> 0.1) indicate the variables tend to move together in extremes.
+
+        High values (> 0.1) indicate the variables tend to move together
+        in extremes (e.g. joint crashes or joint booms).
         """
         if self._vine is None:
             return {}
         report = {}
         for i, ci in enumerate(self._numeric_cols):
-            for _j, cj in enumerate(self._numeric_cols[i + 1 :], i + 1):
-                # Get the bicop for this pair from the first tree
+            for j in range(i + 1, len(self._numeric_cols)):
+                cj = self._numeric_cols[j]
                 try:
                     bicop = self._vine.get_pair_copula(0, i)
-                    report[f"{ci} × {cj}"] = {
+                    report[f"{ci} x {cj}"] = {
                         "family": str(bicop.family),
                         "parameters": bicop.parameters.tolist(),
                         "tau": round(float(bicop.tau), 3),
