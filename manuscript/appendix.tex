@@ -1,0 +1,126 @@
+\section{Formal Guarantees for Multiplicative Integrity}
+
+We provide a formal analysis of the Multiplicative Integrity (MI) model properties under the \textbf{ structured drift-proof (SDP)} framework introduced by Guo et al. \cite{guo2026structured}.
+
+\subsection{Proof of Intersection Soundness}
+
+\textbf{Theorem 1.} The Multiplicative Integrity score $H(\mathbf{x})$ defines a membership certificate for the intersection of semantic manifolds $\mathcal{M}_{total} = \bigcap_{l} \mathcal{M}_l$.
+\begin{equation}
+    H(\mathbf{x}) \le \left( \prod_{l} \mathbb{1}[\mathbf{x} \in \mathcal{M}_l] \right)^{1/L}
+\end{equation}
+where $L$ is the number of auditing layers in the model.
+ By definition, $\mathcal{C}_l(\mathbf{x}) = 1$ if $\mathbf{x} \in \mathcal{M}_l$ and $\mathcal{C}_l(\mathbf{x}) \in [0, 1)$ otherwise.
+\begin{enumerate}
+    \item \textbf{Completeness:} If $\mathbf{x} \in \mathcal{M}_{total}$, then $\mathbf{x} \in \mathcal{M}_l$ for all $l$. Thus, $\mathcal{C}_l(\mathbf{x}) = 1$ for all $l$, and $H(\mathbf{x}) = \prod_l 1 = 1$.
+    \item \textbf{Soundness (Non-Compensatory Property):} Suppose $\mathbf{x} \notin \mathcal{M}_{total}$. Then, there exists at least one $l^*$ such that $\mathbf{x} \notin \mathcal{M}_{l^*}$, implying $\mathcal{C}_{l^*}(\mathbf{x}) < 1$. Because $0 \le \mathcal{C}_l(\mathbf{x}) \le 1$ for all $l$, the geometric mean $H(\mathbf{x}) = \left( \mathcal{C}_{l^*}(\mathbf{x}) \cdot \prod_{l \neq l^*} \mathcal{C}_l(\mathbf{x}) \right)^{1/L} \le (\mathcal{C}_{l^*}(\mathbf{x}))^{1/L} < 1$.
+    \item \textbf{Strict Convergence:} If $\mathbf{x}$ exhibits an ``Absolute Violation'' in any layer ($\mathcal{P}_{l^*} \to 1 \implies \mathcal{C}_{l^*} \to 0$), the product $H(\mathbf{x}) \to 0$ regardless of the performance in other layers.
+\end{enumerate}
+This confirms that $H(\mathbf{x})$ provides a strictly conservative diagnosis for the joint satisfaction of all latent manifold law.
+
+\section{Logical Sentinel Ensemble (LSE) Implementation Details}
+
+The LSE architecture prioritizes categorical integrity by identifying and enforcing high-dependency hubs using a synergistic context.
+
+\subsection{Synergistic Hub Discovery}
+We ranked features based on their \textbf{Predictive Synergy} $S(h)$, which measures the compressibility of a feature within the full manifold context (including the binned numeric features). In our experiments in the U.S. Census ACS dataset, the LSE identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{age\_group}.
+
+\subsection{Confidence Floor Calibration}
+The confidence floor $\delta_h$ is defined as the 5th-percentile of the probability mass that a Sentinel $f_h$ assigns to the correct category in the ground-truth data $\mathcal{D}_{real}$, with a safety floor of 0.01:
+\begin{equation}
+    \delta_h = \max( \text{Percentile}_{5} \left( \{ f_h(\mathbf{x}_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} \right), 0.01)
+\end{equation}
+This robust approach avoids the instability of the 1st-percentile thresholds in sparse manifolds and ensures that the sentinels remain sensitive to logical violations \cite{karabulut2025neurosymbolic, long2025evaluating}.
+
+\section{Extended Results and Sensitivity Analysis}
+
+\subsection{Hyperparameter Sensitivity}
+
+We evaluated HIF robustness across three key hyperparameters on the Census ACS dataset (2,000 records with 5\% injected violations). All experiments used $N=5$ random seeds; we report mean $\pm$ SEM. The continuous HIF score is the primary metric; the violation rate is derived by applying the violation threshold to row-level penalties.
+
+\subsubsection{Hub Count $K$}
+Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across all hub counts, confirming that the framework's integrity signal is not dependent on a specific number of dependency hubs. The geometric mean aggregation ensures that adding more sentinels does not dilute the score.
+
+\begin{table}[htbp]
+\centering
+\caption{Sensitivity to hub count $K$ (percentile=5, threshold=0.5).}
+\label{tab:sensitivity_k}
+\begin{tabular}{lcc}
+\toprule
+$K$ & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
+\midrule
+1  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+3  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+5  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+10 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+15 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Confidence Floor Percentile}
+Table~\ref{tab:sensitivity_p} shows that the HIF score is stable for percentiles 1--5, with a minor 0.2\% drop at the 10th percentile. The 5th-percentile default provides the optimal balance between sensitivity to genuine violations and robustness against borderline records.
+
+\begin{table}[htbp]
+\centering
+\caption{Sensitivity to confidence floor percentile ($K=5$, threshold=0.5).}
+\label{tab:sensitivity_p}
+\begin{tabular}{lcc}
+\toprule
+Percentile & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
+\midrule
+1  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+3  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+5  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+10 & 0.9260 $\pm$ 0.0003 & 0.038 $\pm$ 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Violation Threshold}
+Table~\ref{tab:sensitivity_t} demonstrates that the continuous HIF score is invariant to the binary classification threshold, as expected. The violation rate scales monotonically with the threshold, allowing practitioners to tune the operating point for their specific precision--recall requirements without retraining.
+
+\begin{table}[htbp]
+\centering
+\caption{Sensitivity to violation threshold ($K=5$, percentile=5).}
+\label{tab:sensitivity_t}
+\begin{tabular}{lcc}
+\toprule
+Threshold & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
+\midrule
+0.3 & 0.9284 $\pm$ 0.0004 & 0.076 $\pm$ 0.000 \\
+0.5 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+0.7 & 0.9284 $\pm$ 0.0004 & 0.023 $\pm$ 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Scalability and Baseline Comparisons}
+We benchmarked HIF against the \textbf{SHAP Distance} semantic fidelity metric \cite{yu2025shap}, which serves as a state-of-the-art baseline for explainability-aware evaluation. Although the SHAP Distance effectively identifies semantic drift, it suffers from severe scalability bottlenecks. Auditing $N$ records with HIF scales linearly, $O(N \cdot K)$, where $K$ is the number of hubs. In our empirical trials, auditing 100,000 synthetic records with LSE (5 hubs) took $\approx 1.2$ min on a single CPU core. In contrast, SHAP-based methods require $O(N \cdot D \cdot 2^D)$ operations or expensive approximations, taking several hours for the same volume of data. Thus, HIF provides comparable detection accuracy while maintaining the necessary computational efficiency to scale to high-cardinality datasets with millions of rows of data.
+
+\subsection{Privacy-Fidelity Trade-off (TAMIS)}
+Using the TAMIS Privacy Oracle, we confirmed that the HIF-filtered records did not increase membership inference vulnerability. In fact, by removing outlier records that often serve as unique linkage fingerprints, HIF filtering marginally improves the privacy profile of synthetic cohorts.
+
+\subsection{Cross-Architecture Violation Frontiers}
+
+Our Cross-Architecture Maturity Audit revealed distinct ``Violation Frontiers'' for different generative families. While statistical models (\textbf{Gaussian and Vine Copulas}) tend to violate constraints through excessive smoothing (averaging out manifold sharp edges), neural models like \textbf{CTGAN} exhibit \textit{Combinatorial Violations}.
+
+Specifically, CTGAN often fragments the latent manifold during adversarial training, leading to synthetic records that satisfy the marginal distributions for each feature but inhabit ``Impossible Junctions''---categorical combinations that have zero probability mass in the ground-truth manifold. The Logical Sentinel Ensemble (LSE) is particularly effective at identifying these junctions, as the sentinels assign near-zero probability to the violated categories conditioned on their manifold hubs. This architectural discrepancy explains the higher base integrity score of CTGAN ($H=0.382$) compared to that of Gaussian Copulas ($H=0.203$), despite the latter's simpler statistical structure.
+
+\subsection{Macro-Economic Violation Detection}
+
+The application of HIF to the \textbf{World Bank Development Indicators} ($D=12$) highlights the framework's effectiveness in macro-level auditing. Macroeconomic data are governed by strict structural relationships (e.g., the relationship between GDP growth, inflation, and the Gini index).
+
+As shown in our audit, all evaluated generative models suffered from a significant ``Integrity Deficit'' in the World Bank domain, with integrity scores dropping near $H=0.00$ in several trials. This suggests that for macroeconomic indicators governed by global state-level laws, standard generative architectures fail to recover sparse semantic manifolds. By leveraging the \textbf{Neighbor-Invariant Continuity (NIC)} module, the HIF correctly identifies these records as continuous manifold violations, even when the distributional fidelity appears to be high.
+
+\section{Limitations and Open Challenges}
+
+While the Hybrid Integrity Framework (HIF) provides a technically rigorous diagnostic for synthetic data, our current formulation faces three key challenges identified through empirical auditing.
+
+\subsection{Dependency Discovery via Predictive Synergy}
+The Logical Sentinel Ensemble (LSE) relies on \textbf{Predictive Synergy} to discover dependency hubs. Although computationally efficient, it primarily captures categorical dependencies. Future work will investigate \textbf{Total Correlation} and multi-way interaction kernels to generalize the LSE to these complex parity regimes.
+
+\subsection{Sensitivity on Sparse or Imbalanced Manifolds}
+The use of the \textbf{5th-percentile Confidence Floor} ($\delta_h$) is a data-driven heuristic designed for stability. However, on extremely sparse or highly imbalanced datasets (e.g., rare fraud events or sparse healthcare codes), the calibration of $\delta_h$ may be susceptible to outliers in ground-truth data. In such cases, the framework may require domain-specific tuning of the percentile parameter or the adoption of Laplacian smoothing to stabilize the boundary conditions.
+
+\subsection{Computational Scaling to Ultra-High Dimensions}
+The parallelizable nature of the LSE architecture allows it to scale effectively to tables with thousands of columns. However, the memory overhead associated with training and storing an ensemble of $K$ Random Forest sentinels for ultra-high-dimensional tables (e.g., $D > 10,000$) remains a potential hardware bottleneck. In such regimes, we propose replacing complex forest-based sentinels with sparse-linear or neuro-inspired models that offer a better trade-off between semantic depth and memory usage.

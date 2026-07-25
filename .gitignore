@@ -35,6 +35,10 @@ build/
 *.swo
 .DS_Store
 
+# data
+*.csv
+*.parquet
+
 # Project specific
 output.csv
 output.json
@@ -43,17 +47,18 @@ synthetic_*.csv
 real_*.csv
 *_synthetic.csv
 *_sample.csv
-fidelity_report.json
-privacy_audit.json
 
-# manuscript
-manuscript/
-
-# results
-results/
-
-# data
-*.csv
-*.parquet
-
-docs
+# Latex
+*.aux
+*.out
+*.run.xml
+*.synctex.*
+*.toc
+*.bbl
+*.blg
+*.fls
+*.bcf
+*.fdb_latexmk
+*.synctex(busy)
+*.synctex.gz
+*.nav
