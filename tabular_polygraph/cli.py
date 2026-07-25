@@ -1012,22 +1012,10 @@ def main():
     import logging
 
     if getattr(args, "verbose", False):
-        logging.basicConfig(level=logging.INFO, format="  [%(levelname)s] %(message)s")
+        logging.basicConfig(
+            level=logging.WARNING, format="  [%(levelname)s] %(message)s"
+        )
         logging.getLogger("tabular_polygraph").setLevel(logging.DEBUG)
-        for noise_logger in (
-            "faker",
-            "urllib3",
-            "matplotlib",
-            "asyncio",
-            "lark",
-            "sdv",
-            "rdt",
-            "copulas",
-            "ctgan",
-        ):
-            logger_obj = logging.getLogger(noise_logger)
-            logger_obj.setLevel(logging.WARNING)
-            logger_obj.propagate = False
     elif getattr(args, "quiet", False):
         logging.basicConfig(level=logging.ERROR)
     else:
