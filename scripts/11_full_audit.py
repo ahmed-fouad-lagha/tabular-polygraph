@@ -78,10 +78,6 @@ DATASET_TARGETS = {
         "regression": ["age", "hours_per_week"],
         "classification": ["income", "workclass", "occupation"],
     },
-    "bls": {
-        "regression": ["total_employment", "establishments", "avg_weekly_wage"],
-        "classification": ["ownership", "quarter", "year"],
-    },
 }
 
 RESULTS_PATH = PROJECT_ROOT / "results" / "full_audit.csv"

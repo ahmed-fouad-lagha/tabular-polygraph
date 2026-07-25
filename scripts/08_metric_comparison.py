@@ -18,8 +18,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import LabelEncoder
 
 warnings.filterwarnings("ignore")
 
@@ -27,95 +25,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from tabular_polygraph.dataset.downloader import load_cached  # noqa: E402
-from tabular_polygraph.fidelity.logical import hif_score  # noqa: E402
-from tabular_polygraph.fidelity.marginal import ks_distribution_scores  # noqa: E402
+from tabular_polygraph.fidelity import (  # noqa: E402
+    alpha_precision_beta_recall,
+    hif_score,
+    ks_distribution_scores,
+)
 from tabular_polygraph.generators import (  # noqa: E402
     CTGANGenerator,
     GaussianCopulaGenerator,
     TVAEGenerator,
 )
 
-# ── Alpha-Precision / Beta-Recall (Alaa et al., ICML 2022) ──────────────────
+try:
+    from tabular_polygraph.generators import VineCopulaGenerator
 
-
-def _encode_for_alpha_precision(real: pd.DataFrame, syn: pd.DataFrame):
-    """Encode categorical columns to integers for numeric metric computation."""
-    real_enc = real.copy()
-    syn_enc = syn.copy()
-    cat_cols = real_enc.select_dtypes(include=["object", "category"]).columns.tolist()
-    for col in cat_cols:
-        le = LabelEncoder()
-        combined = pd.concat([real_enc[col], syn_enc[col]], ignore_index=True).astype(
-            str
-        )
-        le.fit(combined)
-        real_enc[col] = le.transform(real_enc[col].astype(str))
-        syn_enc[col] = le.transform(syn_enc[col].astype(str))
-    return real_enc.values.astype(float), syn_enc.values.astype(float)
-
-
-def alpha_precision_beta_recall(real: pd.DataFrame, syn: pd.DataFrame) -> dict:
-    """Compute alpha-precision and beta-recall (Alaa et al., ICML 2022).
-
-    Returns dict with alpha_precision, beta_recall, authenticity.
-    """
-    X, X_syn = _encode_for_alpha_precision(real, syn)
-    n = len(X)
-    if len(X_syn) != n:
-        raise ValueError("Real and synthetic must have the same length")
-
-    emb_center = np.mean(X, axis=0)
-    synth_center = np.mean(X_syn, axis=0)
-
-    n_steps = 30
-    alphas = np.linspace(0, 1, n_steps)
-
-    Radii = np.quantile(np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas)
-    synth_to_center = np.sqrt(np.sum((X_syn - emb_center) ** 2, axis=1))
-
-    nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(X)
-    real_to_real, _ = nbrs_real.kneighbors(X)
-    real_to_real = real_to_real[:, 1].squeeze()
-
-    nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(X_syn)
-    real_to_synth, real_to_synth_args = nbrs_synth.kneighbors(X)
-
-    real_synth_closest = X_syn[real_to_synth_args.squeeze()]
-    real_synth_closest_d = np.sqrt(
-        np.sum((real_synth_closest - synth_center) ** 2, axis=1)
-    )
-    closest_synth_Radii = np.quantile(real_synth_closest_d, alphas)
-
-    alpha_precision_curve = []
-    beta_coverage_curve = []
-
-    for k in range(len(Radii)):
-        precision_audit_mask = synth_to_center <= Radii[k]
-        alpha_precision_curve.append(np.mean(precision_audit_mask))
-
-        beta_coverage_curve.append(
-            np.mean(
-                (real_to_synth <= real_to_real)
-                * (real_synth_closest_d <= closest_synth_Radii[k])
-            )
-        )
-
-    delta_precision = 1 - np.sum(
-        np.abs(alphas - np.array(alpha_precision_curve))
-    ) / np.sum(alphas)
-    delta_coverage = 1 - np.sum(
-        np.abs(alphas - np.array(beta_coverage_curve))
-    ) / np.sum(alphas)
-
-    authen = real_to_real[real_to_synth_args.squeeze()] < real_to_synth.squeeze()
-    authenticity = np.mean(authen)
-
-    return {
-        "alpha_precision": float(max(0, delta_precision)),
-        "beta_recall": float(max(0, delta_coverage)),
-        "authenticity": float(authenticity),
-    }
-
+    HAS_VINE = True
+except ImportError:
+    HAS_VINE = False
 
 # ── Correlation distance (numeric only) ─────────────────────────────────────
 
@@ -150,6 +76,10 @@ def run_single(real_df, gen_type, rows, seed, epochs):
     np.random.seed(seed)
     if gen_type == "gaussian":
         gen = GaussianCopulaGenerator()
+    elif gen_type == "vine":
+        if not HAS_VINE:
+            raise ImportError("Vine requires: pip install .[vine]")
+        gen = VineCopulaGenerator()
     elif gen_type == "ctgan":
         gen = CTGANGenerator(epochs=epochs, batch_size=min(100, len(real_df)))
     elif gen_type == "tvae":
@@ -204,8 +134,8 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(exist_ok=True)
 
-    datasets = ["supermarket_sales", "online_purchases", "credit", "adult", "bls"]
-    generators = ["gaussian", "ctgan", "tvae"]
+    datasets = ["supermarket_sales", "online_purchases", "credit", "adult"]
+    generators = ["gaussian", "vine", "ctgan", "tvae"]
     seeds = list(range(42, 42 + args.seeds))
 
     print(
@@ -231,6 +161,9 @@ def main():
         print(f"{'=' * 70}")
 
         for gen_type in generators:
+            if gen_type == "vine" and not HAS_VINE:
+                print("\n  ── vine (skipped: pyvinecopulib not installed) ──")
+                continue
             print(f"\n  ── {gen_type} ──")
             for seed in seeds:
                 real = real_full.sample(

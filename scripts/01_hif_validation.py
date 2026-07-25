@@ -30,10 +30,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -193,8 +189,10 @@ def _corrupt_manifold_rupture(
     corruption_level: float,
     rng: np.random.Generator,
 ) -> pd.DataFrame:
-    """High-Resolution Semantic Rupture (The 'Education Paradox').
-    Deliberately breaks 1-to-1 mappings to show HIF's unique sensitivity.
+    """Manifold Rupture: breaks joint structure while preserving marginals.
+
+    Works on any dataset by mining implication rules from the real data
+    and deliberately violating them in the synthetic data via targeted swaps.
     """
     if corruption_level <= 0.0:
         return syn.copy()
@@ -203,66 +201,6 @@ def _corrupt_manifold_rupture(
     target_rupture_count = max(1, int(len(out) * corruption_level))
     current_ruptured = 0
 
-    # Strategy: Break the Semantic relationship between Sex and Relationship
-    # e.g., Husbands must be Male, Wives must be Female.
-    if "sex" in out.columns and "relationship" in out.columns:
-        # We target 'Husband' and 'Wife' rows
-        husbands = out[
-            out["relationship"].astype(str).str.contains("Husband", case=False)
-        ].index
-        wives = out[
-            out["relationship"].astype(str).str.contains("Wife", case=False)
-        ].index
-        target_indices = husbands.union(wives)
-
-        if not target_indices.empty:
-            n_to_break = min(
-                len(target_indices), target_rupture_count - current_ruptured
-            )
-            if n_to_break > 0:
-                break_idx = rng.choice(target_indices, size=n_to_break, replace=False)
-                # Flip the sex
-                out.loc[break_idx, "sex"] = out.loc[break_idx, "sex"].apply(
-                    lambda x: "Female" if str(x).lower().startswith("m") else "Male"
-                )
-                current_ruptured += n_to_break
-                if current_ruptured >= target_rupture_count:
-                    return out
-
-    if "education" in out.columns and "age_group" in out.columns:
-        # BREAK: High education for children (illegal state)
-        child_mask = (
-            out["age_group"].astype(str).str.contains("under 18", case=False, na=False)
-        )
-        child_idx = out.index[child_mask].tolist()
-        if child_idx:
-            remaining = target_rupture_count - current_ruptured
-            n = min(len(child_idx), max(0, remaining))
-            if n > 0:
-                # TARGETS: Children who should NOT have advanced education
-                break_idx = rng.choice(child_idx, size=n, replace=False)
-
-                # SOURCES: Adults who DO have advanced education
-                adv_mask = out["education"].astype(str).str.contains(
-                    "doctorate", case=False, na=False
-                ) | out["education"].astype(str).str.contains(
-                    "master", case=False, na=False
-                )
-                adv_idx = out.index[adv_mask & ~child_mask].tolist()
-
-                if len(adv_idx) >= n:
-                    # TARGETED SWAP: Preserves marginals while breaking manifold laws.
-                    swap_idx = rng.choice(adv_idx, size=n, replace=False)
-                    target_vals = out.loc[break_idx, "education"].values
-                    source_vals = out.loc[swap_idx, "education"].values
-
-                    out.loc[break_idx, "education"] = source_vals
-                    out.loc[swap_idx, "education"] = target_vals
-                    current_ruptured += n
-                    if current_ruptured >= target_rupture_count:
-                        return out
-
-    # Fallback: Targeted Rule Breaking using mined rules
     from tabular_polygraph.fidelity.logical import mine_implication_rules
 
     rules = mine_implication_rules(
@@ -272,28 +210,23 @@ def _corrupt_manifold_rupture(
     if not rules:
         return _corrupt_permutation(syn, cat_cols, num_cols, corruption_level, rng)
 
-    # Apply categorical rule ruptures
     for rule in rng.permutation(rules):
         if current_ruptured >= target_rupture_count:
             break
 
-        ant_feat, ant_val = rule.get("antecedent_feature"), rule.get("antecedent_value")
-        cons_feat, cons_val = (
-            rule.get("consequent_feature"),
-            rule.get("consequent_value"),
-        )
+        ant_feat = rule.get("antecedent_feature")
+        ant_val = rule.get("antecedent_value")
+        cons_feat = rule.get("consequent_feature")
+        cons_val = rule.get("consequent_value")
 
         if ant_feat not in out.columns or cons_feat not in out.columns:
             continue
 
-        # TARGETS: Rows that follow the rule (antecedent match)
         mask = out[ant_feat].astype(str) == str(ant_val)
         indices = out.index[mask].tolist()
         if not indices:
             continue
 
-        # SOURCES: Rows that don't follow the rule (consequent mismatch)
-        # We will borrow their 'incorrect' values
         bad_mask = out[cons_feat].astype(str) != str(cons_val)
         bad_indices = out.index[bad_mask].tolist()
 
@@ -304,7 +237,6 @@ def _corrupt_manifold_rupture(
         break_idx = rng.choice(indices, size=n, replace=False)
         swap_idx = rng.choice(bad_indices, size=n, replace=False)
 
-        # TARGETED SWAP: Preserves column distributions perfectly
         target_vals = out.loc[break_idx, cons_feat].values
         source_vals = out.loc[swap_idx, cons_feat].values
 
@@ -358,52 +290,6 @@ def _representation_audit(
         q = syn_filtered[col].value_counts(normalize=True)
         results[f"tvd_{col}"] = _calculate_tvd(p, q)
     return results
-
-
-def _audit_privacy(
-    train_df: pd.DataFrame, holdout_df: pd.DataFrame, syn_df: pd.DataFrame
-) -> float:
-    """Quantitative Privacy Audit via Membership Inference Attack (MIA).
-    Measures if training records are closer to synthetic data than holdout records.
-    Returns ROC-AUC (0.5 = No Leakage, 1.0 = Perfect Memorization).
-    """
-    if syn_df.empty:
-        return 0.5
-
-    # Use numeric columns for distance calculation (standard practice for MIA)
-    cols = [c for c in train_df.columns if pd.api.types.is_numeric_dtype(train_df[c])]
-    if not cols:
-        return 0.5
-
-    scaler = StandardScaler()
-
-    # Sample for efficiency while maintaining statistical significance
-    n_test = min(1000, len(train_df), len(holdout_df))
-    n_syn = min(2000, len(syn_df))
-
-    train_sample = train_df[cols].sample(n_test, random_state=42).fillna(0)
-    holdout_sample = holdout_df[cols].sample(n_test, random_state=42).fillna(0)
-    syn_sample = syn_df[cols].sample(n_syn, random_state=42).fillna(0)
-
-    combined_test = pd.concat([train_sample, holdout_sample])
-    labels = np.array([1] * n_test + [0] * n_test)  # 1=Train, 0=Holdout
-
-    scaler.fit(combined_test)
-    test_norm = scaler.transform(combined_test)
-    syn_norm = scaler.transform(syn_sample)
-
-    # Find Distance to Closest Record (DCR) in synthetic set
-    nn = NearestNeighbors(n_neighbors=1, algorithm="auto").fit(syn_norm)
-    distances, _ = nn.kneighbors(test_norm)
-
-    # Attacker hypothesis: closer to synthetic set = more likely to be a training member
-    # So score = -distance (smaller distance -> higher probability)
-    scores = -distances.flatten()
-    try:
-        auc = roc_auc_score(labels, scores)
-        return float(auc)
-    except Exception:
-        return 0.5
 
 
 def _rule_involved_features(rule: dict) -> set[str]:
@@ -513,11 +399,6 @@ def _utility_feature_columns(
     ]
     return real_util, syn_util, numeric + encoded_cols
 
-    raise ValueError(
-        "Unknown utility_feature_mode: "
-        f"{feature_mode}. Use 'numeric', 'categorical_target_encoded', or 'hybrid'."
-    )
-
 
 def _evaluate_once(
     real: pd.DataFrame,
@@ -542,17 +423,10 @@ def _evaluate_once(
     # Integrity Frontier: High-integrity subset (e.g., Row Penalty < 0.5)
     syn_filtered = syn[hif["row_penalties"] < 0.5]
 
-    # Sensitive attributes for Fairness Audit
-    sensitive_candidates = [
-        "SEX",
-        "RAC1P",
-        "race",
-        "gender",
-        "age_bin",
-        "state",
-        "education",
+    # Sensitive attributes for Fairness Audit: use all low-cardinality categorical cols
+    sensitive_cols = [
+        c for c in cat_cols if c in syn.columns and syn[c].nunique() <= 20
     ]
-    sensitive_cols = [c for c in sensitive_candidates if c in syn.columns]
     fairness_results = _representation_audit(syn, syn_filtered, sensitive_cols)
     mean_tvd = np.mean(list(fairness_results.values())) if fairness_results else 0.0
 
@@ -602,11 +476,6 @@ def _evaluate_once(
             if "error" not in util:
                 utility_ratio = float(util.get("ratio", np.nan))
 
-    # Quantitative Privacy Audit (MIA)
-    # We use a 50/50 split of the real data as train/holdout to calibrate the attack
-    train_df, holdout_df = train_test_split(real, test_size=0.5, random_state=seed)
-    mia_auc = _audit_privacy(train_df, holdout_df, syn_filtered)
-
     return {
         "hif_score": float(hif["hif_score"]),
         "hif_violation_rate": float(hif["violation_rate"]),
@@ -619,7 +488,6 @@ def _evaluate_once(
         "moment_matching_score": float(mm),
         "joint_score": float(joint),
         "utility_ratio": utility_ratio,
-        "mia_auc": mia_auc,
         "dominant_feature_share": float(_feature_dominance_share(rules)),
         "mean_representation_tvd": float(mean_tvd),
     }
@@ -702,8 +570,7 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
         "external_validity_utility": (not has_utility)
         or (not np.isnan(ext_hif_vs_util[0]) and abs(ext_hif_vs_util[0]) >= 0.3),
         "seed_stability": mean_hif_std <= 0.05,
-        "feature_dominance": dominance_max
-        <= 500.0,  # Adjusted for total_rule_hits scaling in high-noise Adult manifold
+        "feature_dominance": dominance_max <= 80.0,
         "practical_separability": separability_rate >= 0.4,
         "representation_stability": float(df["mean_representation_tvd"].mean()) <= 0.1,
     }
@@ -724,31 +591,8 @@ def _compute_summary(df: pd.DataFrame, has_utility: bool) -> dict:
             "dominant_feature_share_max": dominance_max,
             "separability_rate": separability_rate,
             "mean_representation_tvd": float(df["mean_representation_tvd"].mean()),
-            "mia_auc_mean": float(df["mia_auc"].mean())
-            if "mia_auc" in df.columns
-            else 0.5,
         },
     }
-
-
-def _write_markdown_summary(path: Path, summary: dict) -> None:
-    lines = ["# HIF Validation Summary", ""]
-    lines.append("## Check Outcomes")
-    for k, v in summary["checks"].items():
-        status = "PASS" if v else "FAIL"
-        lines.append(f"- {k}: {status}")
-
-    lines.append("")
-    lines.append("## Key Statistics")
-    for k, v in summary["stats"].items():
-        if isinstance(v, float):
-            lines.append(f"- {k}: {v:.4f}")
-        else:
-            lines.append(f"- {k}: {v}")
-
-    lines.append("")
-    lines.append(f"Overall pass rate: {summary['check_pass_rate']:.2%}")
-    path.write_text("\n".join(lines))
 
 
 def main() -> None:
@@ -812,34 +656,28 @@ def main() -> None:
         f"Real rows: {len(real):,} | Numeric cols: {len(num_cols)} | Categorical cols: {len(cat_cols)}"
     )
 
-    # Split for Privacy Audit: Train generator on half, use other half as Holdout for MIA
-    real_train, real_holdout = train_test_split(real, train_size=0.5, random_state=42)
-    print(f"Privacy split: {len(real_train)} train, {len(real_holdout)} holdout")
-
     rows: list[dict] = []
     for seed in seeds:
         print(f"\n[seed={seed}] fitting + generating base synthetic...", flush=True)
-        # Train on the split train_df
-        base_syn = _generate_synthetic(real_train, args.rows, seed, args.generator)
+        base_syn = _generate_synthetic(real, args.rows, seed, args.generator)
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))
 
             if args.corruption_strategy == "swap_real":
-                # Apply Mixed Corruption: Both categorical and continuous
-                syn = _corrupt_categorical(base_syn, real_train, cat_cols, level, rng)
-                syn = _corrupt_continuous(syn, real_train, num_cols, level, rng)
+                syn = _corrupt_categorical(base_syn, real, cat_cols, level, rng)
+                syn = _corrupt_continuous(syn, real, num_cols, level, rng)
             elif args.corruption_strategy == "permutation":
                 syn = _corrupt_permutation(base_syn, cat_cols, num_cols, level, rng)
             elif args.corruption_strategy == "manifold_rupture":
                 syn = _corrupt_manifold_rupture(
-                    base_syn, real_train, cat_cols, num_cols, level, rng
+                    base_syn, real, cat_cols, num_cols, level, rng
                 )
             else:
                 syn = base_syn.copy()
 
             metrics = _evaluate_once(
-                real=real_train,
+                real=real,
                 syn=syn,
                 cat_cols=cat_cols,
                 num_cols=num_cols,
@@ -849,7 +687,6 @@ def main() -> None:
                 hif_hubs=args.hif_hubs,
             )
 
-            metrics["mia_auc"] = _audit_privacy(real_train, real_holdout, syn)
             rows.append(
                 {
                     "dataset": args.dataset,
@@ -876,11 +713,9 @@ def main() -> None:
 
     csv_path = out_dir / "hif_validation_results.csv"
     json_path = out_dir / "hif_validation_summary.json"
-    md_path = out_dir / "hif_validation_summary.md"
 
     results.to_csv(csv_path, index=False)
     json_path.write_text(json.dumps(summary, indent=2))
-    _write_markdown_summary(md_path, summary)
 
     print("\n" + "-" * 72)
     print("Summary checks")
@@ -891,7 +726,6 @@ def main() -> None:
 
     print(f"Saved results : {csv_path}")
     print(f"Saved summary : {json_path}")
-    print(f"Saved report  : {md_path}")
 
 
 if __name__ == "__main__":

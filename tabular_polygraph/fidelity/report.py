@@ -11,6 +11,7 @@ import pandas as pd
 
 from tabular_polygraph.utils import DEFAULT_DROP_LIST, numeric_columns
 
+from .alpha_beta import alpha_precision_beta_recall
 from .downstream import tstr_score
 from .joint import correlation_distance_score, pairwise_correlation_report
 from .marginal import (
@@ -116,6 +117,7 @@ def _summary_section(
     ks_score: float,
     corr_score: float,
     logical_validity: float | None,
+    coverage: dict,
     utility_report: dict,
     n_real: int,
     n_syn: int,
@@ -127,6 +129,9 @@ def _summary_section(
         "moment_matching_score": mm_score,
         "ks_score": ks_score,
         "joint_score": corr_score,
+        "alpha_precision": coverage.get("alpha_precision"),
+        "beta_recall": coverage.get("beta_recall"),
+        "authenticity": coverage.get("authenticity"),
         "logic_score": round(float(logical_validity), 2)
         if logical_validity is not None
         else None,
@@ -187,6 +192,24 @@ def fidelity_report(
         "pairwise_deltas": pairwise_correlation_report(real, syn, num_cols),
     }
 
+    # ── Alpha-precision / Beta-recall (geometric coverage) ───────────────────
+    try:
+        n_min = min(len(real), len(syn))
+        if n_min >= 10:
+            ab_result = alpha_precision_beta_recall(
+                real.sample(n_min, random_state=random_state).reset_index(drop=True),
+                syn.sample(n_min, random_state=random_state).reset_index(drop=True),
+            )
+        else:
+            ab_result = {
+                "alpha_precision": None,
+                "beta_recall": None,
+                "authenticity": None,
+            }
+    except Exception:
+        ab_result = {"alpha_precision": None, "beta_recall": None, "authenticity": None}
+    report["coverage"] = ab_result
+
     # ── Moment matching + KS fit ──────────────────────────────────────────────
     mm_scores = moment_matching_scores(real, syn, num_cols)
     ks_scores = ks_distribution_scores(real, syn, num_cols)
@@ -234,6 +257,7 @@ def fidelity_report(
         ks_score=ks_score,
         corr_score=corr_score,
         logical_validity=logical_validity,
+        coverage=report["coverage"],
         utility_report=report,  # Contains stylized_facts and downstream
         n_real=len(real),
         n_syn=len(syn),
@@ -260,6 +284,13 @@ def format_report(report: dict, width: int = 60) -> str:
     lines.append(f"  Moment matching : {s.get('moment_matching_score', 0):>6.2f}%")
     lines.append(f"  KS distribution : {s.get('ks_score', 0):>6.2f}%")
     lines.append(f"  Joint distance  : {s.get('joint_score', 0):>6.2f}%")
+    ap = s.get("alpha_precision")
+    br = s.get("beta_recall")
+    au = s.get("authenticity")
+    if ap is not None:
+        lines.append(f"  Alpha-precision : {ap:>6.3f}")
+        lines.append(f"  Beta-recall     : {br:>6.3f}")
+        lines.append(f"  Authenticity    : {au:>6.3f}")
     l_score = s.get("logic_score")
     if l_score is not None:
         lines.append(f"  HIF (structural): {l_score:>6.2f}%")

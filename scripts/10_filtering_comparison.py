@@ -25,7 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_real_data(dataset_id):
-    df = load_dataset(dataset_id, n=50000)
+    df = load_dataset(dataset_id)
     for col in df.columns:
         if pd.api.types.is_numeric_dtype(df[col]):
             df[col] = df[col].fillna(df[col].median())

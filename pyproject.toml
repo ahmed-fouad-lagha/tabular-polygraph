@@ -21,7 +21,6 @@ dependencies = [
     "pyreadstat>=1.2",
     "xgboost",
     "scikit-learn",
-    "torch",
     "seaborn",
     "matplotlib"
 ]
@@ -31,15 +30,8 @@ test = [
     "pytest>=7",
     "pytest-cov"
 ]
-advanced = [
-    "statsmodels>=0.14",
-    "arch>=5.3",
+vine = [
     "pyvinecopulib>=0.6"
-]
-deep = [
-    "ctgan>=0.7.1",
-    "sdv>=1.0",
-    "torch>=1.13"
 ]
 ctgan = [
     "ctgan>=0.7.1",
@@ -48,9 +40,6 @@ ctgan = [
 tvae = [
     "sdv>=1.0",
     "torch>=1.13"
-]
-dp = [
-    "diffprivlib>=0.6"
 ]
 lint = [
     "pre-commit"

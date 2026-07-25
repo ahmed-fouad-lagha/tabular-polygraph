@@ -1,3 +1,4 @@
+from .alpha_beta import alpha_precision_beta_recall
 from .joint import correlation_distance_score
 from .logical import hif_score
 from .marginal import (
@@ -9,6 +10,7 @@ from .marginal import (
 from .report import fidelity_report, format_report
 
 __all__ = [
+    "alpha_precision_beta_recall",
     "fidelity_report",
     "format_report",
     "moment_matching_scores",

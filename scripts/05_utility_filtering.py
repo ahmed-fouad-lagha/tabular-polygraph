@@ -226,8 +226,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Cleaned HIF Utility Filtering Benchmark"
     )
-    parser.add_argument("--dataset", type=str, default="bls")
-    parser.add_argument("--target", type=str, default="avg_weekly_wage")
+    parser.add_argument("--dataset", type=str, default="adult")
+    parser.add_argument("--target", type=str, default="income")
     parser.add_argument("--rows", type=int, default=5000)
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--generator", type=str, default="gaussian")

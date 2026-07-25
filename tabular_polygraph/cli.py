@@ -198,6 +198,10 @@ def _load_generator(
         from tabular_polygraph.generators import TVAEGenerator
 
         gen = TVAEGenerator(**kwargs)
+    elif generator_type == "vine":
+        from tabular_polygraph.generators import VineCopulaGenerator
+
+        gen = VineCopulaGenerator(**kwargs)
     else:
         gen = GaussianCopulaGenerator(**kwargs)
 
@@ -329,12 +333,15 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
         if input_file:
             gen, seed_df, gen_type = _fit_custom_input_generator(input_file, drop_cols)
         else:
+            gen_kwargs = {}
+            if getattr(args, "epochs", None) is not None:
+                gen_kwargs["epochs"] = args.epochs
             gen, seed_df, gen_type = _load_generator(
                 dataset_id,
                 args.generator,
                 drop_cols=drop_cols,
                 fit_rows=getattr(args, "fit_rows", None),
-                epochs=getattr(args, "epochs", None),
+                **gen_kwargs,
             )
     except FileNotFoundError as e:
         err(f"File not found: {e}")
@@ -390,6 +397,15 @@ def _print_generate_bars(report):
             print(
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
             )
+        print()
+
+    ap = report.get("coverage", {}).get("alpha_precision")
+    br = report.get("coverage", {}).get("beta_recall")
+    au = report.get("coverage", {}).get("authenticity")
+    if ap is not None:
+        print(f"    {_c('Alpha-precision (coverage)', C.GRAY):<34}{ap:.3f}")
+        print(f"    {_c('Beta-recall (coverage)', C.GRAY):<34}{br:.3f}")
+        print(f"    {_c('Authenticity', C.GRAY):<34}{au:.3f}")
         print()
 
 
@@ -752,8 +768,9 @@ def main():
         "--generator",
         type=str,
         default="auto",
+        choices=["auto", "copula", "ctgan", "tvae", "vine"],
         metavar="TYPE",
-        help="auto | copula | ctgan | tvae",
+        help="auto | copula | ctgan | tvae | vine",
     )
     p.add_argument(
         "--fit-rows",
