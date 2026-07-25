@@ -11,7 +11,7 @@ Runs 3 generators × 5 datasets × N seeds and computes:
 
 Goal: determine whether HIF catches failures that distributional metrics miss.
 
-python scripts/03_metric_comparison.py --rows 500 --seeds 1 --epochs 20
+python scripts/04_metric_comparison.py --rows 500 --seeds 1 --epochs 20
 """
 
 import argparse

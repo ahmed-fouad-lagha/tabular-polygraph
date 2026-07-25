@@ -7,13 +7,13 @@ Tests each HIF component individually and compares against the full ensemble,
 plus additive vs geometric aggregation.
 
 Addresses:
-  - Reviewer ncea: "Extend by showing individual performance by rejecting
+  - Q1: "Extend by showing individual performance by rejecting
     using each component / ablations of components from the ensemble vs HIF"
-  - Reviewer ncea: "Show mathematically why the algebraic intersection
+  - Q2: "Show mathematically why the algebraic intersection
     (geometric mean) is superior to an additive metric"
 
 Run:
-    python scripts/06_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/08_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations

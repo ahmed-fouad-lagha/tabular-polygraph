@@ -10,7 +10,7 @@ Addresses:
   - Q2: "Please report mean ± error (SEM/SD) for the N=3 seed results"
 
 Run:
-    python scripts/07_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
+    python scripts/03_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
 """
 
 from __future__ import annotations

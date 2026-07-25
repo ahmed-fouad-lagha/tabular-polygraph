@@ -10,7 +10,7 @@ Addresses:
   - Q2: "How does HIF compare against standard unsupervised anomaly detectors?"
 
 Run:
-    python scripts/05_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations
