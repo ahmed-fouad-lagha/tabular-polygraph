@@ -1,5 +1,7 @@
 """
-Experiment: HIF Empirical Validation & Sensitivity Benchmarking.
+Experiment: HIF Empirical Validation & Sensitivity Benchmarking (Metric Sanity & Monotonicity).
+
+Q:"Does the HIF metric reliably decrease as data quality degrades?"
 
 This script runs five checks to decide whether the current HIF design is
 useful:
@@ -9,12 +11,14 @@ useful:
 4) Feature dominance
 5) Practical separability vs distributional metrics
 
+Injects progressive corruptions ($0%, 10%, 20%, 40%, 60%$) across seeds and evaluates 9 diagnostic checks (Monotonicity, Spearman $\rho$, Seed Stability, Feature Dominance).
+
 Run:
     python scripts/01_hif_validation.py \
       --dataset census_acs \
       --rows 1000 \
       --seeds 42,43,44,45,46 \
-      --corruption-levels 0,0.1,0.2 \
+      --corruption-levels 0,0.1,0.2,0.4,0.6 \
       --target poverty_status \
       --generator gaussian_copula
 """

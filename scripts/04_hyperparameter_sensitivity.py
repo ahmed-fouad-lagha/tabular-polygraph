@@ -1,6 +1,8 @@
 """
 Experiment: Hyperparameter Sensitivity Analysis.
 
+Q:"Is HIF sensitive to hyperparameter choices or robust across settings?"
+
 Sweeps three HIF hyperparameters on Census ACS data:
   1. Hub count K:          {1, 3, 5, 10, 15}
   2. Confidence percentile: {1, 3, 5, 10}

@@ -1,5 +1,7 @@
 """
-Experiment: Utility Filtering Audit (Target-Aware HIF Benchmark).
+Experiment: Utility Filtering Audit-Downstream Utility Recovery (Target-Aware HIF Benchmark).
+
+Q:"Does filtering out HIF-flagged rows improve downstream ML predictive performance?"
 
 Evaluates how target-aware filtering of synthetic data by HIF scores and hard
 logical constraints improves downstream machine learning utility (TSTR).

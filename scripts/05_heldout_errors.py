@@ -7,10 +7,10 @@ against standard outlier detectors (Isolation Forest, LOF).
 Addresses:
   - Q1: "Does the method detect errors other than the dependency
     violations it was tuned for?"
-  - Q2: "How does HIF compare against standard outlier detectors?"
+  - Q2: "How does HIF compare against standard unsupervised anomaly detectors?"
 
 Run:
-    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/05_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations
@@ -349,9 +349,8 @@ def run_experiment(
     )
     summary.to_csv(output_dir / "heldout_errors_summary.csv", index=False)
 
-    # Print markdown table for rebuttal
     print("\n\n" + "=" * 80)
-    print("REBUTTAL TABLE: Held-Out Error Detection (F1)")
+    print("Held-Out Error Detection (F1)")
     print("=" * 80)
 
     for level in corruption_levels:

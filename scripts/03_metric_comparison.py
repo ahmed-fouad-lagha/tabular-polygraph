@@ -1,6 +1,8 @@
 """
 Comparison experiment: HIF vs distributional metrics.
 
+Q:"Do standard distribution matching metrics miss logical hallucinations?"
+
 Runs 3 generators × 5 datasets × N seeds and computes:
   - KS (marginal fidelity)
   - Correlation distance (joint fidelity)

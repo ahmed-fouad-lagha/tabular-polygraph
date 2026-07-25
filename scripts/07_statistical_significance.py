@@ -1,6 +1,8 @@
 """
 Experiment: Statistical Significance Tests.
 
+Q:"Are the observed utility gains statistically significant ($p < 0.05$)?"
+
 Re-runs utility filtering with 10 seeds and computes paired statistical tests.
 
 Addresses:
@@ -8,7 +10,7 @@ Addresses:
   - Q2: "Please report mean ± error (SEM/SD) for the N=3 seed results"
 
 Run:
-    python scripts/09_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
+    python scripts/07_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
 """
 
 from __future__ import annotations
@@ -220,7 +222,7 @@ def run_significance_test(
 
     # Print results
     print("\n" + "=" * 80)
-    print(f"REBUTTAL TABLE: Statistical Significance ({dataset_id})")
+    print(f"Statistical Significance ({dataset_id})")
     print("=" * 80)
     print()
     print("| Variant | Retention% | F1 (mean ± SEM) | Accuracy (mean ± SEM) |")
@@ -308,7 +310,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--generator", default="gaussian_copula", choices=["gaussian_copula", "ctgan"]
     )
-    parser.add_argument("--output-dir", default="outputs/rebuttal")
+    parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
 
     run_significance_test(

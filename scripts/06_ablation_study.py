@@ -1,6 +1,8 @@
 """
 Experiment: Component Ablation Study.
 
+Q: "What contribution does each layer (symbolic rules, neural sentinels, NIC continuity) make to overall performance?"
+
 Tests each HIF component individually and compares against the full ensemble,
 plus additive vs geometric aggregation.
 
@@ -11,7 +13,7 @@ Addresses:
     (geometric mean) is superior to an additive metric"
 
 Run:
-    python scripts/07_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/06_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations
@@ -243,7 +245,7 @@ def run_ablation(
 
     # Print markdown table
     print("\n\n" + "=" * 80)
-    print(f"REBUTTAL TABLE: Ablation Study ({dataset_id})")
+    print(f"Ablation Study ({dataset_id})")
     print("=" * 80)
     print("| Ablation | Retention% | F1 (mean ± SEM) | Violation Rate |")
     print("|---|---|---|---|")
@@ -295,7 +297,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--generator", default="gaussian_copula", choices=["gaussian_copula", "ctgan"]
     )
-    parser.add_argument("--output-dir", default="outputs/rebuttal")
+    parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
 
     run_ablation(
