@@ -11,7 +11,7 @@ Addresses:
     (geometric mean) is superior to an additive metric"
 
 Run:
-    python scripts/09_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/07_ablation_study.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations

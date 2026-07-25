@@ -5,12 +5,12 @@ Tests whether HIF detects error types it was NOT designed for, and compares
 against standard outlier detectors (Isolation Forest, LOF).
 
 Addresses:
-  - Reviewer mUq7 Q1: "Does the method detect errors other than the dependency
+  - Q1: "Does the method detect errors other than the dependency
     violations it was tuned for?"
-  - Reviewer mUq7 Q2: "How does HIF compare against standard outlier detectors?"
+  - Q2: "How does HIF compare against standard outlier detectors?"
 
 Run:
-    python scripts/08_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
 """
 
 from __future__ import annotations

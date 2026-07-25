@@ -1,7 +1,7 @@
 """
 Comparison experiment: HIF vs distributional metrics.
 
-Runs 3 generators × 3 datasets × N seeds and computes:
+Runs 3 generators × 5 datasets × N seeds and computes:
   - KS (marginal fidelity)
   - Correlation distance (joint fidelity)
   - alpha-precision / beta-recall (Alaa et al., ICML 2022)

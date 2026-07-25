@@ -1,8 +1,8 @@
 """
-Example 4: HIF Empirical Validation & Sensitivity Benchmarking.
+Experiment: HIF Empirical Validation & Sensitivity Benchmarking.
 
 This script runs five checks to decide whether the current HIF design is
-scientifically useful:
+useful:
 1) Corruption monotonicity
 2) External validity
 3) Seed stability
@@ -10,7 +10,7 @@ scientifically useful:
 5) Practical separability vs distributional metrics
 
 Run:
-    python scripts/04_hif_validation.py \
+    python scripts/01_hif_validation.py \
       --dataset census_acs \
       --rows 2000 \
       --seeds 42,43,44,45,46 \

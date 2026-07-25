@@ -1,5 +1,5 @@
 """
-Example 07: Hyperparameter Sensitivity Analysis.
+Experiment: Hyperparameter Sensitivity Analysis.
 
 Sweeps three HIF hyperparameters on Census ACS data:
   1. Hub count K:          {1, 3, 5, 10, 15}

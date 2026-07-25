@@ -1,7 +1,7 @@
 """
-Example 7: Utility Filtering Audit (Generating Table 1).
+Experiment: Utility Filtering Audit.
+
 Evaluates how filtering synthetic data by HIF scores improves downstream utility.
-Cleaned and refactored for production-ready benchmarking.
 
 Flow:
   1. Load raw (continuous) data, compute discretization bins

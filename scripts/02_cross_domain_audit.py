@@ -1,15 +1,15 @@
 """
-Example 5: Cross-Architecture & Multi-Domain Integrity Audit.
+Experiment: Cross-Architecture & Multi-Domain Integrity Audit.
 
 This script evaluates the Hybrid Integrity Framework (HIF) across diverse
-architectures and datasets to produce Table 2 and Table 3 for the manuscript.
+architectures and datasets.
 - Datasets: census_acs, bls, adult
 - Generators: GaussianCopula, VineCopula, CTGAN
 
 Runs N_SEEDS independent experiments and reports mean ± std.
 
 Usage:
-    python scripts/05_cross_domain_audit.py --rows 500 --seeds 3 --epochs 150
+    python scripts/02_cross_domain_audit.py --rows 500 --seeds 3 --epochs 150
 """
 
 import argparse

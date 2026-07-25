@@ -4,11 +4,11 @@ Experiment: Statistical Significance Tests.
 Re-runs utility filtering with 10 seeds and computes paired statistical tests.
 
 Addresses:
-  - Reviewer mUq7 Q3: "Are any of the F1 differences statistically significant?"
-  - Reviewer ncea: "Please report mean ± error (SEM/SD) for the N=3 seed results"
+  - Q1: "Are any of the F1 differences statistically significant?"
+  - Q2: "Please report mean ± error (SEM/SD) for the N=3 seed results"
 
 Run:
-    python scripts/10_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
+    python scripts/09_statistical_significance.py --dataset census_acs --rows 2000 --seeds 10
 """
 
 from __future__ import annotations
