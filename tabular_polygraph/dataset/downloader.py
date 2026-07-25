@@ -342,7 +342,6 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df = df.dropna(
         subset=[
             "naics_sector",
-            "ownership",
             "state",
             "avg_weekly_wage",
             "total_employment",
@@ -350,6 +349,9 @@ def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
             "quarter",
         ]
     )
+
+    # Drop constant columns
+    df = df.drop(columns=["ownership"], errors="ignore")
 
     return df.sample(min(n_sample, len(df)), random_state=42)
 
@@ -439,14 +441,19 @@ def _download_supermarket_sales(dataset_id: str, n_sample: int = 50000) -> pd.Da
         "gender",
         "product_line",
         "payment",
-        "customer_rating",
     ]
     for c in cat_cols:
         if c in df.columns:
             df[c] = df[c].astype(str)
 
-    # Drop date/time for now (keep numeric + categorical)
-    df = df.drop(columns=["date", "time"], errors="ignore")
+    # customer_rating is numeric (1.0-10.0), not categorical
+    if "customer_rating" in df.columns:
+        df["customer_rating"] = pd.to_numeric(df["customer_rating"], errors="coerce")
+
+    # Drop date/time and constant/useless columns
+    df = df.drop(
+        columns=["date", "time", "gross_margin_pct", "invoice_id"], errors="ignore"
+    )
 
     return df.sample(min(n_sample, len(df)), random_state=42)
 

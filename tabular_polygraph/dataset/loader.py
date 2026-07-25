@@ -128,7 +128,6 @@ DATASETS: dict[str, dict] = {
         "source": "Plotly Datasets (Open)",
         "description": "Supermarket sales transactions with clear arithmetic constraints: Total = UnitPrice × Quantity × 1.05, COGS = Total / 1.05, GrossIncome = Total - COGS.",
         "columns": [
-            "invoice_id",
             "branch",
             "city",
             "customer_type",
@@ -140,11 +139,10 @@ DATASETS: dict[str, dict] = {
             "total",
             "payment",
             "cogs",
-            "gross_margin_pct",
             "gross_income",
             "customer_rating",
         ],
-        "col_count": 15,
+        "col_count": 13,
         "tags": ["CSV", "Regression", "Retail", "Hard Constraints"],
         "use_cases": [
             "Sales forecasting",
@@ -156,7 +154,7 @@ DATASETS: dict[str, dict] = {
         "name": "Online Purchases (2006-2019)",
         "vertical": "Retail & E-commerce",
         "source": "ptvan/datasets (Open)",
-        "description": "Online purchase transactions with arithmetic constraints: item_subtotal = list_price × quantity, item_total = item_subtotal + item_tax.",
+        "description": "Online purchase transactions with arithmetic constraints: item_subtotal = purchase_price × quantity, item_total = item_subtotal + item_tax.",
         "columns": [
             "category",
             "list_price",

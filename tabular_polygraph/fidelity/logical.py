@@ -581,7 +581,15 @@ class NeighborInvariantContinuity:
                 # Nonlinear penalty scaling (Hardened Response)
                 col_penalty[valid_mask] = np.clip((residuals - threshold) / gamma, 0, 1)
 
-            row_penalties = np.maximum(row_penalties, col_penalty)
+            row_penalties = row_penalties + col_penalty
+
+        # Mean-aggregation across continuous columns instead of max-aggregation.
+        # Max-aggregation causes false positives to compound: with 14 columns each
+        # flagging 5% of rows, max gives ~51% false positive rate. Mean-aggregation
+        # keeps the false positive rate proportional to the fraction of columns
+        # that flag a row.
+        if len(continuous_df.columns) > 0:
+            row_penalties = row_penalties / len(continuous_df.columns)
 
         return float(1.0 - row_penalties.mean()), row_penalties
 
