@@ -12,10 +12,11 @@ useful:
 Run:
     python scripts/01_hif_validation.py \
       --dataset census_acs \
-      --rows 2000 \
+      --rows 1000 \
       --seeds 42,43,44,45,46 \
-      --corruption-levels 0,0.1,0.2,0.4,0.6 \
-      --target household_income
+      --corruption-levels 0,0.1,0.2 \
+      --target poverty_status \
+      --generator gaussian_copula
 """
 
 from __future__ import annotations
@@ -85,13 +86,17 @@ def _drop_cols(df: pd.DataFrame, drop_cols: list[str]) -> pd.DataFrame:
 
 
 def _generate_synthetic(
-    real: pd.DataFrame, rows: int, seed: int, generator_type: str = "gaussian_copula"
+    real: pd.DataFrame,
+    rows: int,
+    seed: int,
+    generator_type: str = "gaussian_copula",
+    epochs: int | None = None,
 ) -> pd.DataFrame:
     gen: BaseGenerator
     if generator_type == "ctgan":
-        gen = CTGANGenerator()
+        gen = CTGANGenerator(epochs=epochs) if epochs else CTGANGenerator()
     elif generator_type == "tvae":
-        gen = TVAEGenerator()
+        gen = TVAEGenerator(epochs=epochs) if epochs else TVAEGenerator()
     else:
         gen = GaussianCopulaGenerator()
 
@@ -623,10 +628,13 @@ def main() -> None:
     parser.add_argument("--hif-epochs", type=int, default=50)
     parser.add_argument("--hif-hubs", type=int, default=5)
     parser.add_argument("--drop-cols", type=str, default="tract_id")
-    parser.add_argument("--output-dir", type=str, default="results")
+    parser.add_argument("--output-dir", type=str, default="outputs")
+    parser.add_argument(
+        "--epochs", type=int, default=300, help="Training epochs for TVAE/CTGAN"
+    )
     parser.add_argument(
         "--generator",
-        choices=["gaussian_copula", "ctgan", "tvae"],
+        choices=["gaussian_copula", "copula", "ctgan", "tvae"],
         default="gaussian_copula",
         help="Synthetic data generator to evaluate (default: gaussian_copula)",
     )
@@ -659,7 +667,9 @@ def main() -> None:
     rows: list[dict] = []
     for seed in seeds:
         print(f"\n[seed={seed}] fitting + generating base synthetic...", flush=True)
-        base_syn = _generate_synthetic(real, args.rows, seed, args.generator)
+        base_syn = _generate_synthetic(
+            real, args.rows, seed, args.generator, epochs=args.epochs
+        )
 
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(level * 1000))

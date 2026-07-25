@@ -104,8 +104,8 @@ def discretize_target(df, target):
 
 
 def main():
-    out_dir = Path("results")
-    out_dir.mkdir(exist_ok=True)
+    out_dir = Path("outputs")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     datasets = {"census_acs": "employment_status"}
     fractions = [0.5, 0.7, 0.9]

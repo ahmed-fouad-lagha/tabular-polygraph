@@ -10,6 +10,8 @@ Flow:
   3. Generate synthetic data
   4. Perform target-aware HIF auditing (including target-feature dependencies)
   5. Compare downstream ML utility (classification/regression) across filtering variants
+
+python scripts/02_utility_filtering.py --dataset census_acs --target poverty_status --generator tvae --epochs 200 --seeds 5
 """
 
 import argparse
@@ -256,9 +258,7 @@ def main():
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--generator", type=str, default="tvae")
     parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument(
-        "--output", type=str, default="outputs/table1_utility_filtering.csv"
-    )
+    parser.add_argument("--output", type=str, default="outputs/utility_filtering.csv")
     args = parser.parse_args()
 
     output_path = Path(args.output)

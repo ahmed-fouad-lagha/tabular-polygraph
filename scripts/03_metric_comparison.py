@@ -8,6 +8,8 @@ Runs 3 generators × 5 datasets × N seeds and computes:
   - HIF (structural integrity)
 
 Goal: determine whether HIF catches failures that distributional metrics miss.
+
+python scripts/03_metric_comparison.py --rows 500 --seeds 1 --epochs 20
 """
 
 import argparse
@@ -24,7 +26,6 @@ warnings.filterwarnings("ignore")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tabular_polygraph.dataset.downloader import load_cached  # noqa: E402
 from tabular_polygraph.fidelity import (  # noqa: E402
     alpha_precision_beta_recall,
     hif_score,
@@ -128,11 +129,11 @@ def main():
     parser.add_argument("--rows", type=int, default=1000)
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--output-dir", type=str, default="results")
+    parser.add_argument("--output-dir", type=str, default="outputs")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     datasets = ["supermarket_sales", "online_purchases", "credit", "adult"]
     generators = ["gaussian", "vine", "ctgan", "tvae"]
@@ -145,10 +146,13 @@ def main():
 
     all_results = []
 
+    from tabular_polygraph.dataset import load_dataset
+
     for ds_id in datasets:
-        real_full = load_cached(ds_id)
-        if real_full is None:
-            print(f"  Skipping {ds_id} (not cached)")
+        try:
+            real_full = load_dataset(ds_id)
+        except Exception as err_load:
+            print(f"  Skipping {ds_id} (error loading: {err_load})")
             continue
 
         drop_cols = [c for c in real_full.columns if real_full[c].isnull().mean() > 0.3]

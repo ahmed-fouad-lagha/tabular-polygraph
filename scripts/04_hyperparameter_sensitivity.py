@@ -154,7 +154,8 @@ if __name__ == "__main__":
         )
 
     df = pd.DataFrame(all_results)
-    out_path = PROJECT_ROOT / "results" / "hyperparameter_sensitivity.csv"
+    out_path = PROJECT_ROOT / "outputs" / "hyperparameter_sensitivity.csv"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
     print(f"\n[Done] Results saved to {out_path}")
     print(df.to_string(index=False))
