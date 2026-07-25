@@ -31,6 +31,9 @@ DEFAULT_DROP_LIST: set[str] = {
     "serial_no",
     "fips_code",
     "ip_address",
+    # Zero-inflated columns (92%+ zeros) — no copula-based generator can model them
+    "capital_gain",
+    "capital_loss",
 }
 
 

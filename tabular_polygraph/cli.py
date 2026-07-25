@@ -461,9 +461,6 @@ def _print_generate_logical(report):
         f"    {_c('Rule violation rate    ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%"
     )
     print(
-        f"    {_c('Mean penalty           ', C.GRAY):<28}{lg.get('mean_penalty_pct', '—')}%"
-    )
-    print(
         f"    {_c('Noise floor threshold  ', C.GRAY):<28}{lg.get('violation_threshold', '—')}"
     )
     print(

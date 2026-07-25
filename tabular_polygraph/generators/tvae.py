@@ -13,6 +13,8 @@ Requirements:
 
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 
 from .base import BaseGenerator
@@ -69,22 +71,28 @@ class TVAEGenerator(BaseGenerator):
 
         self._record_schema(data)
 
-        metadata = SingleTableMetadata()
-        metadata.detect_from_dataframe(data[self._columns])
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            warnings.filterwarnings("ignore", message=".*SingleTableMetadata.*")
+            warnings.filterwarnings("ignore", message=".*save_to_json.*")
 
-        self._model = TVAESynthesizer(
-            metadata=metadata,
-            epochs=self._epochs,
-            batch_size=self._batch_size,
-            embedding_dim=self._embedding_dim,
-            compress_dims=self._compress_dims,
-            decompress_dims=self._decompress_dims,
-            l2scale=self._l2scale,
-            loss_factor=self._loss_factor,
-            verbose=False,
-        )
-        assert self._model is not None
-        self._model.fit(data[self._columns])
+            metadata = SingleTableMetadata()
+            metadata.detect_from_dataframe(data[self._columns])
+
+            self._model = TVAESynthesizer(
+                metadata=metadata,
+                epochs=self._epochs,
+                batch_size=self._batch_size,
+                embedding_dim=self._embedding_dim,
+                compress_dims=self._compress_dims,
+                decompress_dims=self._decompress_dims,
+                l2scale=self._l2scale,
+                loss_factor=self._loss_factor,
+                verbose=False,
+            )
+            assert self._model is not None
+            self._model.fit(data[self._columns])
+
         self._fitted = True
         return self
 
@@ -103,7 +111,10 @@ class TVAEGenerator(BaseGenerator):
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
 
-        df = self._model.sample(n * (4 if filters else 1))
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            df = self._model.sample(n * (4 if filters else 1))
+
         df = self._cast_types(df)
         if filters:
             df = self._apply_filters(df, filters)
