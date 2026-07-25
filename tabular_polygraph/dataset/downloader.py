@@ -36,6 +36,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -250,6 +251,9 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     df["tenure"] = df["owner_occupied_count"] / df["tenure_total"]
     df["education"] = df["bachelors_count"] / df["education_total"]
     df["puma"] = df["public use microdata area"]
+
+    # Replace Inf from division by zero with NaN so dropna() catches them
+    df = df.replace([np.inf, -np.inf], np.nan)
 
     cols_to_keep = [
         "puma",

@@ -37,6 +37,10 @@ class _NumericMarginal:
         import warnings
 
         arr = series.dropna().astype(float).values
+        if len(arr) == 0:
+            self._min = self._max = 0.0
+            self._params = {"kind": "norm", "loc": 0.0, "scale": 1.0}
+            return self
         self._min, self._max = float(arr.min()), float(arr.max())
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
@@ -89,6 +93,8 @@ class _CategoricalMarginal:
         return self
 
     def to_uniform(self, series: pd.Series) -> np.ndarray:
+        if not self._cats:
+            return np.full(len(series), 0.5)
         mapping = {c: (i + 0.5) / len(self._cats) for i, c in enumerate(self._cats)}
         return np.array([mapping.get(v, 0.5) for v in series.fillna(self._cats[0])])
 

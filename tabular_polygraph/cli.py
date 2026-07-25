@@ -16,6 +16,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from tabular_polygraph.utils import set_seed
 
 if TYPE_CHECKING:
@@ -74,6 +76,9 @@ def section(title):
 
 def bar(score, width=22):
     score = float(score)
+    if not np.isfinite(score):
+        score = 0.0
+    score = max(0.0, min(100.0, score))
     filled = int(score / 100 * width)
     if score >= 90:
         col = C.GREEN
@@ -462,7 +467,7 @@ def _print_generate_bars(report):
     ap = report.get("coverage", {}).get("alpha_precision")
     br = report.get("coverage", {}).get("beta_recall")
     au = report.get("coverage", {}).get("authenticity")
-    if ap is not None:
+    if ap is not None and br is not None and au is not None:
         print(f"    {_c('Alpha-precision (coverage)', C.GRAY):<34}{ap:.3f}")
         print(f"    {_c('Beta-recall (coverage)', C.GRAY):<34}{br:.3f}")
         print(f"    {_c('Authenticity', C.GRAY):<34}{au:.3f}")

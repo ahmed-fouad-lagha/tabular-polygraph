@@ -76,24 +76,30 @@ def _apply_binning(
     """Apply pre-fitted bin edges to any DataFrame (real or synthetic).
 
     Columns with None edges are either categorical (kept as-is) or have
-    ≤ n_bins unique values (labeled as ``bin_<value>``).
+    <= n_bins unique values (labeled as ``bin_<value>``).
     """
     df_binned = df.copy()
     for col in columns:
         if col not in edges or edges[col] is None:
             if pd.api.types.is_numeric_dtype(df[col]):
                 if df[col].nunique() <= 1:
-                    df_binned[col] = "bin_0"
+                    # All same value or all NaN: preserve NaN, label non-NaN
+                    df_binned[col] = df[col].apply(
+                        lambda v: "bin_0" if pd.notna(v) else v
+                    )
                 else:
-                    # Discrete numeric with few unique values: label as bin_<value>
-                    df_binned[col] = "bin_" + df[col].astype(str)
+                    # Discrete numeric with few unique values: label as bin_<value>, preserve NaN
+                    df_binned[col] = df[col].apply(
+                        lambda v: f"bin_{v}" if pd.notna(v) else v
+                    )
             else:
-                df_binned[col] = df[col].astype(str)
+                # Categorical: preserve NaN, convert others to string
+                df_binned[col] = df[col].apply(lambda v: v if pd.isna(v) else str(v))
             continue
 
         bin_edges = edges[col]
         if bin_edges is None:
-            df_binned[col] = df[col].astype(str)
+            df_binned[col] = df[col].apply(lambda v: v if pd.isna(v) else str(v))
             continue
         try:
             bin_indices = np.digitize(df[col].values, bin_edges[1:-1])
@@ -102,7 +108,7 @@ def _apply_binning(
                 for i, v in zip(bin_indices, df[col].values, strict=True)
             ]
         except (ValueError, TypeError):
-            df_binned[col] = df[col].astype(str)
+            df_binned[col] = df[col].apply(lambda v: v if pd.isna(v) else str(v))
     return df_binned
 
 
@@ -735,6 +741,8 @@ def hif_score(
         print(
             "  [HIF Rules] Mining and checking Implication Rules...", end="", flush=True
         )
+    # Canonicalize digit-like categorical codes (e.g., "001" vs "1") before rule mining
+    real_f, synthetic_f = _canonicalize_code_columns(real_f, synthetic_f, columns)
     # Pass pre-binned data to avoid redundant processing
     rule_result = rule_violation_score(
         real_f,

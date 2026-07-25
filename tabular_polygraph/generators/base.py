@@ -150,7 +150,8 @@ class BaseGenerator(ABC):
                 continue
             try:
                 if _pd.api.types.is_integer_dtype(dtype):
-                    df[col] = df[col].round(0).astype(int)
+                    # Use nullable Int64 to handle NaN without IntCastingNaNError
+                    df[col] = df[col].round(0).astype("Int64")
                 elif _pd.api.types.is_float_dtype(dtype):
                     df[col] = df[col].round(4)
             except Exception:

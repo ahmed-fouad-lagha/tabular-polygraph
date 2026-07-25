@@ -77,9 +77,7 @@ def tstr_score(
 
     # Scale synthetic using REAL training stats (as it would be in a real TSTR scenario)
     # We treat syn as the "training" set but it must be in the same feature space as real
-    mu = real_train[feature_cols].values.astype(float).mean(axis=0)
-    sd = real_train[feature_cols].values.astype(float).std(axis=0) + 1e-9
-    X_syn = (syn_clean[feature_cols].values.astype(float) - mu) / sd
+    _, X_syn = _standardize_with_train_stats(real_train, syn_clean, feature_cols)
     y_syn = syn_clean[target_col].values
 
     if task == "classification":

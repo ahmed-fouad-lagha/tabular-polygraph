@@ -50,14 +50,29 @@ def tabular_stylized_facts(
         # 1. Tail Integrity (P99 / P50 ratio match)
         r_p99, r_p50 = np.percentile(r, [99, 50])
         s_p99, s_p50 = np.percentile(s, [99, 50])
-        r_tail = r_p99 / (r_p50 + 1e-9)
-        s_tail = s_p99 / (s_p50 + 1e-9)
+        # Use abs(median) to avoid sign-flip when median is negative
+        r_denom = abs(r_p50) if abs(r_p50) > 1e-9 else 1e-9
+        s_denom = abs(s_p50) if abs(s_p50) > 1e-9 else 1e-9
+        r_tail = r_p99 / r_denom
+        s_tail = s_p99 / s_denom
         tail_match = 1.0 - min(abs(r_tail - s_tail) / (abs(r_tail) + 1e-9), 1.0)
 
         # 2. Predictive ordering (Correlation with other numeric features)
-        r_corr = real[cols].corr()[col].drop(col).abs().sort_values(ascending=False)
+        # Filter to numeric columns only to avoid TypeError on non-numeric
+        numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(real[c])]
+        r_corr = (
+            real[numeric_cols]
+            .corr(numeric_only=True)[col]
+            .drop(col)
+            .abs()
+            .sort_values(ascending=False)
+        )
         s_corr = (
-            synthetic[cols].corr()[col].drop(col).abs().sort_values(ascending=False)
+            synthetic[numeric_cols]
+            .corr(numeric_only=True)[col]
+            .drop(col)
+            .abs()
+            .sort_values(ascending=False)
         )
 
         # Rank correlation of the correlations (Spearman on correlation vectors)

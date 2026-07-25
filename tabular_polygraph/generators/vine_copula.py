@@ -88,6 +88,45 @@ def _resolve_family_set(family_set):
     )
 
 
+def _tail_dependence_from_family(family, params: list[float]) -> tuple[float, float]:
+    """Compute lower and upper tail dependence coefficients analytically.
+
+    Returns (lower_tail, upper_tail).
+    """
+    import pyvinecopulib as pv
+
+    if family == pv.BicopFamily.indep:
+        return 0.0, 0.0
+    elif family == pv.BicopFamily.gaussian:
+        return 0.0, 0.0
+    elif family == pv.BicopFamily.frank:
+        return 0.0, 0.0
+    elif family == pv.BicopFamily.clayton:
+        theta = params[0] if params else 0.0
+        return (2.0 ** (-1.0 / theta), 0.0) if theta > 0 else (0.0, 0.0)
+    elif family == pv.BicopFamily.gumbel:
+        theta = params[0] if params else 1.0
+        return (0.0, 2.0 - 2.0 ** (1.0 / theta)) if theta > 1 else (0.0, 0.0)
+    elif family == pv.BicopFamily.joe:
+        theta = params[0] if params else 1.0
+        return (0.0, 2.0 - 2.0 ** (1.0 / theta)) if theta > 1 else (0.0, 0.0)
+    elif family == pv.BicopFamily.student:
+        rho = params[0] if params else 0.0
+        nu = params[1] if len(params) > 1 else 30.0
+        lam = 2.0 * stats.t.cdf(
+            -np.sqrt((nu + 1.0) * (1.0 - rho) / (1.0 + rho)), df=nu + 1
+        )
+        return lam, lam
+    elif family == pv.BicopFamily.bb1:
+        theta = params[0] if params else 0.0
+        delta = params[1] if len(params) > 1 else 0.0
+        if theta > 0 and 0 < delta <= 1:
+            return 2.0 ** (-1.0 / theta), 2.0 - 2.0 ** (delta / theta)
+        return 0.0, 0.0
+    else:
+        return 0.0, 0.0
+
+
 class VineCopulaGenerator(BaseGenerator):
     """
     Vine (pair) copula generator.
@@ -139,17 +178,28 @@ class VineCopulaGenerator(BaseGenerator):
         # Fit marginals for each numeric column (empirical CDF)
         for col in self._numeric_cols:
             arr = data[col].dropna().astype(float).values
-            self._marginals[col] = {
-                "sorted": np.sort(arr),
-                "n": len(arr),
-                "min": arr.min(),
-                "max": arr.max(),
-            }
+            if len(arr) == 0:
+                self._marginals[col] = {
+                    "sorted": np.array([]),
+                    "n": 0,
+                    "min": 0.0,
+                    "max": 0.0,
+                }
+            else:
+                self._marginals[col] = {
+                    "sorted": np.sort(arr),
+                    "n": len(arr),
+                    "min": float(arr.min()),
+                    "max": float(arr.max()),
+                }
 
         # Fit categorical distributions
         for col in self._cat_cols:
-            vc = data[col].value_counts(normalize=True)
-            self._cat_marginals[col] = {"cats": list(vc.index), "probs": vc.values}
+            vc = data[col].dropna().value_counts(normalize=True)
+            if vc.empty:
+                self._cat_marginals[col] = {"cats": [], "probs": np.array([])}
+            else:
+                self._cat_marginals[col] = {"cats": list(vc.index), "probs": vc.values}
 
         # Transform to uniform via empirical CDF
         n = len(data)
@@ -182,16 +232,18 @@ class VineCopulaGenerator(BaseGenerator):
 
         n_gen = n * (6 if filters else 1)
 
-        # Simulate from vine
-
-        U_syn = self._vine.simulate(n_gen)
+        # Simulate from vine (seed the vine's internal RNG for reproducibility)
+        seeds_arg = [seed] if seed is not None else []
+        U_syn = self._vine.simulate(n_gen, seeds=seeds_arg)
         U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
         # Invert through empirical marginals (quantile function)
         records = {}
         for i, col in enumerate(self._numeric_cols):
             m = self._marginals[col]
-            # Empirical quantile: interpolate in sorted array
+            if m["n"] == 0:
+                records[col] = np.full(n_gen, 0.0)
+                continue
             quantile_idx = U_syn[:, i] * (m["n"] - 1)
             lower = np.floor(quantile_idx).astype(int)
             upper = np.minimum(lower + 1, m["n"] - 1)
@@ -200,11 +252,12 @@ class VineCopulaGenerator(BaseGenerator):
             records[col] = np.clip(values, m["min"], m["max"])
 
         # Sample categorical columns independently from their marginals.
-        # NOTE: The vine copula models only continuous dependence; joint
-        # categorical-numeric dependence is NOT captured.
         rng = np.random.default_rng(seed)
         for col in self._cat_cols:
             m = self._cat_marginals[col]
+            if not m["cats"]:
+                records[col] = np.full(n_gen, "unknown", dtype=object)
+                continue
             records[col] = rng.choice(m["cats"], size=n_gen, p=m["probs"])
 
         df = pd.DataFrame(records)[self._columns]
@@ -216,42 +269,51 @@ class VineCopulaGenerator(BaseGenerator):
         return self._add_syn_id(df.head(n))
 
     def tail_dependence_report(self) -> dict:
-        """
-        Return upper and lower tail dependence coefficients for each pair.
+        """Return upper and lower tail dependence coefficients for each pair.
 
         High values (> 0.1) indicate the variables tend to move together
         in extremes (e.g. joint crashes or joint booms).
+
+        For tree-0 (unconditional) pairs, reports variable names.
+        For higher trees (conditional pairs), reports tree/edge positions.
         """
+        _require_pyvine()
+
         if self._vine is None:
             return {}
+
         report = {}
-        n_vars = len(self._numeric_cols)
-        for i, ci in enumerate(self._numeric_cols):
-            for j in range(i + 1, n_vars):
-                cj = self._numeric_cols[j]
+        d = self._vine.dim
+
+        for tree in range(d - 1):
+            for edge in range(d - 1 - tree):
                 try:
-                    # In a vine, the pair (i, j) may not be in tree 0.
-                    # Search through trees to find the pair copula for this combination.
-                    bicop = None
-                    for tree_idx in range(n_vars - 1):
-                        try:
-                            pc = self._vine.get_pair_copula(
-                                tree_idx, i if tree_idx == 0 else j - 1
-                            )
-                            if pc is not None:
-                                bicop = pc
-                                break
-                        except (IndexError, Exception):
-                            continue
-                    if bicop is None:
-                        continue
-                    report[f"{ci} x {cj}"] = {
-                        "family": str(bicop.family),
-                        "parameters": bicop.parameters.tolist(),
-                        "tau": round(float(bicop.tau), 3),
-                        "lower_tail": round(float(bicop.ltdc()), 3),
-                        "upper_tail": round(float(bicop.utdc()), 3),
-                    }
-                except Exception:
-                    pass
+                    pc = self._vine.get_pair_copula(tree, edge)
+                except (IndexError, RuntimeError):
+                    continue
+
+                family = pc.family
+                params = pc.parameters.tolist() if pc.parameters.size > 0 else []
+                tau = float(pc.tau)
+
+                # Compute tail dependence analytically from family parameters
+                lower_tail, upper_tail = _tail_dependence_from_family(family, params)
+
+                # Build label: tree-0 uses variable names, higher trees use position
+                if tree == 0 and edge + 1 < len(self._vine.order):
+                    order = self._vine.order
+                    v1 = self._numeric_cols[order[edge] - 1]
+                    v2 = self._numeric_cols[order[edge + 1] - 1]
+                    label = f"{v1} x {v2}"
+                else:
+                    label = f"tree{tree}_edge{edge}"
+
+                report[label] = {
+                    "family": str(family),
+                    "parameters": params,
+                    "tau": round(tau, 3),
+                    "lower_tail": round(lower_tail, 3),
+                    "upper_tail": round(upper_tail, 3),
+                }
+
         return report
