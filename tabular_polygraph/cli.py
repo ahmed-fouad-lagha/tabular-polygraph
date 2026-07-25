@@ -14,7 +14,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -335,6 +335,7 @@ def _fit_custom_input_generator(
     drop_cols: list[str],
     generator_type: str = "copula",
     epochs: int | None = None,
+    verbose: bool = False,
 ):
     if not Path(input_file).exists():
         raise FileNotFoundError(input_file)
@@ -353,7 +354,7 @@ def _fit_custom_input_generator(
         for w_msg in result.warnings:
             warn(w_msg)
 
-    gen_kwargs = {}
+    gen_kwargs: dict[str, Any] = {"verbose": verbose}
     if epochs is not None:
         gen_kwargs["epochs"] = epochs
 
@@ -376,9 +377,10 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
                 drop_cols,
                 generator_type=getattr(args, "generator", "copula"),
                 epochs=getattr(args, "epochs", None),
+                verbose=getattr(args, "verbose", False),
             )
         else:
-            gen_kwargs = {}
+            gen_kwargs: dict[str, Any] = {"verbose": getattr(args, "verbose", False)}
             if getattr(args, "epochs", None) is not None:
                 gen_kwargs["epochs"] = args.epochs
             gen, seed_df, gen_type = _load_generator(
@@ -408,6 +410,7 @@ def _compute_generate_report(
     hif_hubs=5,
     hif_depth=12,
     rule_params=None,
+    verbose=False,
 ):
     from tabular_polygraph.fidelity import fidelity_report
 
@@ -425,6 +428,7 @@ def _compute_generate_report(
             hif_hubs=hif_hubs,
             hif_depth=hif_depth,
             random_state=seed,
+            verbose=verbose,
             rule_min_confidence=rp.get("rule_min_confidence", 0.95),
             rule_min_support=rp.get("rule_min_support", 0.005),
             rule_max_rules=rp.get("rule_max_rules", 25),
@@ -878,6 +882,12 @@ def main():
         metavar="COLS",
         help="Comma-separated columns to drop before fit/eval, e.g. tract_id,customer_id",
     )
+    p.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable detailed debug logs"
+    )
+    p.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress progress outputs"
+    )
     p.set_defaults(func=cmd_generate)
 
     # evaluate
@@ -967,6 +977,12 @@ def main():
         metavar="N",
         help="Maximum antecedent size for mined logical rules (default: 2)",
     )
+    p.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable detailed debug logs"
+    )
+    p.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress progress outputs"
+    )
     p.set_defaults(func=cmd_evaluate)
 
     # validate
@@ -992,6 +1008,30 @@ def main():
     p.set_defaults(func=cmd_download)
 
     args = parser.parse_args()
+
+    import logging
+
+    if getattr(args, "verbose", False):
+        logging.basicConfig(level=logging.INFO, format="  [%(levelname)s] %(message)s")
+        logging.getLogger("tabular_polygraph").setLevel(logging.DEBUG)
+        for noise_logger in (
+            "faker",
+            "urllib3",
+            "matplotlib",
+            "asyncio",
+            "lark",
+            "sdv",
+            "rdt",
+            "copulas",
+            "ctgan",
+        ):
+            logger_obj = logging.getLogger(noise_logger)
+            logger_obj.setLevel(logging.WARNING)
+            logger_obj.propagate = False
+    elif getattr(args, "quiet", False):
+        logging.basicConfig(level=logging.ERROR)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
     if not args.command:
         parser.print_help()

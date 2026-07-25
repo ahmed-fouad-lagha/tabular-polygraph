@@ -5,6 +5,7 @@ Returns a structured dict suitable for JSON serialisation or CLI display.
 
 import logging
 import time
+from typing import Any
 
 import pandas as pd
 
@@ -64,6 +65,8 @@ def _logical_section(
     hif_hubs: int = 5,
     hif_depth: int = 12,
     random_state: int = 42,
+    verbose: bool = False,
+    progress_callback: Any | None = None,
 ) -> tuple[dict, float | None]:
     logical_validity: float | None = None
 
@@ -74,7 +77,7 @@ def _logical_section(
             real,
             synthetic,
             columns=cols,
-            verbose=True,
+            verbose=verbose,
             hif_epochs=hif_epochs,
             hif_hubs=hif_hubs,
             hif_depth=hif_depth,
@@ -84,6 +87,7 @@ def _logical_section(
             rule_min_lift=rule_min_lift,
             rule_max_antecedents=rule_max_antecedents,
             random_state=random_state,
+            progress_callback=progress_callback,
         )
         logical_validity = round(float(hif_result["hif_score"] * 100.0), 2)
         return {
@@ -162,6 +166,8 @@ def fidelity_report(
     hif_hubs: int = 5,
     hif_depth: int = 12,
     random_state: int = 42,
+    verbose: bool = False,
+    progress_callback: Any | None = None,
 ) -> dict:
     """
     Run all applicable fidelity metrics and return a structured report.
@@ -251,6 +257,8 @@ def fidelity_report(
         hif_hubs=hif_hubs,
         hif_depth=hif_depth,
         random_state=random_state,
+        verbose=verbose,
+        progress_callback=progress_callback,
     )
     report["logical"] = logical_report
 

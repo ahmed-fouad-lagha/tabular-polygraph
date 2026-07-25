@@ -22,7 +22,8 @@ dependencies = [
     "xgboost",
     "scikit-learn",
     "seaborn",
-    "matplotlib"
+    "matplotlib",
+    "tqdm>=4.65.0"
 ]
 
 [project.optional-dependencies]

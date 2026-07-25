@@ -42,6 +42,7 @@ class TVAEGenerator(BaseGenerator):
         l2scale: float = 1e-5,
         loss_factor: float = 2,
         discrete_threshold: int = 20,
+        verbose: bool = False,
         **kwargs,
     ):
         self._epochs = epochs
@@ -52,6 +53,7 @@ class TVAEGenerator(BaseGenerator):
         self._l2scale = l2scale
         self._loss_factor = loss_factor
         self._discrete_threshold = discrete_threshold
+        self._verbose = verbose
         self._model = None
 
     def _require_sdv(self):
@@ -88,7 +90,7 @@ class TVAEGenerator(BaseGenerator):
                 decompress_dims=self._decompress_dims,
                 l2scale=self._l2scale,
                 loss_factor=self._loss_factor,
-                verbose=False,
+                verbose=self._verbose,
             )
             assert self._model is not None
             self._model.fit(data[self._columns])

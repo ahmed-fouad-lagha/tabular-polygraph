@@ -9,6 +9,8 @@ multiplicative manifold integrity penalties.
 
 from __future__ import annotations
 
+import logging
+import warnings
 from typing import Any
 
 import numpy as np
@@ -19,6 +21,8 @@ from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestClassifi
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.utils import check_random_state
+
+logger = logging.getLogger(__name__)
 
 try:
     from pandas.errors import PerformanceWarning
@@ -245,7 +249,15 @@ class LogicalSentinelEnsemble:
             if n_splits < 2:
                 continue
             try:
-                cv_scores = cross_val_score(clf, X, y, cv=n_splits, scoring="accuracy")
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=UserWarning,
+                        module="sklearn.model_selection._split",
+                    )
+                    cv_scores = cross_val_score(
+                        clf, X, y, cv=n_splits, scoring="accuracy"
+                    )
                 scores[hub_col] = float(cv_scores.mean())
             except (ValueError, TypeError):
                 continue
@@ -296,15 +308,11 @@ class LogicalSentinelEnsemble:
             x_encoded = self.encoder.transform(df)
 
         if verbose:
-            print(
-                "  [HIF Hubs] Discovering Synergistic Manifold Hubs...",
-                end="",
-                flush=True,
-            )
+            logger.debug("Discovering Synergistic Manifold Hubs...")
         self.hubs = self._discover_hubs(df, x_encoded, potential_hubs=potential_hubs)
 
         if verbose:
-            print(f" Done. Selected: {self.hubs}")
+            logger.debug(f"Hubs Selected: {self.hubs}")
 
         for hub_col in self.hubs:
             # SUBSPACE: Use feature_map instead of startswith scan
@@ -317,10 +325,8 @@ class LogicalSentinelEnsemble:
             y = df[hub_col]
 
             if verbose:
-                print(
-                    f"  [HIF Sentinels] Training Sentinel for Hub '{hub_col}' ({X.shape[1]} features)...",
-                    end="",
-                    flush=True,
+                logger.debug(
+                    f"Training Sentinel for Hub '{hub_col}' ({X.shape[1]} features)..."
                 )
 
             n_trees = max(10, hif_epochs * 10)
@@ -335,7 +341,7 @@ class LogicalSentinelEnsemble:
             clf.fit(X, y)
             self.sentinels[hub_col] = clf
             if verbose:
-                print("Done.")
+                logger.debug(f"Training Sentinel for Hub '{hub_col}' complete.")
 
             # FIX: Use Out-Of-Bag (OOB) predictions for confidence floor calibration.
             # In-sample predictions overfit on large datasets — the RF predicts its own
@@ -488,11 +494,7 @@ class NeighborInvariantContinuity:
         if n_comp < 1:
             n_comp = 1
         if verbose:
-            print(
-                f"  [HIF NIC] Spectral Embedding ({n_feat} -> {n_comp} target)...",
-                end="",
-                flush=True,
-            )
+            logger.debug(f"Spectral Embedding ({n_feat} -> {n_comp} target)...")
 
         self.pca = TruncatedSVD(
             n_components=n_comp,
@@ -503,19 +505,21 @@ class NeighborInvariantContinuity:
         x_scaled = self.latent_scaler.fit_transform(x_encoded)
         latent = self.pca.fit_transform(x_scaled)
         if verbose:
-            print(f"Done ({self.pca.n_components} components).")
+            logger.debug(
+                f"Spectral Embedding done ({self.pca.n_components} components)."
+            )
 
         self.regressors = {}
         for col in active_df.columns:
             if verbose:
-                print(f"  [HIF NIC] Regressing variable '{col}'...", end="", flush=True)
+                logger.debug(f"Regressing variable '{col}'...")
 
             # SAFE DROP: Filter both X (latent) and y to remove NaNs in this specific target
             y_raw = active_df[col].values
             valid_mask = ~np.isnan(y_raw)
             if not valid_mask.any():
                 if verbose:
-                    print("Skipped (all NaN).")
+                    logger.debug(f"Variable '{col}' skipped (all NaN).")
                 continue
 
             y_valid = y_raw[valid_mask]
@@ -535,7 +539,7 @@ class NeighborInvariantContinuity:
             )
             reg.fit(latent_valid, y_scaled)
             if verbose:
-                print("Done.")
+                logger.debug(f"Regressing variable '{col}' complete.")
 
             y_pred = reg.predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
@@ -631,10 +635,11 @@ def hif_score(
     rule_min_lift: float = 1.0,
     rule_max_antecedents: int = 2,
     random_state: int = 42,
-    verbose: bool = True,
+    verbose: bool = False,
     ablation_mode: str = "full",
     aggregation: str = "geometric",
     component_floor: float = 1e-4,
+    progress_callback: Any | None = None,
 ) -> dict:
     """
     Hybrid Integrity Framework (HIF) Entry Point.
@@ -677,6 +682,9 @@ def hif_score(
     x_real_cat = encoder.transform(real_f)
     x_syn_cat = encoder.transform(synthetic_f)
 
+    if callable(progress_callback):
+        progress_callback(1, 3, "Auditing Sentinels...")
+
     # 1. Categorical Layer: Manifold Sentinels
     oracle = LogicalSentinelEnsemble(
         top_n_hubs=hif_hubs,
@@ -685,9 +693,7 @@ def hif_score(
         confidence_percentile=confidence_percentile,
     )
     if verbose:
-        print(
-            "  [HIF Audit] Auditing Sentinel Logical Consistency...", end="", flush=True
-        )
+        logger.debug("Auditing Sentinel Logical Consistency...")
     oracle.fit(
         real_f,
         hif_epochs=hif_epochs,
@@ -703,13 +709,12 @@ def hif_score(
     # Target leakage prevention: Do not regress continuous columns that were selected as Hubs
     nic_targets = [c for c in skipped_cols if c not in oracle.hubs]
 
+    if callable(progress_callback):
+        progress_callback(2, 3, "Auditing Continuity (NIC)...")
+
     if nic_targets:
         if verbose:
-            print(
-                "  [HIF NIC] Training Neighbor-Invariant Continuity Auditor...",
-                end="",
-                flush=True,
-            )
+            logger.debug("Training Neighbor-Invariant Continuity Auditor...")
         # Ensure the NIC manifold only sees the hubs relevant to the audit.
         # If no hubs are discovered, use the full binned projection as context.
         nic_auditor = NeighborInvariantContinuity(random_state=random_state)
@@ -725,20 +730,17 @@ def hif_score(
         _, nic_penalties_raw = nic_auditor.score(
             cat_context_syn, synthetic[nic_targets], x_precomputed=None
         )
-        # Use raw NIC penalties directly. The geometric mean aggregation
-        # handles the interaction: if both LSE and NIC are bad, the score
-        # drops multiplicatively. Taking np.maximum here would double-count
-        # categorical violations already captured by cat_penalties.
         nic_penalties = nic_penalties_raw
         nic_violation_rate = (nic_penalties > 0.5).mean()
         if verbose:
-            print("Done.")
+            logger.debug("NIC Auditor training complete.")
+
+    if callable(progress_callback):
+        progress_callback(3, 3, "Mining Implication Rules...")
 
     # 3. Structural Layer: Logical Rules (Hard Constraints)
     if verbose:
-        print(
-            "  [HIF Rules] Mining and checking Implication Rules...", end="", flush=True
-        )
+        logger.debug("Mining and checking Implication Rules...")
     # Canonicalize digit-like categorical codes (e.g., "001" vs "1") before rule mining
     real_f, synthetic_f = _canonicalize_code_columns(real_f, synthetic_f, columns)
     # Pass pre-binned data to avoid redundant processing
@@ -760,7 +762,7 @@ def hif_score(
         rule_penalties = rule_result.get("row_violation_mask", np.zeros(len(synthetic)))
 
     if verbose:
-        print(f"Done ({rule_result['num_rules_mined']} rules).")
+        logger.debug(f"Rule mining complete ({rule_result['num_rules_mined']} rules).")
 
     # AGGREGATION: Integrative validities with ablation support
     # component_floor prevents log(0) in geometric mean.  At 1e-4, a single
