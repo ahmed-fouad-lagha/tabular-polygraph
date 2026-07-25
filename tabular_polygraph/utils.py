@@ -42,15 +42,20 @@ DEFAULT_DROP_LIST: set[str] = {
 
 
 def numeric_columns(df: pd.DataFrame) -> list[str]:
-    """Return list of numeric column names in a DataFrame.
+    """Return list of numeric column names in a DataFrame (excluding bool).
 
     Args:
         df: Input DataFrame.
 
     Returns:
-        List of column names with numeric dtype.
+        List of column names with numeric dtype (bool excluded).
     """
-    return [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    return [
+        c
+        for c in df.columns
+        if pd.api.types.is_numeric_dtype(df[c])
+        and not pd.api.types.is_bool_dtype(df[c])
+    ]
 
 
 def categorical_columns(df: pd.DataFrame) -> list[str]:

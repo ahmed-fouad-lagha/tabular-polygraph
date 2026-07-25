@@ -29,7 +29,8 @@ def _standardize_with_train_stats(
     """Standardize train and test features with train-set statistics."""
     X_train = train_df[feature_cols].values.astype(float)
     mu = X_train.mean(axis=0)
-    sd = X_train.std(axis=0) + 1e-9
+    sd = X_train.std(axis=0)
+    sd[sd < 1e-9] = 1.0
     X_test = test_df[feature_cols].values.astype(float)
     return (X_train - mu) / sd, (X_test - mu) / sd
 
