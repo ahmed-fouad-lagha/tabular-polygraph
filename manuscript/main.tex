@@ -261,7 +261,7 @@ As shown in our multi-seed validation, the HIF score exhibited perfect Spearman 
 
 \paragraph{Addressing Circularity in Evaluation.} We emphasize that this controlled corruption protocol is used strictly for metric response calibration (verifying monotonic decay under controlled error rates), rather than as the primary benchmark for diagnostic utility. To ensure non-circular evaluation, our main empirical validation assesses HIF across two independent regimes: (1) an evaluation on \textit{five un-targeted held-out error types} that HIF was not engineered to detect (Section~\ref{sec:heldout}), and (2) downstream predictive utility auditing on un-manipulated synthetic cohorts produced by real generative architectures (CTGAN, Vine Copulas) (Section~\ref{sec:utility}).
 
-\subsection{Component Ablation Study}
+\subsection{Component Ablation Study}\label{sec:ablation}
 
 To understand the contribution of each HIF component, we performed an ablation study on the Census ACS dataset using the deep generative model CTGAN ($N=5$ seeds). As shown in Table~\ref{tab:ablation}, the ablation reveals the distinct roles of each filtering module on downstream utility. Because \textit{Census ACS} is dominated by complex, non-linear categorical dependencies, the Logical Sentinel Ensemble (LSE) is the most critical individual component, rescuing the F1 score from a catastrophic $0.360$ up to $0.812$. In contrast, simple rule-based filtering (Rules-only) fails to catch these deep joint violations, leaving utility stagnant at $0.368$.
 
