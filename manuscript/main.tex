@@ -97,21 +97,27 @@ The Hybrid Integrity Framework (HIF) formalizes synthetic data auditing as a pro
 
 \subsection{Logical Sentinel Ensemble (LSE)}
 
-To audit categorical consistency, we first identify the set of Dependency Hubs $\mathcal{H} \subset \{1, \dots, K_{hub}\}$ that govern the structural dependencies of the dataset. We define the importance of a feature $h$ using the Feature Dependency Score $S(h)$, which formalizes the predictability of feature $x_h$ from the remaining features $\mathbf{x}_{\setminus h}$ using an out-of-bag random forest ensemble $f_h$. Formally, this is the expected classification accuracy:
+To audit categorical consistency, we first identify the set of Dependency Hubs $\mathcal{H} \subset \{1, \dots, K_{hub}\}$ that govern the structural dependencies of the dataset. For a given row $\mathbf{x}$, let $x_h \in \mathcal{X}_h$ denote the categorical value of a target feature $h$, and let $\mathbf{x}_{\setminus h}$ denote the values of all other remaining features (i.e., $\mathbf{x}$ with feature $h$ removed).
+
+We train an independent Random Forest classifier, which we call a \textit{Sentinel} and denote as $f_h$, to predict $x_h$ given $\mathbf{x}_{\setminus h}$. The sentinel outputs a conditional probability distribution $P_{f_h}(x_h = c \mid \mathbf{x}_{\setminus h})$ for all possible categories $c \in \mathcal{X}_h$. We define the importance of a feature $h$ using the Feature Dependency Score $S(h)$, which is the out-of-bag classification accuracy of its sentinel:
 \begin{equation}
-    S(h) = \mathbb{E}_{\mathbf{x} \sim \mathcal{D}_{real}} \left[ \mathbb{I} \left( \arg\max_{c \in \mathcal{X}_h} f_h(x_h=c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]
+    S(h) = \mathbb{E}_{\mathbf{x} \sim \mathcal{D}_{real}} \left[ \mathbb{I} \left( \arg\max_{c \in \mathcal{X}_h} P_{f_h}(x_h=c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]
 \end{equation}
-where $\mathbb{I}$ is the indicator function and $f_h(x_h=c \mid \mathbf{x}_{\setminus h})$ is the ensemble's estimated conditional probability for class $c$. By maximizing $S(h)$, we select features that are most strongly constrained by conditional interactions with remaining attributes. For each hub $h \in \mathcal{H}$, the sentinel $f_h: \mathcal{X}_{\setminus h} \to [0, 1]^{|\mathcal{X}_h|}$ learns the conditional density $P(x_h \mid \mathbf{x}_{\setminus h})$.
+where $\mathbb{I}$ is the indicator function. By maximizing $S(h)$, we select hubs that are most strongly constrained by conditional interactions with other attributes.
+
+\paragraph{Running Example: Categorical Dependencies.}
+Consider a demographic dataset where $\mathbf{x}$ represents a person. Let $x_h$ be their \textit{Education Level} and $\mathbf{x}_{\setminus h}$ contain their \textit{Age} (e.g., 14). Because a 14-year-old cannot hold a PhD in the real world, the sentinel $f_h$ learns from the ground-truth data to assign $P_{f_h}(\text{PhD} \mid \text{Age}=14) \approx 0$. If a generative model hallucinates a 14-year-old with a PhD, the sentinel will flag the record because the assigned probability for the hallucinated category is extremely low.
 
 \paragraph{Confidence Floor Calibration.}
-To ensure robustness against categorical noise, we establish a data-driven Confidence Floor $\delta_h$ for each hub. We define $\delta_h$ using the empirical 5th-percentile ($Q_{0.05}$) of the probability mass assigned to the correct category by the Sentinel in the ground-truth data, with a safety minimum of 0.01:
+To ensure robustness against natural categorical noise, we establish a data-driven Confidence Floor $\delta_h$ for each hub. We define $\delta_h$ using the empirical 5th-percentile ($Q_{0.05}$) of the probability mass assigned to the correct category by the sentinel in the ground-truth data, with a safety minimum of 0.01:
 \begin{equation}
-    \delta_h = \max \left( Q_{0.05} \Big( \{ f_h(x_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} \Big), 0.01 \right)
+    \delta_h = \max \left( Q_{0.05} \Big( \{ P_{f_h}(x_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} \Big), 0.01 \right)
 \end{equation}
-This 5th-percentile floor acts as a conservative safety margin, ensuring that the HIF does not penalize records that fall within the natural density of the ground truth manifold. Although sensitive to sample volume, the use of a quantile-based anchor provides a non-parametric baseline that automatically adapts to the varying conditional entropy of different dependency hubs.
-The per-hub penalty $\mathcal{P}_h(\mathbf{x})$ uses a soft-threshold activation to suppress the noise-level deviations:
+This 5th-percentile floor acts as a conservative safety margin. In our running example, if the real data occasionally contains 18-year-olds with college degrees, the sentinel's probability might be low but non-zero (e.g., 0.05). The floor $\delta_h$ ensures we do not penalize rare but valid records that fall within the natural density of the ground-truth manifold.
+
+The per-hub penalty $\mathcal{P}_h(\mathbf{x})$ uses a soft-threshold activation to suppress noise-level deviations, harshly penalizing only those records whose probabilities fall far below the confidence floor (such as the impossible 14-year-old PhD):
 \begin{equation}
-    \mathcal{P}_h(\mathbf{x}) = \text{clip}\left( \frac{\delta_h - f_h(\mathbf{x}_h \mid \mathbf{x}_{\setminus h})}{\delta_h}, 0, 1 \right)
+    \mathcal{P}_h(\mathbf{x}) = \text{clip}\left( \frac{\delta_h - P_{f_h}(x_h \mid \mathbf{x}_{\setminus h})}{\delta_h}, 0, 1 \right)
 \end{equation}
 The categorical penalty aggregates multiplicatively across hubs, ensuring that ruptures in multiple manifold dimensions are compounded.
 \begin{equation}
