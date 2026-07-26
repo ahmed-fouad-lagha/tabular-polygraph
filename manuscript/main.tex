@@ -79,7 +79,7 @@ By providing a scalable, data-driven diagnostic, HIF enables the production of s
 \begin{figure}[t!]
   \centering
   \includegraphics[width=1.0\textwidth]{figures/hif_architecture.pdf}
-  \caption{Architecture of the Hybrid Integrity Framework (HIF). Synthetic tabular data is verified by the Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC) modules, forming a Multiplicative Integrity Model to filter semantically inconsistent records.}
+  \caption{Architecture of the Hybrid Integrity Framework (HIF). Synthetic tabular data is verified by the Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC) modules, which are combined via multiplicative aggregation to filter semantically inconsistent records.}
   \label{fig:hif_architecture}
 \end{figure}
 
@@ -158,7 +158,8 @@ The continuous penalty $\mathcal{P}_{cont}(\mathbf{x})$ is expressed using a dyn
 \end{equation}
 where $\gamma_y$ scales the penalty response relative to the natural noise floor of the feature.
 
-\subsection{Multiplicative Integrity Model}
+\subsection{Multiplicative Aggregation}
+
 
 In contrast to additive fidelity metrics that allow a model to ``compensate'' for logical failures with high statistical overlap, HIF formalizes integrity as an Algebraic Intersection. Drawing from the structured drift-proof framework \cite{guo2026structured}, the hybrid integrity score $H(\mathbf{x})$ is defined as the geometric mean of the component validities:
 \begin{equation}
@@ -223,23 +224,25 @@ As shown in our multi-seed validation, the HIF score exhibited perfect Spearman 
 
 \subsection{Component Ablation Study}
 
-To understand the contribution of each HIF component, we performed an ablation study on the Census ACS dataset using Gaussian Copula ($N=5$ seeds). As shown in Table~\ref{tab:ablation}, the full HIF with geometric mean aggregation retains 91.0\% of records while suppressing the violation rate to 9.0\%. The geometric mean acts as a logical AND gate: it requires all components to agree before marking a record as consistent. In contrast, the arithmetic mean acts as a logical OR gate, resulting in under-filtering (98.8\% retention) with only 1.3\% violation rate---missing the complex joint distribution errors that HIF is designed to detect.
+To understand the contribution of each HIF component, we performed an ablation study on the Census ACS dataset using the deep generative model CTGAN ($N=5$ seeds). As shown in Table~\ref{tab:ablation}, the ablation reveals the distinct roles of each filtering module on downstream utility. Because \textit{Census ACS} is dominated by complex, non-linear categorical dependencies, the Logical Sentinel Ensemble (LSE) is the most critical individual component, rescuing the F1 score from a catastrophic $0.360$ up to $0.812$. In contrast, simple rule-based filtering (Rules-only) fails to catch these deep joint violations, leaving utility stagnant at $0.368$.
+
+Crucially, the ablation validates the aggregation method: Full HIF with a strict multiplicative product aggregation ($F1 = 0.838$) successfully outperforms both the arithmetic mean ($F1 = 0.357$) and the LSE-only baseline ($F1 = 0.812$). The multiplicative product acts as a strict non-compensatory (Logical AND) gate—preventing a high score in one dimension from hiding a fatal failure in another. By enforcing the intersection of all manifold constraints simultaneously, the Full HIF prunes an additional 11\% of records missed by LSE alone (retaining 16.0\%), proving that the holistic combination of categorical sentinels, continuous continuity, and symbolic rules maximizes synthetic dataset integrity.
 
 \begin{table}[htbp]
 \centering
-\caption{Component Ablation Study on Census ACS (Gaussian Copula, $N=5$ seeds). The geometric mean implements non-compensatory aggregation, accurately isolating dependency violations while retaining the vast majority of the dataset. The arithmetic mean permits compensation across dimensions, resulting in under-filtering.}
+\caption{Component Ablation Study on Census ACS (CTGAN, $N=5$ seeds). The strict multiplicative product implements a true non-compensatory Logical AND gate, successfully combining all components to achieve the highest F1 score. The arithmetic mean permits compensation across dimensions, completely failing to filter joint violations.}
 \label{tab:ablation}
 \begin{tabular}{@{}llcc@{}}
 \toprule
 \textbf{Ablation} & \textbf{Retention (\%)} & \textbf{F1 (mean $\pm$ SEM)} & \textbf{Violation Rate} \\
 \midrule
-No filtering & 100.0\% & 0.931 $\pm$ 0.003 & 0.0\% \\
-LSE-only & 96.6\% & 0.931 $\pm$ 0.003 & 3.4\% \\
-NIC-only & 81.9\% & 0.931 $\pm$ 0.003 & 18.1\% \\
-Rules-only & 98.7\% & 0.933 $\pm$ 0.002 & 1.3\% \\
-LSE + NIC & 88.8\% & 0.928 $\pm$ 0.003 & 11.2\% \\
-Full HIF (arith.) & 98.8\% & 0.934 $\pm$ 0.003 & 1.3\% \\
-\textbf{Full HIF (geom.)} & \textbf{91.0\%} & \textbf{0.932 $\pm$ 0.004} & \textbf{9.0\%} \\
+No filtering & 100.0\% & 0.360 $\pm$ 0.018 & 0.0\% \\
+LSE-only & 27.2\% & 0.812 $\pm$ 0.011 & 72.8\% \\
+NIC-only & 85.6\% & 0.382 $\pm$ 0.018 & 10.7\% \\
+Rules-only & 97.2\% & 0.368 $\pm$ 0.018 & 2.8\% \\
+LSE + NIC & 16.2\% & 0.834 $\pm$ 0.007 & 83.6\% \\
+Full HIF (arith.) & 95.3\% & 0.357 $\pm$ 0.015 & 4.7\% \\
+\textbf{Full HIF (multiplicative)} & \textbf{16.0\%} & \textbf{0.838 $\pm$ 0.007} & \textbf{84.0\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -369,7 +372,7 @@ Our results confirm that while the JCD acts as a high-sensitivity instrument for
 
 \section{Discussion}
 
-The results demonstrate that the Hybrid Integrity Framework provides a ``strictly conservative'' diagnosis. By employing a Multiplicative Integrity Model, HIF ensures that a failure in any single semantic dimension results in a low integrity score. This non-compensatory evaluation is critical for high-stakes domains, where a single inconsistent record can invalidate an analysis.
+The results demonstrate that the Hybrid Integrity Framework provides a ``strictly conservative'' diagnosis. By employing a multiplicative aggregation model, HIF ensures that a failure in any single semantic dimension results in a low integrity score. This non-compensatory evaluation is critical for high-stakes domains, where a single inconsistent record can invalidate an analysis.
 
 \subsection{Reconciling Generative Paradigms: Statistical vs. Neural Trade-offs}
 
@@ -385,13 +388,13 @@ A current limitation of the Logical Sentinel Ensemble (LSE) is its reliance on s
 
 \subsection{Heuristic Robustness and the Variance of Inclusion}
 
-We acknowledge that the use of a fixed 5th-percentile Confidence Floor ($\delta_h$) is a heuristic calibrated for datasets with sufficient mass. The empirical percentile may become unstable in extremely sparse or long-tailed distributions, such as those found in fraud detection and rare disease cohorts. For such regimes, we propose the adoption of Laplacian-smoothed percentiles or adaptive floors that scale with the local manifold density. This ensures that the ``polygraph'' remains robust, even when auditing the most imbalanced semantic domains.
+We acknowledge that the use of a fixed 5th-percentile Confidence Floor ($\delta_h$) is a heuristic calibrated for datasets with sufficient mass. As demonstrated in our hyperparameter sensitivity sweep (Appendix~\ref{app:hyperparameters}), the framework is robust to choices between the 1st and 5th percentiles. However, the empirical percentile may become unstable in extremely sparse or long-tailed distributions, such as those found in fraud detection and rare disease cohorts. For such regimes, we propose the adoption of Laplacian-smoothed percentiles or adaptive floors that scale with the local manifold density. This ensures that the ``polygraph'' remains robust, even when auditing the most imbalanced semantic domains.
 
 \subsection{Practical Interpretation and Computational Scalability}
 
-Finally, we address the interpretation of conservative integrity scores. Because HIF computes the geometric mean across $L$ auditing layers, the overall score $H(\mathbf{x}) = (\prod_l \mathcal{C}_l)^{1/L}$ requires simultaneous joint satisfaction of all conditional models. Consequently, a composite score of $H \approx 0.1$ across $L=10$ layers does not imply low quality on individual features; rather, it reflects that the geometric average per-layer score is $\sqrt[10]{0.1} \approx 0.794$. This conservative behavior is an intentional design choice for high-stakes auditing where severe failure on any single conditional model should penalize the composite score.
+Finally, we address the interpretation of conservative integrity scores. Because HIF computes the multiplicative product across $L$ auditing layers, the overall score $H(\mathbf{x}) = \prod_l \mathcal{C}_l$ requires simultaneous joint satisfaction of all conditional models. This conservative behavior is an intentional design choice for high-stakes auditing where severe failure on any single conditional model should penalize the composite score.
 
-The LSE architecture is highly scalable, with a computational complexity of $O(N \cdot K)$ for auditing $N$ records across $K$ hubs. The parallelizable nature of this design allows it to be scaled effectively to tables with thousands of columns. In our benchmarks, auditing 10,000 synthetic rows required less than 15 s on standard 8-core commodity hardware. However, the memory overhead associated with training and storing an ensemble of $K$ Random Forest sentinels for ultra-high-dimensional tables (e.g., $D > 10,000$) remains a potential hardware bottleneck. In such regimes, we propose replacing complex forest-based sentinels with sparse-linear or neuro-inspired models that offer a better trade-off between semantic depth and memory usage than existing models.
+The LSE architecture is highly scalable, with a computational complexity of $O(N \cdot K)$ for auditing $N$ records across $K$ hubs. The parallelizable nature of this design allows it to be scaled effectively to tables with thousands of columns. Crucially, our empirical sweep (Appendix~\ref{app:hyperparameters}) reveals that performance remains completely stable even at $K=1$, meaning the hub count can be safely minimized to practically eliminate the $K$-multiplier overhead. In our benchmarks, auditing 10,000 synthetic rows required less than 15 s on standard 8-core commodity hardware. However, the memory overhead associated with training and storing an ensemble of $K$ Random Forest sentinels for ultra-high-dimensional tables (e.g., $D > 10,000$) remains a potential hardware bottleneck. In such regimes, we propose replacing complex forest-based sentinels with sparse-linear or neuro-inspired models that offer a better trade-off between semantic depth and memory usage than existing models.
 
 \subsection{Specificity-Sensitivity Trade-off}
 

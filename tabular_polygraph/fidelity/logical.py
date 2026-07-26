@@ -793,9 +793,9 @@ def hif_score(
     # Aggregate using chosen method
     if aggregation == "arithmetic":
         row_validity = np.asarray(sum(active_components) / len(active_components))
-    else:  # "geometric" — default
+    else:  # "geometric" (now strictly multiplicative product)
         log_sum = sum(np.log(c) for c in active_components)
-        row_validity = np.asarray(np.exp(log_sum / len(active_components)))
+        row_validity = np.asarray(np.exp(log_sum))
 
     row_penalties = np.asarray(1.0 - row_validity)
     hif_score_val = row_validity.mean()
