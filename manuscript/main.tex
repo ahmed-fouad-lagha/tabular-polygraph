@@ -252,7 +252,7 @@ To unify the notation across all components, consider a synthetic record $\mathb
 
 \section{Results}
 
-We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. Experiments used $N=3\text{--}10$ random seeds depending on the evaluation; we report mean $\pm$ standard error of the mean (SEM) unless otherwise noted.
+We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. Experiments used $N=3\text{--}10$ random seeds depending on the evaluation; we report mean $\pm$ standard deviation (SD) unless otherwise noted.
 
 To calibrate the framework's response, we executed a controlled semantic violation protocol. Unlike random corruption, which breaks global distributions, we stochastically permuted (shuffled) the values of specific features across different rows within highly constrained categorical-continuous dependencies (e.g., \textit{category} vs. \textit{item\_subtotal} in Online Purchases) for a controlled fraction of records $\eta \in [0, 0.6]$. By shuffling existing values across rows rather than injecting external noise, this process perfectly preserves individual marginal distributions and global Spearman correlations (satisfying standard JCD and MM metrics) while completely breaking the underlying joint conditional distribution at the row level.
 
@@ -375,32 +375,32 @@ The results reveal a key insight into synthetic data evaluation:
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=3$ seeds). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
+\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=3$ seeds, Mean $\pm$ SD). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
 \label{tab:architecture}
 \small
-\begin{tabular}{@{}llccccc@{}}
+\begin{tabular}{@{}llcccccc@{}}
 \toprule
 Dataset & Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparrow$) & HIF ($\uparrow$) & Viol.\ Rate ($\downarrow$) \\
 \midrule
-\textbf{Supermarket Sales} & Gaussian Copula & 0.902 & 0.895 & 0.923 & \textbf{0.966} & \textbf{2.1\%} \\
-                           & Vine Copula     & \textbf{0.973} & 0.789 & 0.880 & 0.001 & 99.9\% \\
-                           & CTGAN           & 0.766 & 0.535 & 0.834 & 0.006 & 99.7\% \\
-                           & TVAE            & 0.768 & 0.886 & 0.926 & 0.015 & 98.9\% \\
+\textbf{Supermarket} & Gaussian Copula & 0.902$\pm$0.004 & 0.895$\pm$0.007 & 0.923$\pm$0.008 & \textbf{0.966$\pm$0.004} & \textbf{2.1$\pm$0.3\%} \\
+                           & Vine Copula     & \textbf{0.973$\pm$0.002} & 0.789$\pm$0.003 & 0.880$\pm$0.023 & 0.001$\pm$0.000 & 99.9$\pm$0.0\% \\
+                           & CTGAN           & 0.766$\pm$0.007 & 0.535$\pm$0.007 & 0.834$\pm$0.035 & 0.006$\pm$0.006 & 99.7$\pm$0.2\% \\
+                           & TVAE            & 0.768$\pm$0.029 & 0.886$\pm$0.055 & 0.926$\pm$0.025 & 0.015$\pm$0.005 & 98.9$\pm$0.5\% \\
 \midrule
-\textbf{Online Purchases}  & Gaussian Copula & 0.753 & 0.491 & 0.829 & \textbf{0.386} & \textbf{65.7\%} \\
-                           & Vine Copula     & \textbf{0.974} & 0.817 & 0.956 & 0.062 & 97.5\% \\
-                           & CTGAN           & 0.738 & 0.438 & 0.883 & 0.072 & 96.6\% \\
-                           & TVAE            & 0.767 & 0.632 & 0.684 & 0.006 & 100.0\% \\
+\textbf{Purchases}  & Gaussian Copula & 0.753$\pm$0.010 & 0.491$\pm$0.002 & 0.829$\pm$0.017 & \textbf{0.386$\pm$0.008} & \textbf{65.7$\pm$1.1\%} \\
+                           & Vine Copula     & \textbf{0.974$\pm$0.002} & 0.817$\pm$0.017 & 0.956$\pm$0.005 & 0.062$\pm$0.008 & 97.5$\pm$0.4\% \\
+                           & CTGAN           & 0.738$\pm$0.028 & 0.438$\pm$0.025 & 0.883$\pm$0.066 & 0.072$\pm$0.010 & 96.6$\pm$0.9\% \\
+                           & TVAE            & 0.767$\pm$0.008 & 0.632$\pm$0.046 & 0.684$\pm$0.059 & 0.006$\pm$0.001 & 100.0$\pm$0.0\% \\
 \midrule
-\textbf{Credit Default}    & Gaussian Copula & 0.744 & 0.734 & 0.945 & 0.480 & 53.7\% \\
-                           & Vine Copula     & \textbf{0.974} & 0.798 & 0.812 & 0.344 & 69.1\% \\
-                           & CTGAN           & 0.651 & 0.557 & 0.880 & 0.214 & 82.5\% \\
-                           & TVAE            & 0.747 & 0.499 & 0.708 & \textbf{0.894} & \textbf{10.1\%} \\
+\textbf{Credit}    & Gaussian Copula & 0.744$\pm$0.004 & 0.734$\pm$0.017 & 0.945$\pm$0.006 & 0.480$\pm$0.056 & 53.7$\pm$5.5\% \\
+                           & Vine Copula     & \textbf{0.974$\pm$0.000} & 0.798$\pm$0.008 & 0.812$\pm$0.004 & 0.344$\pm$0.008 & 69.1$\pm$1.4\% \\
+                           & CTGAN           & 0.651$\pm$0.030 & 0.557$\pm$0.034 & 0.880$\pm$0.019 & 0.214$\pm$0.015 & 82.5$\pm$2.1\% \\
+                           & TVAE            & 0.747$\pm$0.007 & 0.499$\pm$0.029 & 0.708$\pm$0.032 & \textbf{0.894$\pm$0.019} & \textbf{10.1$\pm$2.0\%} \\
 \midrule
-\textbf{Adult Income}      & Gaussian Copula & 0.841 & 0.937 & 0.810 & 0.711 & 28.0\% \\
-                           & Vine Copula     & \textbf{0.974} & \textbf{0.966} & 0.799 & 0.631 & 36.2\% \\
-                           & CTGAN           & 0.728 & 0.785 & 0.775 & 0.523 & 46.7\% \\
-                           & TVAE            & 0.725 & 0.449 & 0.490 & \textbf{0.972} & \textbf{1.1\%} \\
+\textbf{Adult}      & Gaussian Copula & 0.841$\pm$0.004 & 0.937$\pm$0.007 & 0.810$\pm$0.018 & 0.711$\pm$0.007 & 28.0$\pm$0.5\% \\
+                           & Vine Copula     & \textbf{0.974$\pm$0.005} & \textbf{0.966$\pm$0.008} & 0.799$\pm$0.017 & 0.631$\pm$0.014 & 36.2$\pm$1.3\% \\
+                           & CTGAN           & 0.728$\pm$0.013 & 0.785$\pm$0.076 & 0.775$\pm$0.017 & 0.523$\pm$0.021 & 46.7$\pm$4.2\% \\
+                           & TVAE            & 0.725$\pm$0.023 & 0.449$\pm$0.007 & 0.490$\pm$0.025 & \textbf{0.972$\pm$0.019} & \textbf{1.1$\pm$1.6\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
