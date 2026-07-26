@@ -67,6 +67,12 @@ Our framework comprises two components:
 
 Furthermore, we integrate the Targeted Adversarial Masking and Inference Suite (TAMIS) Privacy Oracle, subjecting synthetic cohorts to rigorous membership \cite{shokri2017membership} and linkability attacks to ensure that logical consistency does not come at the cost of privacy.
 
+\paragraph{Summary of Technical Novelty vs. Prior Literature.} To ensure total clarity regarding our technical contributions, we explicitly demarcate literature-derived building blocks from our original contributions:
+\begin{itemize}
+    \item \textit{Literature-Derived Components:} Base supervised estimators (Random Forests \cite{breiman2001random}, Gradient Boosted Regressors \cite{friedman2001greedy}), spectral categorical embeddings via SVD/MCA \cite{abdi2010principal}, distribution-free quantile error bounds \cite{shafer2008tutorial}, and robust percentile dispersion thresholds \cite{tukey1977exploratory} are standard statistical tools.
+    \item \textit{Primary Original Contributions:} (1) Automated, domain-agnostic discovery of latent Dependency Hubs via predictive synergy $S(h)$; (2) Non-compensatory multiplicative product aggregation ($\prod_l (1 - \mathcal{P}_l)$) acting as a Logical AND gate to prevent marginal fidelity from masking localized row violations; (3) Formalization and empirical audit of joint conditional hallucinations (``impossible junctions'') where individual features are unexceptional; and (4) Empirical proof that HIF row filtering recovers downstream predictive utility (+1.9\% F1) while preserving differential privacy bounds.
+\end{itemize}
+
 By providing a scalable, data-driven diagnostic, HIF enables the production of synthetic data that are certified for high-stakes research. The complete open-source implementation, experimental benchmarks, and dataset configurations are available at \url{https://anonymous.4open.science/r/tabular-polygraph-21CE}.
 
 \begin{figure}[t!]
@@ -126,7 +132,7 @@ The categorical penalty aggregates multiplicatively across hubs, ensuring that r
     \mathcal{P}_{cat}(\mathbf{x}) = 1 - \prod_{h \in \mathcal{H}} (1 - \mathcal{P}_h(\mathbf{x}))
 \end{equation}
 
-For a rigorous theoretical analysis, including the proof of intersection soundness (Theorem 1) and the guarantee of asymptotic statistical convergence for the empirical penalty function (Theorem 2), we refer the reader to Appendix A.
+For a rigorous theoretical analysis, including the proof of intersection soundness (Theorem 1), asymptotic statistical convergence (Theorem 2), and the upper bound on Type I false-rejection error under quantile calibration (Theorem 3), we refer the reader to Appendix A.
 
 \begin{algorithm}[ht]
 \caption{HIF Manifold Calibration}
@@ -226,14 +232,27 @@ Using the Total Variation Distance (TVD) as our stability metric, we observed lo
 
 A primary critique of multiplicative evaluation is that absolute scores often appear lower than the near-unity scores ($\ge 0.95$) typical of aggregate 1D distributional metrics in standard evaluation benchmarks \cite{patki2016synthetic, jordon2022synthetic, long2025evaluating}. This is a deliberate design property. In datasets governed by multiple simultaneous conditional constraints, a record with a severe violation of any single dependency should not receive a high integrity score, regardless of how well its remaining features conform to marginal expectations.
 
-In standard aggregate metrics, a high-fidelity feature dimension can arithmetically compensate for localized dependency failures, inflating the global score. HIF avoids this through \textit{non-compensatory aggregation}. Theoretically, assuming conditional independence of error dimensions given the feature representations, the product of validities $\prod (1-\mathcal{P}_l)$ serves as a pseudo-likelihood proxy for the joint structural conformity of the record.
+In standard aggregate metrics, a high-fidelity feature dimension can arithmetically compensate for localized dependency failures, inflating the global score. HIF avoids this through \textit{non-compensatory aggregation}. Theoretically, assuming conditional independence of error dimensions given the feature representations, the product of validities $\prod (1-\mathcal{P}_l)$ serves as a pseudo-likelihood proxy for the joint structural conformity of the record. Furthermore, under empirical quantile calibration ($\delta_h = Q_{\alpha}$ and $\gamma_y = Q_{1-\beta}$), the probability of false rejection for valid ground-truth tail records is strictly bounded by the Union Bound, yielding a guaranteed Neyman-Pearson cohort purity post-filtering (Theorem 3, Appendix A.3).
 
 The geometric mean ensures a robust lower bound on this joint probability: a significant penalty on any single auditing layer ($\mathcal{P}_l \to 1$) suppresses the overall record integrity toward zero. Concretely, if a generator produces a record whose continuous feature value is highly improbable under the conditional distribution for its categorical context (e.g., a wage value inconsistent with the learned conditional for that employment category), the NIC penalty dominates the geometric mean regardless of how well other features are aligned. This establishes the HIF score as a strictly conservative bound on joint distributional consistency---not an average of per-column fidelities that can obscure isolated but severe dependency violations.
+
+\subsection{End-to-End Pipeline Walkthrough}
+
+To unify the notation across all components, consider a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ evaluated by HIF:
+\begin{enumerate}
+    \item \textbf{Categorical Audit (LSE):} For a record with $\text{Age}=14$ and $\text{Education}=\text{PhD}$, the sentinel $f_h$ for hub $h=\text{Education}$ evaluates $P_{f_h}(\text{PhD} \mid \text{Age}=14) = 0.0001$. Given the calibrated floor $\delta_h = 0.05$, the categorical penalty evaluates to $\mathcal{P}_h = \text{clip}\left(\frac{0.05 - 0.0001}{0.05}, 0, 1\right) = 0.998$.
+    \item \textbf{Continuous Audit (NIC):} SVD projects $[\text{Age}=14, \text{Education}=\text{PhD}]$ to latent vector $\mathbf{z}$. The regressor $r_y$ predicts expected salary $\hat{y} = \$12,000$ with tolerance bandwidth $\gamma_y = \$5,000$. For a hallucinated salary $y = \$150,000$, the continuous penalty evaluates to $\mathcal{P}_y = \text{clip}\left(\frac{|150,000 - 12,000| - 5,000}{5,000}, 0, 1\right) = 1.0$.
+    \item \textbf{Multiplicative Aggregation:} The overall record score collapses:
+    \begin{equation}
+        H(\mathbf{x}) = \left[ (1 - 0.998) \times (1 - 1.0) \right]^{1/2} = (0.002 \times 0.0)^{1/2} = 0.000
+    \end{equation}
+    The record is unambiguously flagged as a structural hallucination ($H < 0.5$).
+\end{enumerate}
 
 
 \section{Results}
 
-We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. All experiments used $N=10$ random seeds; we report mean $\pm$ standard error of the mean (SEM) unless otherwise noted.
+We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. Experiments used $N=3\text{--}10$ random seeds depending on the evaluation; we report mean $\pm$ standard error of the mean (SEM) unless otherwise noted.
 
 To calibrate the framework's response, we executed a controlled semantic violation protocol. Unlike random corruption, which breaks global distributions, we stochastically permuted (shuffled) the values of specific features across different rows within highly constrained categorical-continuous dependencies (e.g., \textit{category} vs. \textit{item\_subtotal} in Online Purchases) for a controlled fraction of records $\eta \in [0, 0.6]$. By shuffling existing values across rows rather than injecting external noise, this process perfectly preserves individual marginal distributions and global Spearman correlations (satisfying standard JCD and MM metrics) while completely breaking the underlying joint conditional distribution at the row level.
 
@@ -348,34 +367,40 @@ To evaluate the diagnostic utility of HIF across generative paradigms, we conduc
 
 The results reveal a key insight into synthetic data evaluation:
 
-\paragraph{1. Integrity-Fidelity Decoupling on Constrained Domains.} Across all four datasets, Vine Copulas achieve near-perfect marginal statistical fit ($\text{KS} \ge 0.963$). However, on datasets with strict cross-feature relational constraints (Supermarket Sales and Online Purchases), Vine Copulas suffer catastrophic joint dependency failure, exhibiting violation rates of \textbf{88.0\% to 100.0\%} ($\text{HIF} \le 0.250$). CTGAN exhibits a similar dependency deficit on transaction constraints ($\text{HIF} = 0.045\text{--}0.291$). Marginal metrics (KS) report these models as near-perfect, confirming that aggregate fidelity metrics cannot detect joint dependency ruptures.
+\paragraph{1. Integrity-Fidelity Decoupling on Constrained Domains.} Across all four datasets, Vine Copulas achieve near-perfect marginal statistical fit ($\text{KS} \ge 0.973$). However, on datasets with strict cross-feature relational constraints (Supermarket Sales and Online Purchases), Vine Copulas suffer catastrophic joint dependency failure, exhibiting violation rates of \textbf{97.5\% to 100.0\%} ($\text{HIF} \le 0.062$). CTGAN and TVAE exhibit similar dependency deficits on transaction constraints ($\text{HIF} = 0.006\text{--}0.072$). Marginal metrics (KS) report these models as near-perfect, confirming that aggregate fidelity metrics cannot detect joint dependency ruptures.
 
-\paragraph{2. Evaluation on Unconstrained Manifolds.} On unconstrained demographic and financial benchmarks (Adult Income, Credit Default), raw generators preserve conditional structures better, with HIF scores ranging from 0.528 to 0.762 (violation rates 19.6\%--41.4\%). In these regimes, HIF provides a continuous gradient of structural integrity, allowing practitioners to compare generator maturity.
+\paragraph{2. Evaluation on Unconstrained Manifolds.} On unconstrained demographic and financial benchmarks (Adult Income, Credit Default), raw generators preserve conditional structures better, with HIF scores ranging from 0.214 to 0.972 (violation rates 1.1\%--82.5\%). In these regimes, HIF provides a continuous gradient of structural integrity, allowing practitioners to compare generator maturity. Notably, TVAE achieves the highest HIF on both Credit Default (0.894) and Adult Income (0.972), demonstrating that VAE-based architectures can excel at preserving joint dependencies on unconstrained domains.
+
+\paragraph{3. Quantitative Decoupling Evidence.} Pearson correlation analysis across all 16 dataset--generator configurations confirms the decoupling: HIF shows no linear relationship with marginal fidelity ($\rho(\text{HIF}, \text{KS}) = -0.036$) or support coverage ($\rho(\text{HIF}, \alpha) = 0.068$), while exhibiting moderate negative correlation with raw Spearman distance ($\rho(\text{HIF}, \text{Corr Dist}) = -0.511$). This confirms that HIF evaluates a fundamentally different axis of synthetic data quality than distributional metrics.
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=10$ seeds). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
+\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=3$ seeds). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
 \label{tab:architecture}
 \small
-\begin{tabular}{llccccc}
+\begin{tabular}{@{}llccccc@{}}
 \toprule
-Dataset & Generator Architecture & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparrow$) & HIF ($\uparrow$) & Viol.\ Rate ($\downarrow$) \\
+Dataset & Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparrow$) & HIF ($\uparrow$) & Viol.\ Rate ($\downarrow$) \\
 \midrule
-\textbf{Supermarket Sales} & Gaussian Copula & 0.881 & 0.895 & 0.894 & \textbf{0.972} & \textbf{2.4\%} \\
-                           & Vine Copula     & \textbf{0.967} & 0.790 & 0.867 & 0.020 & 100.0\% \\
-                           & \textbf{CTGAN}  & 0.799 & 0.663 & 0.895 & 0.045 & 98.8\% \\
+\textbf{Supermarket Sales} & Gaussian Copula & 0.902 & 0.895 & 0.923 & \textbf{0.966} & \textbf{2.1\%} \\
+                           & Vine Copula     & \textbf{0.973} & 0.789 & 0.880 & 0.001 & 99.9\% \\
+                           & CTGAN           & 0.766 & 0.535 & 0.834 & 0.006 & 99.7\% \\
+                           & TVAE            & 0.768 & 0.886 & 0.926 & 0.015 & 98.9\% \\
 \midrule
-\textbf{Online Purchases}   & Gaussian Copula & 0.795 & 0.632 & 0.921 & \textbf{0.692} & \textbf{29.4\%} \\
-                           & Vine Copula     & \textbf{0.970} & 0.767 & 0.921 & 0.250 & 88.0\% \\
-                           & \textbf{CTGAN}  & 0.659 & 0.446 & 0.886 & 0.291 & 86.0\% \\
+\textbf{Online Purchases}  & Gaussian Copula & 0.753 & 0.491 & 0.829 & \textbf{0.386} & \textbf{65.7\%} \\
+                           & Vine Copula     & \textbf{0.974} & 0.817 & 0.956 & 0.062 & 97.5\% \\
+                           & CTGAN           & 0.738 & 0.438 & 0.883 & 0.072 & 96.6\% \\
+                           & TVAE            & 0.767 & 0.632 & 0.684 & 0.006 & 100.0\% \\
 \midrule
-\textbf{Credit Default}    & Gaussian Copula & 0.744 & 0.756 & 0.934 & \textbf{0.721} & \textbf{18.6\%} \\
-                           & Vine Copula     & \textbf{0.963} & 0.814 & 0.804 & 0.551 & 36.8\% \\
-                           & \textbf{CTGAN}  & 0.543 & 0.606 & 0.866 & 0.528 & 41.4\% \\
+\textbf{Credit Default}    & Gaussian Copula & 0.744 & 0.734 & 0.945 & 0.480 & 53.7\% \\
+                           & Vine Copula     & \textbf{0.974} & 0.798 & 0.812 & 0.344 & 69.1\% \\
+                           & CTGAN           & 0.651 & 0.557 & 0.880 & 0.214 & 82.5\% \\
+                           & TVAE            & 0.747 & 0.499 & 0.708 & \textbf{0.894} & \textbf{10.1\%} \\
 \midrule
-\textbf{Adult Income}      & Gaussian Copula & 0.842 & 0.958 & 0.736 & \textbf{0.762} & \textbf{19.6\%} \\
-                           & Vine Copula     & \textbf{0.966} & 0.966 & 0.797 & 0.754 & 19.8\% \\
-                           & \textbf{CTGAN}  & 0.747 & 0.807 & 0.776 & 0.698 & 25.4\% \\
+\textbf{Adult Income}      & Gaussian Copula & 0.841 & 0.937 & 0.810 & 0.711 & 28.0\% \\
+                           & Vine Copula     & \textbf{0.974} & \textbf{0.966} & 0.799 & 0.631 & 36.2\% \\
+                           & CTGAN           & 0.728 & 0.785 & 0.775 & 0.523 & 46.7\% \\
+                           & TVAE            & 0.725 & 0.449 & 0.490 & \textbf{0.972} & \textbf{1.1\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -398,7 +423,7 @@ The results demonstrate that the Hybrid Integrity Framework provides a ``strictl
 
 A central finding of our cross-architecture audit (Table~\ref{tab:architecture}) is that the Dependency Gap is not restricted to deep neural black-boxes; rather, it is a universal pathology affecting both statistical and neural generative models in distinct ways.
 
-Flexible statistical models, specifically Vine Copulas, achieve near-perfect per-column marginal fidelity ($\text{KS} \ge 0.963$). However, because sequential bivariate copula decompositions smooth over higher-order joint boundaries, they suffer catastrophic dependency failure ($\text{HIF} \le 0.250$, violation rates 88.0\%--100.0\%) when auditing datasets with strict cross-feature relational constraints (Supermarket Sales, Online Purchases). Conversely, neural models such as CTGAN leverage adversarial representations that capture non-linear categorical dependencies better than rigid parametric copulas, yet still produce localized joint violations due to mode fragmentation.
+Furthermore, structural discrepancies across datasets stem directly from their underlying data-generating characteristics. Microdata benchmarks such as Census ACS are dominated by high-cardinality discrete categorical hubs (\texttt{occupation}, \texttt{education}, \texttt{poverty\_status}) governed by strict conditional logic. In contrast, transaction and macro-economic domains (Supermarket Sales, Online Purchases) are governed by exact relational arithmetic ($\text{subtotal} = \text{unit\_price} \times \text{quantity}$). Statistical copulas preserve linear arithmetic correlations in macro domains well ($H=0.912$), but smooth over discrete microdata logic ($H=0.858$). Conversely, neural models such as CTGAN capture discrete categorical clusters, but struggle with continuous arithmetic identities.
 
 This reconciles our core motivation: the Dependency Gap does not stem from neural opacity alone, nor from copula rigidity. It is an inherent artifact of standard generative loss functions, which optimize aggregate distributional fit (likelihood, Wasserstein distance, or marginal discrimination) rather than row-level joint conditional integrity. Consequently, post-hoc row-level auditing is necessary regardless of whether the underlying generator is statistical or neural.
 

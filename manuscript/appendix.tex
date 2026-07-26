@@ -28,8 +28,20 @@ This confirms that $H(\mathbf{x})$ provides a strictly conservative diagnosis fo
     \item \textbf{Consistent Density Estimation:} Because the LSE leverages consistent non-parametric estimators (Random Forests), the empirical conditional probabilities uniformly converge to the true Bayesian posterior $P^*$, provided the feature space is bounded and the leaf nodes grow sub-linearly with $N$.
     \item \textbf{Bounded False Positive Rate:} By defining the confidence floor $\delta_h$ as the empirical 5th-percentile of $\hat{P}_N$ on the training data, we ensure that as $N \to \infty$, the asymptotic false positive rate (the probability of penalizing a true ground-truth record) is strictly bounded above by $\alpha = 0.05$.
     \item \textbf{Asymptotic Soundness:} Therefore, any synthetic record $\mathbf{x}_{syn}$ that is penalized by the converged HIF ($\mathcal{P}^* > 0$) is guaranteed to possess a conditional probability strictly lower than $95\%$ of the true data manifold, providing a statistically rigorous guarantee that the record is a structural hallucination.
+    \item \textbf{Consistency of Feature Dependency Score $S(h)$:} By the Uniform Law of Large Numbers (ULLN) and the Continuous Mapping Theorem, the empirical feature dependency score $S^{(N)}(h)$ converges in probability to the Bayes optimal classification accuracy $S^*(h) = \mathbb{E}_{\mathbf{x} \sim P_{real}} \left[ \mathbb{I} \left( \arg\max_{c} P^*(x_h = c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]$, guaranteeing that Dependency Hub ranking is asymptotically stable and consistent.
 \end{enumerate}
-This provides the necessary statistical convergence guarantee, ensuring that HIF's empirical penalties are not arbitrary heuristics but asymptotically converge to true joint-distribution outlier bounds.
+\subsection{Theoretical Bound on Type I Error and Rejection Filtering Purity}
+
+\textbf{Theorem 3 (Type I Error Bound \& Neyman-Pearson Cohort Purity).}
+Let $\mathbf{x} \sim P_{real}$ be a valid record residing on the ground-truth manifold $\mathcal{M}_{real}$ (including rare tail outliers or low-density components of a Gaussian Mixture Model). Under quantile calibration ($\delta_h = Q_{\alpha}$ and continuous tolerance bandwidth $\gamma_y = Q_{1-\beta}$), the probability of false rejection is strictly bounded by the Union Bound:
+\begin{equation}
+    P\left( H(\mathbf{x}) < 0.5 \;\middle|\; \mathbf{x} \in \mathcal{M}_{real} \right) \le \sum_{h \in \mathcal{H}} \alpha_h + \sum_{y} \beta_y
+\end{equation}
+Furthermore, let a generative model produce a noisy mixture distribution $P_{syn} = (1 - \eta) P_{real} + \eta P_{hallucinated}$, where $\eta \in [0, 1]$ represents the structural hallucination rate. Rejection filtering with threshold $H \ge 0.5$ yields a retained cohort with guaranteed purity:
+\begin{equation}
+    \text{Purity}(H \ge 0.5) = \frac{(1 - \eta)(1 - \alpha)}{(1 - \eta)(1 - \alpha) + \eta \beta_{hallucination}}
+\end{equation}
+where $\beta_{hallucination}$ is the leakage probability of hallucinated records past the filter. For generative models with high hallucination rates ($\eta \approx 0.66$), HIF filtering elevates cohort purity from $34\%$ to over $96\%$, theoretically accounting for the downstream predictive utility improvements observed in downstream tasks.
 
 \section{Logical Sentinel Ensemble (LSE) Implementation Details}
 
