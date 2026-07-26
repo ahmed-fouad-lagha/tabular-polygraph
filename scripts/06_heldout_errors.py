@@ -29,7 +29,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -79,10 +85,15 @@ def corrupt_row_duplication(
         c for c in duplicated.columns if pd.api.types.is_numeric_dtype(duplicated[c])
     ]
     for col in num_cols:
-        std = syn[col].std()
+        std = float(syn[col].std())
         if std > 0:
             noise = rng.normal(0, std * 0.01, size=n_corrupt)
-            duplicated[col] = duplicated[col].values + noise
+            if pd.api.types.is_integer_dtype(duplicated[col]):
+                duplicated[col] = (duplicated[col] + np.round(noise)).astype(
+                    duplicated[col].dtype
+                )
+            else:
+                duplicated[col] = duplicated[col] + noise
 
     # Replace tail of synthetic with duplicated rows
     out = syn.copy()
@@ -159,6 +170,68 @@ def corrupt_covariate_shift(
     return out, labels
 
 
+def corrupt_semantic_hallucination(
+    syn: pd.DataFrame, real: pd.DataFrame, level: float, rng: np.random.Generator
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Inject dependency violations that preserve marginals.
+
+    For each corrupted row, find the most correlated numeric column pair
+    (c1, c2) and replace c2 with a value drawn from real rows where c1 is in
+    the *opposite* half — e.g., row has high c1 but gets a c2 value typical of
+    low-c1 rows.  Each individual feature value still comes from the real
+    domain (marginals intact), but the cross-feature relationship is broken.
+    LOF/IF, which flag geometric outliers in feature space, should be blind to
+    this; only HIF, which models inter-feature dependencies, should detect it.
+    """
+    out = syn.copy()
+    n_rows = len(out)
+    n_corrupt = max(1, int(n_rows * level))
+    row_idx = rng.choice(n_rows, size=n_corrupt, replace=False)
+    labels = np.zeros(n_rows, dtype=bool)
+    labels[row_idx] = True
+
+    num_cols = [c for c in out.columns if pd.api.types.is_numeric_dtype(out[c])]
+
+    if len(num_cols) < 2:
+        # No numeric column pair to exploit — return as-is
+        return out, labels
+
+    # Find the most strongly correlated numeric pair in real data
+    corr_matrix = real[num_cols].corr().abs()
+    np.fill_diagonal(corr_matrix.values, 0)
+    c1, c2 = corr_matrix.stack().idxmax()  # type: ignore[assignment]
+    c1, c2 = str(c1), str(c2)
+
+    median_c1 = float(real[c1].median())
+
+    # Pre-compute value pools for the two halves
+    pool_low_c2 = (
+        real[real[c1] < median_c1][c2].dropna().values
+    )  # c1 low → typical c2 low
+    pool_high_c2 = (
+        real[real[c1] >= median_c1][c2].dropna().values
+    )  # c1 high → typical c2 high
+    fallback = real[c2].dropna().values
+
+    for idx in row_idx:
+        row_id = out.index[idx]
+        current_c1 = float(out.at[row_id, c1])
+
+        if current_c1 >= median_c1:
+            # Row has high c1 → inject c2 value from the *low*-c1 half (breaks correlation)
+            pool = pool_low_c2 if len(pool_low_c2) > 0 else fallback
+        else:
+            # Row has low c1 → inject c2 value from the *high*-c1 half
+            pool = pool_high_c2 if len(pool_high_c2) > 0 else fallback
+
+        new_c2 = rng.choice(pool)
+        if pd.api.types.is_integer_dtype(out[c2]):
+            new_c2 = int(np.round(float(new_c2)))
+        out.at[row_id, c2] = new_c2
+
+    return out, labels
+
+
 # ---------------------------------------------------------------------------
 # Baseline outlier detectors
 # ---------------------------------------------------------------------------
@@ -190,32 +263,37 @@ def _encode_for_outlier_detection(
 
 def detect_isolation_forest(
     real: pd.DataFrame, syn: pd.DataFrame, contamination: float = 0.2
-) -> np.ndarray:
-    """Return binary anomaly labels (1=anomaly) using Isolation Forest."""
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (preds, scores) using Isolation Forest."""
     X_real, X_syn = _encode_for_outlier_detection(real, syn)
     clf = IsolationForest(contamination=contamination, random_state=42, n_jobs=-1)
     clf.fit(X_real)
-    preds = clf.predict(X_syn)
-    return (preds == -1).astype(int)
+    scores = -clf.score_samples(X_syn)
+    preds = (clf.predict(X_syn) == -1).astype(int)
+    return preds, scores
 
 
 def detect_lof(
     real: pd.DataFrame, syn: pd.DataFrame, contamination: float = 0.2
-) -> np.ndarray:
-    """Return binary anomaly labels using Local Outlier Factor."""
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (preds, scores) using Local Outlier Factor."""
     X_real, X_syn = _encode_for_outlier_detection(real, syn)
-    # LOF novelty detection: fit on real, predict on synthetic
     clf = LocalOutlierFactor(n_neighbors=20, contamination=contamination, novelty=True)
     clf.fit(X_real)
-    preds = clf.predict(X_syn)
-    return (preds == -1).astype(int)
+    scores = -clf.score_samples(X_syn)
+    preds = (clf.predict(X_syn) == -1).astype(int)
+    return preds, scores
 
 
-def detect_hif(real: pd.DataFrame, syn: pd.DataFrame, seed: int = 42) -> np.ndarray:
-    """Return binary anomaly labels using HIF (H(x) < 0.5 = anomaly)."""
+def detect_hif(
+    real: pd.DataFrame, syn: pd.DataFrame, seed: int = 42
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (preds, scores) using HIF (H(x) > 0.5 = anomaly)."""
     cols = real.columns.intersection(syn.columns).tolist()
     result = hif_score(real, syn, columns=cols, random_state=seed, verbose=False)
-    return (result["row_penalties"] > 0.5).astype(int)
+    scores = result["row_penalties"]
+    preds = (scores > 0.5).astype(int)
+    return preds, scores
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +310,11 @@ def run_experiment(
 ):
     print(f"Loading dataset: {dataset_id}")
     real = load_dataset(dataset_id, n=n_rows)
+    for col in real.columns:
+        if pd.api.types.is_integer_dtype(real[col]):
+            real[col] = real[col].astype("int64")
+        elif pd.api.types.is_float_dtype(real[col]):
+            real[col] = real[col].astype("float64")
 
     # Generate clean synthetic baseline
     print("Generating clean synthetic baseline (Gaussian Copula)...")
@@ -240,6 +323,7 @@ def run_experiment(
 
     corruption_strategies = {
         "random_injection": corrupt_random_injection,
+        "semantic_hallucination": corrupt_semantic_hallucination,
         "row_duplication": corrupt_row_duplication,
         "feature_dropout": corrupt_feature_dropout,
         "covariate_shift": corrupt_covariate_shift,
@@ -271,48 +355,57 @@ def run_experiment(
                 # Apply corruption
                 if strategy_name == "row_duplication":
                     corrupted, true_labels = corrupt_fn(syn_clean, level, rng)
-                elif strategy_name in (
-                    "random_injection",
-                    "feature_dropout",
-                    "covariate_shift",
-                ):
-                    corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)
                 else:
                     corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)
 
                 # Detect with each method
                 try:
-                    hif_preds = detect_hif(real, corrupted, seed=seed)
+                    hif_preds, hif_scores = detect_hif(real, corrupted, seed=seed)
                 except Exception as e:
                     print(f" HIF failed: {e}")
                     hif_preds = np.zeros(len(corrupted), dtype=int)
+                    hif_scores = np.zeros(len(corrupted))
 
                 try:
-                    if_preds = detect_isolation_forest(
+                    if_preds, if_scores = detect_isolation_forest(
                         real, corrupted, contamination=level
                     )
                 except Exception as e:
                     print(f" IF failed: {e}")
                     if_preds = np.zeros(len(corrupted), dtype=int)
+                    if_scores = np.zeros(len(corrupted))
 
                 try:
-                    lof_preds = detect_lof(real, corrupted, contamination=level)
+                    lof_preds, lof_scores = detect_lof(
+                        real, corrupted, contamination=level
+                    )
                 except Exception as e:
                     print(f" LOF failed: {e}")
                     lof_preds = np.zeros(len(corrupted), dtype=int)
+                    lof_scores = np.zeros(len(corrupted))
 
                 # Compute metrics
-                for method_name, preds in [
-                    ("HIF", hif_preds),
-                    ("IsolationForest", if_preds),
-                    ("LOF", lof_preds),
+                for method_name, preds, scores in [
+                    ("HIF", hif_preds, hif_scores),
+                    ("IsolationForest", if_preds, if_scores),
+                    ("LOF", lof_preds, lof_scores),
                 ]:
                     if true_labels.sum() == 0:
-                        f1 = prec = rec = 0.0
+                        f1 = prec = rec = roc_auc = pr_auc = 0.0
                     else:
                         f1 = f1_score(true_labels, preds, zero_division=0.0)
                         prec = precision_score(true_labels, preds, zero_division=0.0)
                         rec = recall_score(true_labels, preds, zero_division=0.0)
+                        roc_auc = (
+                            float(roc_auc_score(true_labels, scores))
+                            if len(np.unique(true_labels)) > 1
+                            else np.nan
+                        )
+                        pr_auc = (
+                            float(average_precision_score(true_labels, scores))
+                            if len(np.unique(true_labels)) > 1
+                            else np.nan
+                        )
 
                     all_results.append(
                         {
@@ -323,6 +416,8 @@ def run_experiment(
                             "f1": f1,
                             "precision": prec,
                             "recall": rec,
+                            "roc_auc": roc_auc,
+                            "pr_auc": pr_auc,
                             "n_flagged": int(preds.sum()),
                             "n_true_errors": int(true_labels.sum()),
                         }
@@ -343,6 +438,8 @@ def run_experiment(
             f1_sem=("f1", sem),
             precision_mean=("precision", "mean"),
             recall_mean=("recall", "mean"),
+            roc_auc_mean=("roc_auc", "mean"),
+            pr_auc_mean=("pr_auc", "mean"),
         )
         .round(3)
         .reset_index()
@@ -350,23 +447,31 @@ def run_experiment(
     summary.to_csv(output_dir / "heldout_errors_summary.csv", index=False)
 
     print("\n\n" + "=" * 80)
-    print("Held-Out Error Detection (F1)")
+    print("Held-Out Error Detection (F1 / ROC-AUC / PR-AUC)")
     print("=" * 80)
 
     for level in corruption_levels:
         print(f"\n### Corruption Level = {level}")
-        print("| Error Type | HIF F1 | IF F1 | LOF F1 |")
+        print(
+            "| Error Type | HIF F1 (ROC-AUC / PR-AUC) | IF F1 (ROC / PR) | LOF F1 (ROC / PR) |"
+        )
         print("|---|---|---|---|")
         sub = summary[summary["corruption_level"] == level]
         for etype in corruption_strategies:
             row_data = sub[sub["error_type"] == etype]
-            hif_f1 = row_data[row_data["method"] == "HIF"]["f1_mean"].values
-            if_f1 = row_data[row_data["method"] == "IsolationForest"]["f1_mean"].values
-            lof_f1 = row_data[row_data["method"] == "LOF"]["f1_mean"].values
-            hif_s = f"{hif_f1[0]:.3f}" if len(hif_f1) else "—"
-            if_s = f"{if_f1[0]:.3f}" if len(if_f1) else "—"
-            lof_s = f"{lof_f1[0]:.3f}" if len(lof_f1) else "—"
-            print(f"| {etype} | {hif_s} | {if_s} | {lof_s} |")
+
+            def get_str(m_name: str, r_df: pd.DataFrame) -> str:
+                d = r_df[r_df["method"] == m_name]
+                if d.empty:
+                    return "—"
+                f1_val = d["f1_mean"].values[0]
+                roc_val = d["roc_auc_mean"].values[0]
+                pr_val = d["pr_auc_mean"].values[0]
+                return f"{f1_val:.3f} ({roc_val:.3f} / {pr_val:.3f})"
+
+            print(
+                f"| {etype} | {get_str('HIF', row_data)} | {get_str('IsolationForest', row_data)} | {get_str('LOF', row_data)} |"
+            )
 
     # Write markdown summary
     with open(output_dir / "heldout_errors_summary.md", "w") as f:
@@ -374,20 +479,26 @@ def run_experiment(
         f.write("Tests HIF on error types it was NOT designed for.\n\n")
         for level in corruption_levels:
             f.write(f"\n## Corruption Level = {level}\n\n")
-            f.write("| Error Type | HIF F1 | IF F1 | LOF F1 |\n")
+            f.write(
+                "| Error Type | HIF F1 (ROC-AUC / PR-AUC) | IF F1 (ROC / PR) | LOF F1 (ROC / PR) |\n"
+            )
             f.write("|---|---|---|---|\n")
             sub = summary[summary["corruption_level"] == level]
             for etype in corruption_strategies:
                 row_data = sub[sub["error_type"] == etype]
-                hif_f1 = row_data[row_data["method"] == "HIF"]["f1_mean"].values
-                if_f1 = row_data[row_data["method"] == "IsolationForest"][
-                    "f1_mean"
-                ].values
-                lof_f1 = row_data[row_data["method"] == "LOF"]["f1_mean"].values
-                hif_s = f"{hif_f1[0]:.3f}" if len(hif_f1) else "—"
-                if_s = f"{if_f1[0]:.3f}" if len(if_f1) else "—"
-                lof_s = f"{lof_f1[0]:.3f}" if len(lof_f1) else "—"
-                f.write(f"| {etype} | {hif_s} | {if_s} | {lof_s} |\n")
+
+                def get_md_str(m_name: str, r_df: pd.DataFrame) -> str:
+                    d = r_df[r_df["method"] == m_name]
+                    if d.empty:
+                        return "—"
+                    f1_val = d["f1_mean"].values[0]
+                    roc_val = d["roc_auc_mean"].values[0]
+                    pr_val = d["pr_auc_mean"].values[0]
+                    return f"{f1_val:.3f} ({roc_val:.3f} / {pr_val:.3f})"
+
+                f.write(
+                    f"| {etype} | {get_md_str('HIF', row_data)} | {get_md_str('IsolationForest', row_data)} | {get_md_str('LOF', row_data)} |\n"
+                )
 
     print(f"\nResults saved to {output_dir}")
 

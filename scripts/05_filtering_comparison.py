@@ -136,7 +136,7 @@ def main():
             syn = gen.generate(2000, seed=seed).drop(
                 columns=["syn_id"], errors="ignore"
             )
-            hif_cols = [c for c in real_train.columns if c != target]
+            hif_cols = list(real_train.columns)
             real_vals, syn_vals = encode_for_distance(real_train, syn, numeric_cols)
 
             for frac in fractions:
