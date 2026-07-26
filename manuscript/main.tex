@@ -118,6 +118,8 @@ The categorical penalty aggregates multiplicatively across hubs, ensuring that r
     \mathcal{P}_{cat}(\mathbf{x}) = 1 - \prod_{h \in \mathcal{H}} (1 - \mathcal{P}_h(\mathbf{x}))
 \end{equation}
 
+For a rigorous theoretical analysis, including the proof of intersection soundness (Theorem 1) and the guarantee of asymptotic statistical convergence for the empirical penalty function (Theorem 2), we refer the reader to Appendix A.
+
 \begin{algorithm}[ht]
 \caption{HIF Manifold Calibration}
 \label{alg:calibration}
@@ -249,6 +251,8 @@ A natural question is whether standard outlier detection methods---specifically 
 We report both threshold-independent ROC-AUC and standard F1 scores. The distinction between metrics is crucial: LOF and IF are configured with an oracle \texttt{contamination} parameter set to the exact corruption rate (0.4), giving them a perfectly calibrated decision threshold for F1, whereas HIF uses a fixed non-parametric default threshold ($H > 0.5$).
 
 Under threshold-independent ROC-AUC, HIF strongly outperforms baseline detectors on \textit{Conditional Dependency Violations} (ROC-AUC = 0.816, PR-AUC = 0.756), whereas Isolation Forest is completely blind to marginal-preserving dependency swaps (ROC-AUC = 0.497, equivalent to random guessing) and LOF achieves lower ranking quality (ROC-AUC = 0.710, PR-AUC = 0.638). Conversely, generic outlier detectors excel at catching broad geometric feature outliers (e.g., random noise injection), where LOF reaches ROC-AUC = 0.861. HIF also maintains high sensitivity on random noise (ROC-AUC = 0.883) because breaking marginals simultaneously disrupts conditional dependencies. On distribution-level shifts (covariate shift), Isolation Forest outperforms HIF, confirming that HIF is a specialized diagnostic for row-level joint conditional integrity rather than global distribution drift.
+
+Why do standard outlier detectors fail on Dependency Gaps (Semantic Hallucinations)? Methods like Isolation Forest and LOF evaluate geometric distance or marginal density across the entire continuous feature space. If a synthetic record hallucinates an impossible logic combination (e.g., a 14-year-old with a PhD), but '14' and 'PhD' are both common values marginally, the record resides in a dense region of the globally projected feature space. Because Isolation Forest splits features independently, it rarely isolates the specific interacting dimensions that violate the conditional rule. A Dependency Gap is a structural, semantic error, not a geometric density anomaly, which is precisely why HIF's logic-aware sentinels succeed where geometric detectors fail.
 
 \begin{table}[htbp]
 \centering
