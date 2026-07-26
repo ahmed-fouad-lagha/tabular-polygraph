@@ -132,13 +132,30 @@ def main():
     parser.add_argument("--seeds", type=int, default=5)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--output-dir", type=str, default="outputs")
+    parser.add_argument(
+        "--dataset", type=str, default="all", help="Specific dataset to run, or 'all'"
+    )
+    parser.add_argument(
+        "--generator",
+        type=str,
+        default="all",
+        help="Specific generator to run, or 'all'",
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = ["supermarket_sales", "online_purchases", "credit", "adult"]
-    generators = ["gaussian", "vine", "ctgan", "tvae"]
+    if args.dataset == "all":
+        datasets = ["supermarket_sales", "online_purchases", "credit", "adult"]
+    else:
+        datasets = [args.dataset]
+
+    if args.generator == "all":
+        generators = ["gaussian", "vine", "ctgan", "tvae"]
+    else:
+        generators = [args.generator]
+
     seeds = list(range(42, 42 + args.seeds))
 
     print(

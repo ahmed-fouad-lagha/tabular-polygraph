@@ -93,7 +93,9 @@ By providing a scalable, data-driven diagnostic, HIF enables the production of s
 
 \section{Mathematical Foundation}
 
-The Hybrid Integrity Framework (HIF) formalizes synthetic data auditing as a probabilistic conditional scoring task. We define a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ as a \emph{dependency-violating record} if it is plausible under the marginal distribution of individual features yet improbable under the joint conditional distribution $P_{\mathcal{D}_{real}}(\mathbf{x}_h \mid \mathbf{x}_{\setminus h})$ learned from the ground-truth data. This distinction is central: aggregate fidelity metrics (KS, TVD, JCD) assess whether synthetic records fall within the expected marginal range of each column in isolation; HIF additionally evaluates whether the joint configuration of each record conforms to the conditional structure of the real data distribution. A record failing the latter criterion is a dependency violation even if every individual feature value is marginal-plausible.
+The Hybrid Integrity Framework (HIF) formalizes synthetic data auditing as a probabilistic conditional scoring task. Let $\mathcal{D}_{real}$ denote the original training dataset. We formally define the \textbf{ground-truth manifold} $\mathcal{M}_{real}$ as the support of the joint distribution $P_{real}(\mathbf{x})$, representing the localized subspace of valid feature configurations that occur in reality.
+
+We define a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ (where $\mathbf{x}_{cat}$ and $\mathbf{x}_{cont}$ denote the sub-vectors of categorical and continuous features, respectively) as a \emph{dependency-violating record} if it is plausible under the marginal distribution of individual features yet falls outside the bounds of the ground-truth manifold (i.e., it is highly improbable under the joint conditional distribution $P_{\mathcal{D}_{real}}(\mathbf{x}_h \mid \mathbf{x}_{\setminus h})$ learned from the data). This distinction is central: aggregate fidelity metrics (KS, TVD, JCD) assess whether synthetic records fall within the expected marginal range of each column in isolation; HIF additionally evaluates whether the joint configuration of each record structurally aligns with the ground-truth manifold. A record failing the latter criterion is a dependency violation even if every individual feature value is marginal-plausible. The complete calibration process for establishing these data-driven manifold boundaries is detailed in Algorithm~\ref{alg:calibration}.
 
 \subsection{Logical Sentinel Ensemble (LSE)}
 
@@ -103,7 +105,7 @@ We train an independent Random Forest classifier, which we call a \textit{Sentin
 \begin{equation}
     S(h) = \mathbb{E}_{\mathbf{x} \sim \mathcal{D}_{real}} \left[ \mathbb{I} \left( \arg\max_{c \in \mathcal{X}_h} P_{f_h}(x_h=c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]
 \end{equation}
-where $\mathbb{I}$ is the indicator function. By maximizing $S(h)$, we select hubs that are most strongly constrained by conditional interactions with other attributes.
+where $\mathbb{I}$ is the indicator function. By maximizing $S(h)$, we select hubs that are most strongly constrained by conditional interactions with other attributes. While computationally efficient, this reliance on single-variable classification accuracy primarily captures univariate dependencies and may under-represent higher-order parity relationships. Future work will investigate Total Correlation and multi-way interaction kernels to broaden hub selection capability.
 
 \paragraph{Running Example: Categorical Dependencies.}
 Consider a demographic dataset where $\mathbf{x}$ represents a person. Let $x_h$ be their \textit{Education Level} and $\mathbf{x}_{\setminus h}$ contain their \textit{Age} (e.g., 14). Because a 14-year-old cannot hold a PhD in the real world, the sentinel $f_h$ learns from the ground-truth data to assign $P_{f_h}(\text{PhD} \mid \text{Age}=14) \approx 0$. If a generative model hallucinates a 14-year-old with a PhD, the sentinel will flag the record because the assigned probability for the hallucinated category is extremely low.
@@ -140,9 +142,9 @@ For a rigorous theoretical analysis, including the proof of intersection soundne
 \State $\mathcal{Z} \leftarrow \text{SVD}(\text{Scale}(\text{OneHot}(\mathcal{D}_{cat})))$ \Comment{Non-Centered Spectral Manifold}
 \For{each continuous feature $y$}
     \State Train Gradient Boosting regressor $r_y: \mathcal{Z} \to \mathbb{R}$ on $\mathcal{D}_{real}$
-    \State $R_y \leftarrow \{ |y - r_y(\mathbf{z})| \mid \mathbf{x} \in \mathcal{D}_{real} \}$
-    \State $\tau_y \leftarrow \max(Q_{0.98}(R_y), \text{Median}(R_y) + 2 \cdot \text{MAD}(R_y))$ \Comment{Robust Threshold}
-    \State $\gamma_y \leftarrow \max(2 \cdot \tau_y, 3 \cdot \text{MAD}(R_y), 0.1)$ \Comment{Dynamic Gamma Scaling}
+    \State $\mathcal{E}_y \leftarrow \{ |y - r_y(\mathbf{z})| \mid \mathbf{x} \in \mathcal{D}_{real} \}$ \Comment{Ground-truth residuals}
+    \State $\tau_y \leftarrow \max(Q_{0.98}(\mathcal{E}_y), \text{Median}(\mathcal{E}_y) + 2 \cdot \text{MAD}(\mathcal{E}_y))$ \Comment{Robust Threshold}
+    \State $\gamma_y \leftarrow \max(2 \cdot \tau_y, 3 \cdot \text{MAD}(\mathcal{E}_y), 0.1)$ \Comment{Dynamic Gamma Scaling}
 \EndFor
 \State $\mathcal{R} \leftarrow \text{MineImplicationRules}(\mathcal{D}_{real})$ \Comment{FP-Growth, min\_conf=0.95, min\_supp=0.005}
 \end{algorithmic}
@@ -150,33 +152,44 @@ For a rigorous theoretical analysis, including the proof of intersection soundne
 
 \subsection{Neighbor-Invariant Continuity (NIC)}
 
-For continuous features $\mathbf{y}$, we evaluate integrity via Semantic Adjacency. We map the categorical context to a latent space $\mathcal{Z}$ using a standardized spectral projection $\phi: \mathcal{X}_{cat} \to \mathcal{Z}$ (e.g., via non-centered SVD on a one-hot encoded categorical manifold). We then model the continuous features as non-linear functions of this manifold using a Gradient Boosting Regressor:
+For continuous features $\mathbf{y}$, we evaluate integrity via Semantic Adjacency. We map the categorical context to a latent space $\mathcal{Z}$ using a standardized spectral projection $\phi: \mathcal{X}_{cat} \to \mathcal{Z}$ (e.g., via non-centered SVD on a one-hot encoded categorical manifold). We then model the conditional expectation of each continuous feature $y$ as a non-linear function of this manifold using a Gradient Boosting Regressor, denoted $r_y$:
 \begin{equation}
-    \hat{y} = \mathbb{E}[y \mid \phi(\mathbf{x}_{cat})] \approx \text{GBR}(\phi(\mathbf{x}_{cat}))
+    \hat{y}(\mathbf{x}) = \mathbb{E}[y \mid \phi(\mathbf{x}_{cat})] \approx r_y(\phi(\mathbf{x}_{cat}))
 \end{equation}
-To handle extreme feature skewness (common in census domains), we define a robust hybrid threshold $\tau_y$ where $\text{MAD}$ is the Median Absolute Deviation, which provides a robust estimate of local manifold spread that is less sensitive to outliers than the standard deviation. We utilized a standard scaling factor to define the semantic boundary. This threshold ensures that the NIC layer remains stable, even in high-skew distributions, such as those found in macroeconomic wage data:
+
+For any given record $\mathbf{x}$, let $e_y(\mathbf{x}) = |y(\mathbf{x}) - \hat{y}(\mathbf{x})|$ denote the absolute regression residual (i.e., the error between the actual continuous value and the expected value given the categorical context). We define the set of all ground-truth residuals as $\mathcal{E}_y = \{ e_y(\mathbf{x}) \mid \mathbf{x} \in \mathcal{D}_{real} \}$.
+
+\paragraph{Running Example: Continuous Dependencies.}
+Continuing our demographic example, suppose a synthetic 45-year-old Senior Executive is generated with an Income of \$12. The NIC regressor $r_y$ looks at the categorical profile and predicts an expected income of $\hat{y} \approx \$120,000$. The absolute residual $e_y(\mathbf{x}) = \$119,988$ is astronomically high compared to the natural variance of executives in the real dataset, signaling a continuous dependency gap.
+
+To handle extreme feature skewness (common in census domains), we define a robust hybrid threshold $\tau_y$ based on the ground-truth residuals $\mathcal{E}_y$. We use the Median Absolute Deviation (MAD), which provides a robust estimate of local manifold spread that is less sensitive to outliers than the standard deviation:
 \begin{equation}
-    \tau_y = \max(Q_{0.98}(R_y), \text{Median}(R_y) + 2 \cdot \text{MAD}(R_y))
+    \tau_y = \max \left( Q_{0.98}(\mathcal{E}_y), \text{Median}(\mathcal{E}_y) + 2 \cdot \text{MAD}(\mathcal{E}_y) \right)
 \end{equation}
-The continuous penalty $\mathcal{P}_{cont}(\mathbf{x})$ is expressed using a dynamic scaling factor $\gamma_y$:
+This threshold ensures that the NIC layer remains stable even in high-skew distributions, such as macroeconomic wage data.
+
+The continuous penalty $\mathcal{P}_{cont}(\mathbf{x})$ is expressed using a dynamic scaling factor $\gamma_y$, formally defined as $\gamma_y = \max(2\tau_y, 3\text{MAD}(\mathcal{E}_y), 0.1)$. This parameter defines the bounds of the penalty, scaling the response relative to the natural noise floor of the feature. This ensures that small deviations beyond $\tau_y$ result in soft penalties, while massive violations (like the \$12 executive) yield a maximum penalty of 1.0:
 \begin{equation}
-    \mathcal{P}_{cont}(\mathbf{x}) = \max_{y} \left[ \text{clip}\left( \frac{R_y(\mathbf{x}) - \tau_y}{\gamma_y}, 0, 1 \right) \right]
+    \mathcal{P}_{cont}(\mathbf{x}) = \max_{y} \left[ \text{clip}\left( \frac{e_y(\mathbf{x}) - \tau_y}{\gamma_y}, 0, 1 \right) \right]
 \end{equation}
-where $\gamma_y$ scales the penalty response relative to the natural noise floor of the feature.
 
 \subsection{Multiplicative Aggregation}
 
-
-In contrast to additive fidelity metrics that allow a model to ``compensate'' for logical failures with high statistical overlap, HIF formalizes integrity as an Algebraic Intersection. Drawing from the structured drift-proof framework \cite{guo2026structured}, the hybrid integrity score $H(\mathbf{x})$ is defined as the geometric mean of the component validities:
+In contrast to additive fidelity metrics that allow a model to ``compensate'' for logical failures with high statistical overlap, HIF formalizes integrity as an Algebraic Intersection. Drawing from the structured drift-proof framework \cite{guo2026structured}, the hybrid integrity score $H(\mathbf{x})$ is defined as the strict multiplicative product of the component validities:
 \begin{equation}
-    H(\mathbf{x}) = \left( \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x})) \right)^{1/L}
+    H(\mathbf{x}) = \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x}))
 \end{equation}
-where $L$ is the number of active auditing layers. The geometric mean preserves the non-compensatory property of a Logical AND gate: a significant failure in any manifold dimension ($\mathcal{P}_l \to 1$) drives the record integrity toward zero while normalizing across varying numbers of active layers. In the implementation, a small $\epsilon = 10^{-6}$ was added for numerical stability. While HIF prioritizes soft probabilistic validities, we incorporate symbolic implication rules as an optional \textit{Structural Logic Constraint} layer ($l=rule$) to enforce known deterministic or physical laws (e.g., Age $\ge$ 18 for voters). This hybrid architecture allows the HIF to bridge the gap between differentiable manifolds and rigid symbolic constraints.
+where $l$ iterates over the active auditing layers. The multiplicative product preserves the non-compensatory property of a Logical AND gate: a significant failure in any single manifold dimension ($\mathcal{P}_l \to 1$) drives the entire record integrity toward zero, regardless of how perfectly the other components align (see empirical validation of this non-compensatory advantage in Table~\ref{tab:ablation}, Section~\ref{sec:ablation}).
+
+\textbf{Theoretical Guarantees:} For a rigorous theoretical analysis of this non-compensatory aggregation logic, including the formal proof of intersection soundness (Theorem 1) and the guarantee of asymptotic statistical convergence for the empirical penalty functions (Theorem 2), we direct the reader to \textbf{Appendix A}.
+
+While HIF prioritizes soft probabilistic validities via LSE and NIC, we incorporate symbolic implication rules as an optional \textit{Structural Logic Constraint} layer ($l=rule$) to enforce known deterministic or physical laws (e.g., Age $\ge$ 18 for voters). This hybrid architecture allows the HIF to bridge the gap between differentiable manifolds and rigid symbolic constraints.
 
 \paragraph{The Integrity Frontier.} The dataset-level HIF score is the expected record-level integrity. To provide a discrete diagnostic, a record is classified as a \textit{Semantic Violation} if $H(\mathbf{x}) < 0.5$, defining the framework's Integrity Frontier.
 \begin{equation}
     \text{HIF Score} = \frac{1}{N} \sum_{i=1}^N H(\mathbf{x}_i)
 \end{equation}
+The complete end-to-end auditing procedure for scoring a synthetic dataset is detailed in Algorithm~\ref{alg:audit}.
 
 \begin{algorithm}[ht]
 \caption{HIF Synthetic Data Audit}
@@ -222,7 +235,7 @@ The geometric mean ensures a robust lower bound on this joint probability: a sig
 
 We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. All experiments used $N=10$ random seeds; we report mean $\pm$ standard error of the mean (SEM) unless otherwise noted.
 
-To calibrate the framework's response, we executed a controlled semantic violation protocol. Unlike random corruption, which breaks global distributions, we stochastically swapped values within highly constrained categorical-continuous dependencies (e.g., \textit{category} vs. \textit{item\_subtotal} in Online Purchases) for a controlled fraction of records $\eta \in [0, 0.6]$. This process preserves individual marginal distributions and global Spearman correlations (satisfying standard JCD and MM metrics) while breaking the underlying joint conditional distribution.
+To calibrate the framework's response, we executed a controlled semantic violation protocol. Unlike random corruption, which breaks global distributions, we stochastically permuted (shuffled) the values of specific features across different rows within highly constrained categorical-continuous dependencies (e.g., \textit{category} vs. \textit{item\_subtotal} in Online Purchases) for a controlled fraction of records $\eta \in [0, 0.6]$. By shuffling existing values across rows rather than injecting external noise, this process perfectly preserves individual marginal distributions and global Spearman correlations (satisfying standard JCD and MM metrics) while completely breaking the underlying joint conditional distribution at the row level.
 
 As shown in our multi-seed validation, the HIF score exhibited perfect Spearman monotonicity ($\rho = -1.0, p < 0.01$) with respect to $\eta$ in both domains. On Census ACS, for example, the mean HIF decreased from $0.858$ at $\eta=0$ to $0.849$ at $\eta=0.1$. In contrast, the Joint Correlation Distance and Moment Matching remained completely static under targeted dependency violations.
 
@@ -388,13 +401,7 @@ Flexible statistical models, specifically Vine Copulas, achieve near-perfect per
 
 This reconciles our core motivation: the Dependency Gap does not stem from neural opacity alone, nor from copula rigidity. It is an inherent artifact of standard generative loss functions, which optimize aggregate distributional fit (likelihood, Wasserstein distance, or marginal discrimination) rather than row-level joint conditional integrity. Consequently, post-hoc row-level auditing is necessary regardless of whether the underlying generator is statistical or neural.
 
-\subsection{Dependency Hub Selection via Feature Predictability}
 
-A current limitation of the Logical Sentinel Ensemble (LSE) is its reliance on single-variable classification accuracy ($S(h)$) for hub discovery, which primarily captures categorical dependencies. While computationally efficient, it may under-represent higher-order parity relationships. Future work will investigate Total Correlation and multi-way interaction kernels to broaden hub selection capability.
-
-\subsection{Heuristic Robustness and the Variance of Inclusion}
-
-We acknowledge that the use of a fixed 5th-percentile Confidence Floor ($\delta_h$) is a heuristic calibrated for datasets with sufficient mass. As demonstrated in our hyperparameter sensitivity sweep (Appendix~\ref{app:hyperparameters}), the framework is robust to choices between the 1st and 5th percentiles. However, the empirical percentile may become unstable in extremely sparse or long-tailed distributions, such as those found in fraud detection and rare disease cohorts. For such regimes, we propose the adoption of Laplacian-smoothed percentiles or adaptive floors that scale with the local manifold density. This ensures that the ``polygraph'' remains robust, even when auditing the most imbalanced semantic domains.
 
 \subsection{Practical Interpretation and Computational Scalability}
 
