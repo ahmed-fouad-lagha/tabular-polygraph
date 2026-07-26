@@ -59,10 +59,11 @@ Traditional evaluation pipelines rely on \textit{statistical fidelity} metrics, 
 
 To address these challenges, we introduce the Hybrid Integrity Framework (HIF), a system for detecting logical inconsistencies in synthetic tabular data. HIF reframes the problem of fidelity evaluation as a multidimensional consistency detection task. By moving beyond aggregate statistical snapshots, the HIF identifies logical violations at the record level, enabling the filtering and curation of high-integrity synthetic cohorts. In Section 2, we contextualize our approach within the emerging literature on semantic fidelity and inter-column logic before detailing our methodology in Algorithms~\ref{alg:calibration} and \ref{alg:audit}.
 
-Our framework comprises two components:
+Our framework comprises three complementary auditing layers:
 \begin{enumerate}
-    \item \textbf{Logical Sentinel Ensemble (LSE):} An array of discriminative classifiers that identify high-dependency feature hubs in the ground-truth data using out-of-bag classification accuracy.
-    \item \textbf{Neighbor-Invariant Continuity (NIC):} A mechanism for continuous feature auditing that verifies local semantic adjacency within the categorical context using robust hybrid thresholding to handle extreme feature skewness.
+    \item \textbf{Logical Sentinel Ensemble (LSE):} An array of discriminative classifiers that identify high-dependency categorical feature hubs in the ground-truth data using out-of-bag classification accuracy.
+    \item \textbf{Neighbor-Invariant Continuity (NIC):} A continuous feature auditing mechanism that verifies local semantic adjacency within SVD-embedded categorical contexts using robust percentile thresholding.
+    \item \textbf{Automated Rule Extractor:} An association rule mining engine that extracts high-confidence deterministic implication rules ($A \implies B$) from ground-truth data to enforce hard structural constraints.
 \end{enumerate}
 
 Furthermore, we integrate the Targeted Adversarial Masking and Inference Suite (TAMIS) Privacy Oracle, subjecting synthetic cohorts to rigorous membership \cite{shokri2017membership} and linkability attacks to ensure that logical consistency does not come at the cost of privacy.
