@@ -288,19 +288,22 @@ def main():
     # Export markdown summary
     md_path = out_dir / "metric_comparison_summary.md"
     with open(md_path, "w") as f:
-        f.write("# Metric Comparison Summary (Mean ± SEM)\n\n")
+        f.write("# Full Metric Comparison Summary (Mean ± SEM)\n\n")
         f.write(
-            summary_df[
-                [
-                    "dataset",
-                    "generator",
-                    "n_seeds",
-                    "ks_score_formatted_sem",
-                    "hif_score_formatted_sem",
-                    "hif_violation_rate_formatted_sem",
-                ]
-            ].to_markdown(index=False)
+            "| Dataset | Generator | Seeds | KS Score | Corr Dist | Alpha-Prec | Beta-Rec | Authenticity | HIF Score | Viol Rate |\n"
         )
+        f.write("|---|---|---|---|---|---|---|---|---|---|\n")
+        for _, r in summary_df.iterrows():
+            corr_str = (
+                f"{r['corr_distance_mean']:.3f} ± {r['corr_distance_sem']:.3f}"
+                if pd.notna(r.get("corr_distance_mean"))
+                and r.get("corr_distance_mean") != "N/A"
+                else "N/A"
+            )
+            auth_str = r.get("authenticity_formatted_sem", "N/A")
+            f.write(
+                f"| {r['dataset']} | {r['generator']} | {r['n_seeds']} | {r['ks_score_formatted_sem']} | {corr_str} | {r['alpha_precision_formatted_sem']} | {r['beta_recall_formatted_sem']} | {auth_str} | {r['hif_score_formatted_sem']} | {r['hif_violation_rate_formatted_sem']} |\n"
+            )
         f.write("\n")
 
     # Correlation analysis

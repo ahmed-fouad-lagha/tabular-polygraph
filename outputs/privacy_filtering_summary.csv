@@ -1,0 +1,10 @@
+dataset,generator,variant,seed,retention_pct,mia_auc,exact_copies,linkability_risk
+supermarket_sales,ctgan,Full synthetic,42,100.0,0.5355,0,very_high
+supermarket_sales,ctgan,Rule-only Baseline,42,100.0,0.5355,0,very_high
+supermarket_sales,ctgan,HIF Oracle,42,100.0,0.5355,0,very_high
+supermarket_sales,ctgan,Full synthetic,43,100.0,0.5338,0,very_low
+supermarket_sales,ctgan,Rule-only Baseline,43,100.0,0.5338,0,very_low
+supermarket_sales,ctgan,HIF Oracle,43,0.6,0.2222,0,very_low
+supermarket_sales,ctgan,Full synthetic,44,100.0,0.4778,0,very_low
+supermarket_sales,ctgan,Rule-only Baseline,44,100.0,0.4778,0,very_low
+supermarket_sales,ctgan,HIF Oracle,44,100.0,0.4778,0,very_low

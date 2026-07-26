@@ -354,27 +354,28 @@ The results reveal a key insight into synthetic data evaluation:
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Architecture Audit: Statistical Fidelity (KS) vs.\ Joint Dependency Integrity (HIF) across all 4 benchmark datasets ($N=10$ seeds). High marginal fidelity (KS $>$ 0.96) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints (Supermarket Sales, Online Purchases), Vine Copula achieves near-perfect KS fit ($>96\%$) yet suffers 88\%--100\% dependency violation rates.}
+\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=10$ seeds). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
 \label{tab:architecture}
-\begin{tabular}{llccc}
+\small
+\begin{tabular}{llccccc}
 \toprule
-Dataset & Generator Architecture & Stat.~Fidelity (KS $\uparrow$) & Sem.~Integrity (HIF $\uparrow$) & Violation Rate ($\downarrow$) \\
+Dataset & Generator Architecture & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparrow$) & HIF ($\uparrow$) & Viol.\ Rate ($\downarrow$) \\
 \midrule
-\textbf{Supermarket Sales} & Gaussian Copula & 0.881 & \textbf{0.972} & \textbf{2.4\%} \\
-                           & Vine Copula     & \textbf{0.967} & 0.020 & 100.0\% \\
-                           & \textbf{CTGAN}  & 0.799 & 0.045 & 98.8\% \\
+\textbf{Supermarket Sales} & Gaussian Copula & 0.881 & 0.895 & 0.894 & \textbf{0.972} & \textbf{2.4\%} \\
+                           & Vine Copula     & \textbf{0.967} & 0.790 & 0.867 & 0.020 & 100.0\% \\
+                           & \textbf{CTGAN}  & 0.799 & 0.663 & 0.895 & 0.045 & 98.8\% \\
 \midrule
-\textbf{Online Purchases}   & Gaussian Copula & 0.795 & \textbf{0.692} & \textbf{29.4\%} \\
-                           & Vine Copula     & \textbf{0.970} & 0.250 & 88.0\% \\
-                           & \textbf{CTGAN}  & 0.659 & 0.291 & 86.0\% \\
+\textbf{Online Purchases}   & Gaussian Copula & 0.795 & 0.632 & 0.921 & \textbf{0.692} & \textbf{29.4\%} \\
+                           & Vine Copula     & \textbf{0.970} & 0.767 & 0.921 & 0.250 & 88.0\% \\
+                           & \textbf{CTGAN}  & 0.659 & 0.446 & 0.886 & 0.291 & 86.0\% \\
 \midrule
-\textbf{Credit Default}    & Gaussian Copula & 0.744 & \textbf{0.721} & \textbf{18.6\%} \\
-                           & Vine Copula     & \textbf{0.963} & 0.551 & 36.8\% \\
-                           & \textbf{CTGAN}  & 0.543 & 0.528 & 41.4\% \\
+\textbf{Credit Default}    & Gaussian Copula & 0.744 & 0.756 & 0.934 & \textbf{0.721} & \textbf{18.6\%} \\
+                           & Vine Copula     & \textbf{0.963} & 0.814 & 0.804 & 0.551 & 36.8\% \\
+                           & \textbf{CTGAN}  & 0.543 & 0.606 & 0.866 & 0.528 & 41.4\% \\
 \midrule
-\textbf{Adult Income}      & Gaussian Copula & 0.842 & \textbf{0.762} & \textbf{19.6\%} \\
-                           & Vine Copula     & \textbf{0.966} & 0.754 & 19.8\% \\
-                           & \textbf{CTGAN}  & 0.747 & 0.698 & 25.4\% \\
+\textbf{Adult Income}      & Gaussian Copula & 0.842 & 0.958 & 0.736 & \textbf{0.762} & \textbf{19.6\%} \\
+                           & Vine Copula     & \textbf{0.966} & 0.966 & 0.797 & 0.754 & 19.8\% \\
+                           & \textbf{CTGAN}  & 0.747 & 0.807 & 0.776 & 0.698 & 25.4\% \\
 \bottomrule
 \end{tabular}
 \end{table}
