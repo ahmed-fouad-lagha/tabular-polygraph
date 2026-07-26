@@ -155,17 +155,36 @@ def run_benchmark_seed(
 
     # Infer task: classification vs regression
     n_unique_target = real_train[args.target].nunique()
-    task = (
-        "classification"
-        if n_unique_target <= 10
-        or not pd.api.types.is_numeric_dtype(real_train[args.target])
-        else "regression"
-    )
+    is_numeric = pd.api.types.is_numeric_dtype(real_train[args.target])
+
+    task = "classification" if n_unique_target <= 10 or not is_numeric else "regression"
 
     # Base evaluation data (X_test/y_test from REAL test set)
     X_test_df, X_train_real_df, y_test, y_train_real = prepare_utility_features(
         real_test, real_train, args.target, num_cols, cat_cols
     )
+
+    # Discretize continuous targets into 5 equal-frequency quintiles for classification evaluation
+    target_bins = None
+    if is_numeric and n_unique_target > 10:
+        task = "classification"
+        target_bins = np.unique(np.quantile(y_train_real, [0, 0.2, 0.4, 0.6, 0.8, 1.0]))
+        target_bins[0] = -np.inf
+        target_bins[-1] = np.inf
+
+        y_train_real = pd.cut(
+            y_train_real, bins=target_bins, labels=False, include_lowest=True
+        )
+        if isinstance(y_train_real, pd.Series):
+            y_train_real = y_train_real.fillna(0).astype(int)
+        else:
+            y_train_real = np.nan_to_num(y_train_real, nan=0).astype(int)
+
+        y_test = pd.cut(y_test, bins=target_bins, labels=False, include_lowest=True)
+        if isinstance(y_test, pd.Series):
+            y_test = y_test.fillna(0).astype(int)
+        else:
+            y_test = np.nan_to_num(y_test, nan=0).astype(int)
 
     # TRTR Real Baseline
     score1_trtr, score2_trtr = evaluate_utility(
@@ -231,6 +250,16 @@ def run_benchmark_seed(
             cat_cols,
             reference_df=X_test_df,
         )
+
+        if target_bins is not None:
+            y_train = pd.cut(
+                y_train, bins=target_bins, labels=False, include_lowest=True
+            )
+            if isinstance(y_train, pd.Series):
+                y_train = y_train.fillna(0).astype(int)
+            else:
+                y_train = np.nan_to_num(y_train, nan=0).astype(int)
+
         score1, score2 = evaluate_utility(
             X_train_df.values, y_train, X_test_df.values, y_test, task, seed
         )
@@ -254,67 +283,159 @@ def main():
     parser = argparse.ArgumentParser(
         description="Cleaned Target-Aware HIF Utility Filtering Benchmark"
     )
-    parser.add_argument("--dataset", type=str, default="census_acs")
-    parser.add_argument("--target", type=str, default="poverty_status")
+    parser.add_argument(
+        "--dataset", type=str, default="all", help="Specific dataset to run, or 'all'"
+    )
+    parser.add_argument(
+        "--generator",
+        type=str,
+        default="all",
+        help="Specific generator to run, or 'all'",
+    )
     parser.add_argument("--rows", type=int, default=1000)
     parser.add_argument("--seeds", type=int, default=5)
-    parser.add_argument("--generator", type=str, default="tvae")
     parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--output", type=str, default="outputs/utility_filtering.csv")
+    parser.add_argument("--output-dir", type=str, default="outputs")
     args = parser.parse_args()
 
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    real = load_dataset(args.dataset)
-    num_cols = numeric_columns(real)
-    cat_cols = [c for c in real.columns if c not in num_cols]
+    if args.dataset == "all":
+        datasets = ["census_acs", "online_purchases"]
+    else:
+        datasets = [args.dataset]
 
-    real_train, real_test_full = train_test_split(real, test_size=0.3, random_state=42)
-    real_test = real_test_full.sample(n=min(5000, len(real_test_full)), random_state=42)
+    if args.generator == "all":
+        generators = ["gaussian", "ctgan", "tvae"]
+    else:
+        generators = [args.generator]
 
-    all_results = []
-    for seed in range(42, 42 + args.seeds):
-        print(f"[Seed {seed}] Running target-aware audit benchmark...")
-        all_results.extend(
-            run_benchmark_seed(
-                seed,
-                real_train,
-                real_test,
-                args,
-                num_cols,
-                cat_cols,
+    target_map = {
+        "census_acs": "poverty_status",
+        "online_purchases": "item_subtotal",
+        "credit": "default",
+        "supermarket_sales": "Rating",
+        "adult": "income",
+    }
+
+    global_summary_rows = []
+
+    for ds in datasets:
+        for gen in generators:
+            args.dataset = ds
+            args.generator = gen
+            args.target = target_map.get(ds, "target")
+
+            output_path = out_dir / f"utility_filtering_{ds}_{gen}.csv"
+
+            print("\n" + "=" * 80)
+            print(
+                f"TARGET-AWARE UTILITY BENCHMARK: {ds.upper()} ({gen}, target={args.target})"
             )
-        )
+            print("=" * 80)
 
-        # Incremental save
-        pd.DataFrame(all_results).to_csv(output_path, index=False)
+            try:
+                real = load_dataset(args.dataset)
+                num_cols = numeric_columns(real)
+                cat_cols = [c for c in real.columns if c not in num_cols]
 
-    df = pd.DataFrame(all_results)
-    task_name = df["task"].iloc[0] if not df.empty else "unknown"
-    metric1_name = "f1" if task_name == "classification" else "r2"
-    metric2_name = "acc" if task_name == "classification" else "rmse"
+                real_train, real_test_full = train_test_split(
+                    real, test_size=0.3, random_state=42
+                )
+                real_test = real_test_full.sample(
+                    n=min(5000, len(real_test_full)), random_state=42
+                )
+            except Exception as e:
+                print(f"Skipping {ds} - Error loading: {e}")
+                continue
 
-    summary = df.groupby("variant").agg(
-        {"score1": ["mean", "std"], "score2": ["mean", "std"], "retention": "mean"}
-    )
-    summary.columns = [
-        f"{metric1_name}_mean",
-        f"{metric1_name}_std",
-        f"{metric2_name}_mean",
-        f"{metric2_name}_std",
-        "retention_mean",
-    ]
+            all_results = []
+            for seed in range(42, 42 + args.seeds):
+                print(f"  [Seed {seed}] Running target-aware audit benchmark...")
+                try:
+                    all_results.extend(
+                        run_benchmark_seed(
+                            seed,
+                            real_train,
+                            real_test,
+                            args,
+                            num_cols,
+                            cat_cols,
+                        )
+                    )
+                except Exception as e:
+                    print(f"    seed={seed} ERROR: {e}")
 
-    print("\n" + "=" * 80)
-    print(
-        f"TARGET-AWARE UTILITY BENCHMARK: {args.dataset.upper()} ({args.generator}, target={args.target}, task={task_name})"
-    )
-    print("=" * 80)
-    print(summary.to_string())
-    print("=" * 80)
+                # Incremental save
+                if all_results:
+                    pd.DataFrame(all_results).to_csv(output_path, index=False)
 
-    df.to_csv(output_path, index=False)
+            if all_results:
+                df = pd.DataFrame(all_results)
+                task_name = df["task"].iloc[0] if not df.empty else "unknown"
+                metric1_name = "f1" if task_name == "classification" else "r2"
+                metric2_name = "acc" if task_name == "classification" else "rmse"
+
+                summary = df.groupby("variant").agg(
+                    {
+                        "score1": ["mean", "std"],
+                        "score2": ["mean", "std"],
+                        "retention": "mean",
+                    }
+                )
+                summary.columns = [
+                    f"{metric1_name}_mean",
+                    f"{metric1_name}_std",
+                    f"{metric2_name}_mean",
+                    f"{metric2_name}_std",
+                    "retention_mean",
+                ]
+
+                print("\n" + "-" * 80)
+                print(f"SUMMARY: {ds} | {gen}")
+                print(summary.round(4))
+                print("-" * 80)
+
+                # Append to global summary
+                for variant, row in summary.iterrows():
+                    n_seeds = len(df[df["variant"] == variant])
+                    sem_f1 = (
+                        row[f"{metric1_name}_std"] / np.sqrt(n_seeds)
+                        if n_seeds > 1
+                        else 0.0
+                    )
+                    sem_acc = (
+                        row[f"{metric2_name}_std"] / np.sqrt(n_seeds)
+                        if n_seeds > 1
+                        else 0.0
+                    )
+
+                    global_summary_rows.append(
+                        {
+                            "Dataset": ds,
+                            "Generator": gen,
+                            "Variant": variant,
+                            "Retention": f"{row['retention_mean']:.1f}%",
+                            "F1 (mean ± SEM)": f"{row[f'{metric1_name}_mean']:.4f} ± {sem_f1:.4f}",
+                            "Acc (mean ± SEM)": f"{row[f'{metric2_name}_mean']:.4f} ± {sem_acc:.4f}",
+                        }
+                    )
+
+    # Export markdown summary if we have results
+    if global_summary_rows:
+        md_path = out_dir / "utility_filtering_summary.md"
+        with open(md_path, "w") as f:
+            f.write("# Downstream Utility Filtering Summary\n\n")
+            f.write(
+                "| Dataset | Generator | Variant | Retention | F1 (mean ± SEM) | Acc (mean ± SEM) |\n"
+            )
+            f.write("|---|---|---|---|---|---|\n")
+            for r in global_summary_rows:
+                f.write(
+                    f"| {r['Dataset']} | {r['Generator']} | {r['Variant']} | {r['Retention']} | {r['F1 (mean ± SEM)']} | {r['Acc (mean ± SEM)']} |\n"
+                )
+        print(f"\nGlobal markdown summary saved to: {md_path}")
 
 
 if __name__ == "__main__":

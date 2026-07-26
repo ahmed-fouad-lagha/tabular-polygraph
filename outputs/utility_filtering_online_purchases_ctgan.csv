@@ -1,0 +1,26 @@
+variant,seed,score1,score2,retention,task
+TRTR Real Baseline,42,0.9899614836304146,0.99,100.0,classification
+Full synthetic,42,0.3200611676800234,0.41,100.0,classification
+Rule-Filtered,42,0.29506242757617934,0.385,66.3,classification
+HIF Clean (Threshold <= 0.5),42,0.21008403361344538,0.365,3.5000000000000004,classification
+HIF Top-80% (Oracle),42,0.2865294480419365,0.385,80.0,classification
+TRTR Real Baseline,43,0.985754212978744,0.985,100.0,classification
+Full synthetic,43,0.20635658914728686,0.33,100.0,classification
+Rule-Filtered,43,0.2565189882730309,0.31,53.300000000000004,classification
+HIF Clean (Threshold <= 0.5),43,0.6019885787970894,0.595,1.9,classification
+HIF Top-80% (Oracle),43,0.3095354205939404,0.375,80.0,classification
+TRTR Real Baseline,44,0.9899614836304146,0.99,100.0,classification
+Full synthetic,44,0.17870735090152565,0.25,100.0,classification
+Rule-Filtered,44,0.2900213496704725,0.37,40.2,classification
+HIF Clean (Threshold <= 0.5),44,0.5918558059142595,0.675,1.6,classification
+HIF Top-80% (Oracle),44,0.16989661428913766,0.285,80.0,classification
+TRTR Real Baseline,45,0.9899614836304146,0.99,100.0,classification
+Full synthetic,45,0.16412069901226528,0.245,100.0,classification
+Rule-Filtered,45,0.26342154165992476,0.36,52.1,classification
+HIF Clean (Threshold <= 0.5),45,0.5095319136993656,0.615,2.9000000000000004,classification
+HIF Top-80% (Oracle),45,0.13887619917770672,0.28,80.0,classification
+TRTR Real Baseline,46,0.9899614836304146,0.99,100.0,classification
+Full synthetic,46,0.09246390607647152,0.165,100.0,classification
+Rule-Filtered,46,0.11741548994437312,0.21,59.0,classification
+HIF Clean (Threshold <= 0.5),46,0.3363290856248603,0.455,2.4,classification
+HIF Top-80% (Oracle),46,0.1399122336641898,0.205,80.0,classification
