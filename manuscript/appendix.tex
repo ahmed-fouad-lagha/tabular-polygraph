@@ -19,17 +19,17 @@ This confirms that $H(\mathbf{x})$ provides a strictly conservative diagnosis fo
 
 \section{Logical Sentinel Ensemble (LSE) Implementation Details}
 
-The LSE architecture prioritizes categorical integrity by identifying and enforcing high-dependency hubs using a synergistic context.
+The LSE architecture prioritizes categorical dependency modeling by identifying and enforcing high-dependency hubs across categorical features.
 
-\subsection{Synergistic Hub Discovery}
-We ranked features based on their \textbf{Predictive Synergy} $S(h)$, which measures the compressibility of a feature within the full manifold context (including the binned numeric features). In our experiments in the U.S. Census ACS dataset, the LSE identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{age\_group}.
+\subsection{Feature Dependency Hub Discovery}
+We ranked features based on their \textbf{Feature Dependency Score} $S(h)$, which measures the classification accuracy of predicting a feature within the full dataset context (including binned numeric features). In our experiments on the U.S. Census ACS dataset, the LSE identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{age\_group}.
 
 \subsection{Confidence Floor Calibration}
 The confidence floor $\delta_h$ is defined as the 5th-percentile of the probability mass that a Sentinel $f_h$ assigns to the correct category in the ground-truth data $\mathcal{D}_{real}$, with a safety floor of 0.01:
 \begin{equation}
     \delta_h = \max( \text{Percentile}_{5} \left( \{ f_h(\mathbf{x}_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} \right), 0.01)
 \end{equation}
-This robust approach avoids the instability of the 1st-percentile thresholds in sparse manifolds and ensures that the sentinels remain sensitive to logical violations \cite{karabulut2025neurosymbolic, long2025evaluating}.
+This robust approach avoids the instability of 1st-percentile thresholds in sparse data distributions and ensures sentinels remain sensitive to conditional dependency violations \cite{karabulut2025neurosymbolic, long2025evaluating}.
 
 \section{Extended Results and Sensitivity Analysis}
 
@@ -116,8 +116,8 @@ As shown in our audit, all evaluated generative models suffered from a significa
 
 While the Hybrid Integrity Framework (HIF) provides a technically rigorous diagnostic for synthetic data, our current formulation faces three key challenges identified through empirical auditing.
 
-\subsection{Dependency Discovery via Predictive Synergy}
-The Logical Sentinel Ensemble (LSE) relies on \textbf{Predictive Synergy} to discover dependency hubs. Although computationally efficient, it primarily captures categorical dependencies. Future work will investigate \textbf{Total Correlation} and multi-way interaction kernels to generalize the LSE to these complex parity regimes.
+\subsection{Dependency Hub Selection via Feature Predictability}
+The Logical Sentinel Ensemble (LSE) relies on single-variable classification accuracy ($S(h)$) to discover dependency hubs. Although computationally efficient, it primarily captures categorical dependencies. Future work will investigate \textbf{Total Correlation} and multi-way interaction kernels to generalize hub selection to complex parity regimes.
 
 \subsection{Sensitivity on Sparse or Imbalanced Manifolds}
 The use of the \textbf{5th-percentile Confidence Floor} ($\delta_h$) is a data-driven heuristic designed for stability. However, on extremely sparse or highly imbalanced datasets (e.g., rare fraud events or sparse healthcare codes), the calibration of $\delta_h$ may be susceptible to outliers in ground-truth data. In such cases, the framework may require domain-specific tuning of the percentile parameter or the adoption of Laplacian smoothing to stabilize the boundary conditions.

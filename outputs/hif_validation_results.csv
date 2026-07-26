@@ -1,0 +1,7 @@
+dataset,seed,rows,corruption_level,hif_score,hif_violation_rate,lse_violation_rate,nic_violation_rate,rule_violation_rate,num_rule_violations,num_rules_mined,total_rule_hits,moment_matching_score,joint_score,utility_ratio,dominant_feature_share,mean_representation_tvd
+census_acs,42,1000,0.0,0.902,0.024,0.04,0.03,0.018,18,8,19,89.79,97.72,0.9668,5.333333333333333,0.0
+census_acs,42,1000,0.1,0.8429,0.067,0.156,0.041,0.026,26,8,27,91.07,95.28,0.949,7.333333333333332,0.0
+census_acs,42,1000,0.2,0.783,0.118,0.29,0.044,0.037,37,8,38,91.18,92.03,0.9588,10.666666666666668,0.0
+census_acs,43,1000,0.0,0.9067,0.02,0.061,0.011,0.016,16,7,18,88.59,96.72,0.9625,4.333333333333333,0.0
+census_acs,43,1000,0.1,0.8467,0.057,0.195,0.012,0.022,22,7,24,89.42,94.64,0.9609,6.333333333333333,0.0
+census_acs,43,1000,0.2,0.7877,0.11,0.329,0.013,0.035,35,7,36,90.55,91.77,0.9625,10.333333333333332,0.0
