@@ -247,6 +247,7 @@ def main():
     print(f"{'=' * 70}")
     metric_cols = [
         "ks_score",
+        "corr_distance",
         "alpha_precision",
         "beta_recall",
         "authenticity",
