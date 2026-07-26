@@ -129,7 +129,12 @@ def compute_metrics(real, syn):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rows", type=int, default=1000)
-    parser.add_argument("--seeds", type=int, default=5)
+    parser.add_argument(
+        "--seeds", type=int, default=3, help="Number of seeds to run starting from 42"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Explicit single seed to run"
+    )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--output-dir", type=str, default="outputs")
     parser.add_argument(
@@ -156,7 +161,10 @@ def main():
     else:
         generators = [args.generator]
 
-    seeds = list(range(42, 42 + args.seeds))
+    if args.seed is not None:
+        seeds = [args.seed]
+    else:
+        seeds = list(range(42, 42 + args.seeds))
 
     print(
         f"Experiment: {len(generators)} generators × {len(datasets)} datasets × {len(seeds)} seeds"
@@ -233,9 +241,9 @@ def main():
     csv_path = out_dir / "metric_comparison.csv"
     df.to_csv(csv_path, index=False)
 
-    # Summary table
+    # Summary table with Mean ± SEM and Mean ± SD
     print(f"\n\n{'=' * 70}")
-    print("  SUMMARY: Mean ± Std across seeds")
+    print("  SUMMARY: Mean ± SEM (and SD) across seeds")
     print(f"{'=' * 70}")
     metric_cols = [
         "ks_score",
@@ -251,19 +259,49 @@ def main():
             sub = df[(df["dataset"] == ds_id) & (df["generator"] == gen_type)]
             if sub.empty:
                 continue
-            row = {"dataset": ds_id, "generator": gen_type}
+            row = {"dataset": ds_id, "generator": gen_type, "n_seeds": len(sub)}
             for m in metric_cols:
                 if m in sub.columns and sub[m].notna().any():
                     vals = sub[m].dropna()
-                    row[f"{m}_mean"] = round(vals.mean(), 3)
-                    row[f"{m}_std"] = round(vals.std(), 3)
+                    mean_val = float(vals.mean())
+                    sd_val = float(vals.std()) if len(vals) > 1 else 0.0
+                    sem_val = (
+                        float(sd_val / np.sqrt(len(vals))) if len(vals) > 1 else 0.0
+                    )
+
+                    row[f"{m}_mean"] = round(mean_val, 4)
+                    row[f"{m}_sd"] = round(sd_val, 4)
+                    row[f"{m}_sem"] = round(sem_val, 4)
+                    row[f"{m}_formatted_sem"] = f"{mean_val:.3f} ± {sem_val:.3f}"
+                    row[f"{m}_formatted_sd"] = f"{mean_val:.3f} ± {sd_val:.3f}"
                 else:
-                    row[f"{m}_mean"] = "N/A"
-                    row[f"{m}_std"] = "N/A"
+                    row[f"{m}_mean"] = np.nan
+                    row[f"{m}_sd"] = np.nan
+                    row[f"{m}_sem"] = np.nan
+                    row[f"{m}_formatted_sem"] = "N/A"
+                    row[f"{m}_formatted_sd"] = "N/A"
             summary_rows.append(row)
 
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))
+
+    # Export markdown summary
+    md_path = out_dir / "metric_comparison_summary.md"
+    with open(md_path, "w") as f:
+        f.write("# Metric Comparison Summary (Mean ± SEM)\n\n")
+        f.write(
+            summary_df[
+                [
+                    "dataset",
+                    "generator",
+                    "n_seeds",
+                    "ks_score_formatted_sem",
+                    "hif_score_formatted_sem",
+                    "hif_violation_rate_formatted_sem",
+                ]
+            ].to_markdown(index=False)
+        )
+        f.write("\n")
 
     # Correlation analysis
     print(f"\n{'=' * 70}")
@@ -276,6 +314,7 @@ def main():
             print(f"  HIF vs {m}: ρ = {corr:.3f}")
 
     print(f"\n  Results saved → {csv_path}")
+    print(f"  Summary saved → {md_path}")
 
 
 if __name__ == "__main__":
