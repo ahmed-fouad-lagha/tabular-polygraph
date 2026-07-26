@@ -308,7 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--rows", type=int, default=2000)
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument(
-        "--generator", default="gaussian_copula", choices=["gaussian_copula", "ctgan"]
+        "--generator", default="ctgan", choices=["ctgan", "gaussian_copula"]
     )
     parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
