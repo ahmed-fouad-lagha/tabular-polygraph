@@ -19,6 +19,8 @@ import pandas as pd
 
 from tabular_polygraph.utils import normalize, numeric_columns
 
+from .common import risk_level_membership
+
 
 def _min_dist_to_synthetic(
     records: np.ndarray,
@@ -105,7 +107,7 @@ def membership_inference_risk(
     return {
         "attack_auc": auc,
         "advantage": advantage,
-        "risk_level": _risk_level(auc),
+        "risk_level": risk_level_membership(auc),
         "n_members": len(members),
         "n_nonmembers": len(nonmembers),
         "interpretation": (
@@ -118,15 +120,3 @@ def membership_inference_risk(
             else "High memorisation risk — consider DP noise"
         ),
     }
-
-
-def _risk_level(auc: float) -> str:
-    if auc < 0.52:
-        return "very_low"
-    if auc < 0.60:
-        return "low"
-    if auc < 0.70:
-        return "medium"
-    if auc < 0.80:
-        return "high"
-    return "very_high"

@@ -92,9 +92,11 @@ def tstr_score(
     y_real_tr = real_train[target_col].values
     y_test = real_test[target_col].values
 
-    # Scale synthetic using REAL training stats (as it would be in a real TSTR scenario)
-    # We treat syn as the "training" set but it must be in the same feature space as real
-    _, X_syn = _standardize_with_train_stats(real_train, syn_clean, feature_cols)
+    # Scale synthetic using its own training stats (as it would be in a real TSTR scenario)
+    # We treat syn as the "training" set, so we must scale the real test set using syn's stats
+    X_syn, X_test_syn = _standardize_with_train_stats(
+        syn_clean, real_test, feature_cols
+    )
     y_syn = syn_clean[target_col].values
 
     if task == "classification":
@@ -116,7 +118,7 @@ def tstr_score(
         model_tstr.fit(X_syn, y_syn)
         model_trr.fit(X_real_tr, y_real_tr)
 
-        tstr = f1_score(y_test, model_tstr.predict(X_test), average="macro")
+        tstr = f1_score(y_test, model_tstr.predict(X_test_syn), average="macro")
         trr = f1_score(y_test, model_trr.predict(X_test), average="macro")
         metric = "f1_macro"
     else:
@@ -126,7 +128,7 @@ def tstr_score(
         model_tstr.fit(X_syn, y_syn)
         model_trr.fit(X_real_tr, y_real_tr)
 
-        tstr = r2_score(y_test, model_tstr.predict(X_test))
+        tstr = r2_score(y_test, model_tstr.predict(X_test_syn))
         trr = r2_score(y_test, model_trr.predict(X_test))
         metric = "r2"
 

@@ -159,7 +159,7 @@ For a rigorous theoretical analysis, including the proof of intersection soundne
 
 \subsection{Neighbor-Invariant Continuity (NIC)}
 
-For continuous features $\mathbf{y}$, we evaluate integrity via Semantic Adjacency. We map the categorical context to a continuous latent space $\mathcal{Z}$ using a standardized spectral projection $\phi: \mathcal{X}_{cat} \to \mathcal{Z}$---drawing on classical Multiple Correspondence Analysis (MCA) and Singular Value Decomposition (SVD) on binary indicator matrices \cite{abdi2010principal, greenacre2007correspondence}. We then model the conditional expectation of each continuous feature $y$ as a non-linear function of this manifold using a Gradient Boosting Regressor $r_y$ \cite{friedman2001greedy, ke2017lightgbm}:
+For continuous features $\mathbf{y}$, we evaluate integrity via Semantic Adjacency. We map the categorical context to a continuous latent space $\mathcal{Z}$ using a standardized spectral projection $\phi: \mathcal{X}_{cat} \to \mathcal{Z}$---drawing on classical Multiple Correspondence Analysis (MCA) and Singular Value Decomposition (SVD) on binary indicator matrices \cite{abdi2010principal, greenacre2007correspondence}. Standardizing the indicator matrices by their standard deviation prior to SVD mathematically replicates the inverse-frequency weighting of MCA, ensuring that rare but highly informative categorical constraints dominate the continuous manifold projection. We then model the conditional expectation of each continuous feature $y$ as a non-linear function of this manifold using a Gradient Boosting Regressor $r_y$ \cite{friedman2001greedy, ke2017lightgbm}:
 \begin{equation}
     \hat{y}(\mathbf{x}) = \mathbb{E}[y \mid \phi(\mathbf{x}_{cat})] \approx r_y(\phi(\mathbf{x}_{cat}))
 \end{equation}
@@ -184,7 +184,7 @@ The continuous penalty $\mathcal{P}_{cont}(\mathbf{x})$ is expressed using a dyn
 
 In contrast to additive fidelity metrics that allow a model to ``compensate'' for logical failures with high statistical overlap, HIF formalizes integrity as an Algebraic Intersection. Drawing from the structured drift-proof framework \cite{guo2026structured}, the hybrid integrity score $H(\mathbf{x})$ is defined as the strict multiplicative product of the component validities:
 \begin{equation}
-    H(\mathbf{x}) = \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x}))
+    H(\mathbf{x}) = \left( \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x})) \right)^{1/L}
 \end{equation}
 where $l$ iterates over the active auditing layers. The multiplicative product preserves the non-compensatory property of a Logical AND gate: a significant failure in any single manifold dimension ($\mathcal{P}_l \to 1$) drives the entire record integrity toward zero, regardless of how perfectly the other components align (see empirical validation of this non-compensatory advantage in Table~\ref{tab:ablation}, Section~\ref{sec:ablation}).
 
@@ -242,7 +242,7 @@ The geometric mean ensures a robust lower bound on this joint probability: a sig
 To unify the notation across all components, consider a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ evaluated by HIF:
 \begin{enumerate}
     \item \textbf{Categorical Audit (LSE):} For a record with $\text{Age}=14$ and $\text{Education}=\text{PhD}$, the sentinel $f_h$ for hub $h=\text{Education}$ evaluates $P_{f_h}(\text{PhD} \mid \text{Age}=14) = 0.0001$. Given the calibrated floor $\delta_h = 0.05$, the categorical penalty evaluates to $\mathcal{P}_h = \text{clip}\left(\frac{0.05 - 0.0001}{0.05}, 0, 1\right) = 0.998$.
-    \item \textbf{Continuous Audit (NIC):} SVD projects $[\text{Age}=14, \text{Education}=\text{PhD}]$ to latent vector $\mathbf{z}$. The regressor $r_y$ predicts expected salary $\hat{y} = \$12,000$ with tolerance bandwidth $\gamma_y = \$5,000$. For a hallucinated salary $y = \$150,000$, the continuous penalty evaluates to $\mathcal{P}_y = \text{clip}\left(\frac{|150,000 - 12,000| - 5,000}{5,000}, 0, 1\right) = 1.0$.
+    \item \textbf{Continuous Audit (NIC):} SVD projects $[\text{Age}=14, \text{Education}=\text{PhD}]$ to latent vector $\mathbf{z}$. The regressor $r_y$ predicts expected salary $\hat{y} = \$12,000$ with robust threshold $\tau_y = \$5,000$ and tolerance bandwidth $\gamma_y = \$10,000$. For a hallucinated salary $y = \$150,000$, the continuous penalty evaluates to $\mathcal{P}_y = \text{clip}\left(\frac{|150,000 - 12,000| - 5,000}{10,000}, 0, 1\right) = 1.0$.
     \item \textbf{Multiplicative Aggregation:} The overall record score collapses:
     \begin{equation}
         H(\mathbf{x}) = \left[ (1 - 0.998) \times (1 - 1.0) \right]^{1/2} = (0.002 \times 0.0)^{1/2} = 0.000

@@ -1,13 +1,13 @@
 # Ablation Study: census_acs
 
-Generator: ctgan | Seeds: 5 | Rows: 2000
+Generator: gaussian_copula | Seeds: 5 | Rows: 2000
 
 | Ablation | Retention% | F1 (mean ± SEM) | Violation Rate |
 |---|---|---|---|
-| No filtering | 100.0% | 0.360 ± 0.018 | 0.0% |
-| LSE-only | 27.2% | 0.812 ± 0.011 | 72.8% |
-| NIC-only | 85.6% | 0.382 ± 0.018 | 10.7% |
-| Rules-only | 97.2% | 0.368 ± 0.018 | 2.8% |
-| LSE + NIC | 16.2% | 0.834 ± 0.007 | 83.6% |
-| Full HIF (arith.) | 95.3% | 0.357 ± 0.015 | 4.7% |
-| Full HIF (geom.) | 16.0% | 0.838 ± 0.007 | 83.8% |
+| No filtering | 100.0% | 0.937 ± 0.003 | 0.0% |
+| LSE-only | 95.1% | 0.939 ± 0.003 | 4.9% |
+| NIC-only | 97.0% | 0.941 ± 0.004 | 3.0% |
+| Rules-only | 99.1% | 0.938 ± 0.003 | 0.9% |
+| LSE + NIC | 97.7% | 0.940 ± 0.003 | 2.3% |
+| Full HIF (arith.) | 99.8% | 0.934 ± 0.004 | 0.3% |
+| Full HIF (geom.) | 98.3% | 0.937 ± 0.002 | 1.7% |

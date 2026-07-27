@@ -153,14 +153,31 @@ def run_benchmark_seed(
 
     # Infer task: classification vs regression
     n_unique_target = real_train[args.target].nunique()
-    task = (
-        "classification"
-        if n_unique_target <= 10
-        or not pd.api.types.is_numeric_dtype(real_train[args.target])
-        else "regression"
-    )
+    if n_unique_target > 10 and pd.api.types.is_numeric_dtype(real_train[args.target]):
+        task = "classification"
+        # Discretize into 5 equal-frequency quintiles based on real_train
+        quintiles = pd.qcut(
+            real_train[args.target], q=5, duplicates="drop", retbins=True
+        )[1]
+        quintiles[0] = -np.inf
+        quintiles[-1] = np.inf
+        real_train[args.target] = pd.cut(
+            real_train[args.target], bins=quintiles, labels=False
+        )
+        real_test.loc[:, args.target] = pd.cut(
+            real_test[args.target], bins=quintiles, labels=False
+        )
+        syn_raw.loc[:, args.target] = pd.cut(
+            syn_raw[args.target], bins=quintiles, labels=False
+        )
+    else:
+        task = (
+            "classification"
+            if n_unique_target <= 10
+            or not pd.api.types.is_numeric_dtype(real_train[args.target])
+            else "regression"
+        )
 
-    # Base evaluation data (X_test/y_test from REAL test set)
     X_test_df, X_train_real_df, y_test, y_train_real = prepare_utility_features(
         real_test, real_train, args.target, num_cols, cat_cols
     )

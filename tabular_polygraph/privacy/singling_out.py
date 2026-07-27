@@ -17,6 +17,8 @@ import pandas as pd
 
 from tabular_polygraph.utils import categorical_columns
 
+from .common import risk_level_singling_out
+
 
 def singling_out_risk(
     real: pd.DataFrame,
@@ -72,18 +74,6 @@ def singling_out_risk(
         "singling_out_rate": rate,
         "n_attacks": n_tested,
         "n_singled_out": n_singled,
-        "risk_level": _risk_level(rate),
+        "risk_level": risk_level_singling_out(rate),
         "quasi_id_cols": qi_cols,
     }
-
-
-def _risk_level(rate: float) -> str:
-    if rate < 0.001:
-        return "very_low"
-    if rate < 0.01:
-        return "low"
-    if rate < 0.05:
-        return "medium"
-    if rate < 0.15:
-        return "high"
-    return "very_high"

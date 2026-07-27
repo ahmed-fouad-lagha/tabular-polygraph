@@ -7,7 +7,10 @@ from .marginal import (
     mean_moment_matching_score,
     moment_matching_scores,
 )
+from .nic import NeighborInvariantContinuity
 from .report import fidelity_report, format_report
+from .rules import mine_implication_rules, rule_violation_score
+from .sentinel import LogicalSentinelEnsemble, ManifoldEncoder
 
 __all__ = [
     "alpha_precision_beta_recall",
@@ -19,4 +22,9 @@ __all__ = [
     "mean_ks_score",
     "correlation_distance_score",
     "hif_score",
+    "ManifoldEncoder",
+    "LogicalSentinelEnsemble",
+    "NeighborInvariantContinuity",
+    "mine_implication_rules",
+    "rule_violation_score",
 ]

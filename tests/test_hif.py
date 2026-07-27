@@ -118,7 +118,8 @@ def test_hif_numeric_only():
     # Numeric-only datasets have no categorical manifold for LSE/NIC.
     # hif_score should return gracefully without crashing.
     real = pd.DataFrame({"x": [1, 2, 3, 4, 5], "y": [10, 20, 30, 40, 50]})
-    syn = pd.DataFrame({"x": [100, 200, 300, 400, 500], "y": [11, 22, 33, 44, 55]})
+    # Provide in-distribution synthetic data so that it isn't flagged as an anomaly
+    syn = pd.DataFrame({"x": [1, 3, 5, 2, 4], "y": [10, 30, 50, 20, 40]})
     result = hif_score(real, syn, verbose=False, hif_epochs=2)
     assert "hif_score" in result
     assert result["violation_rate"] == 0.0

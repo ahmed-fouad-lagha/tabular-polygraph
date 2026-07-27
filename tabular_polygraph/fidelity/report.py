@@ -361,8 +361,6 @@ def format_report(report: dict, width: int = 60) -> str:
 
     if "error" in lg:
         lines.append(f"    Status         : ERROR ({lg['error']})")
-    elif "info" in lg:
-        lines.append(f"    Status         : {lg['info']}")
     else:
         lines.append(
             f"    Unified violation rate : {lg.get('hif_violation_rate_pct', '—')}%"

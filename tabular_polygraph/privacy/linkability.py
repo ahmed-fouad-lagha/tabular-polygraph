@@ -20,6 +20,8 @@ import pandas as pd
 
 from tabular_polygraph.utils import normalize, numeric_columns
 
+from .common import risk_level_linkability
+
 
 def _normalise(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
     arr = df[cols].fillna(0).values.astype(float)
@@ -105,20 +107,8 @@ def linkability_risk(
         "linkability_rate": rate,
         "baseline": baseline,
         "lift_over_baseline_pct": lift,
-        "risk_level": _risk_level(rate),
+        "risk_level": risk_level_linkability(rate),
         "n_attacks": n_test,
         "n_linked": linked,
         "numeric_cols_used": cols,
     }
-
-
-def _risk_level(rate: float) -> str:
-    if rate < 0.52:
-        return "very_low"
-    if rate < 0.60:
-        return "low"
-    if rate < 0.70:
-        return "medium"
-    if rate < 0.85:
-        return "high"
-    return "very_high"

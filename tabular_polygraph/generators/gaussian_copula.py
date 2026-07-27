@@ -271,50 +271,6 @@ class GaussianCopulaGenerator(BaseGenerator):
 
         return self._add_syn_id(df.head(n))
 
-    # ── filter helpers ────────────────────────────────────────────────────────
-
-    def _resolve_col(self, key: str, columns: list[str] | None = None) -> str | None:
-        """Resolve abbreviated key → actual column name."""
-        cols = columns if columns is not None else self._columns
-        if not cols:
-            return None
-        if key in cols:
-            return key
-        if key in self._ALIASES and self._ALIASES[key] in cols:
-            return self._ALIASES[key]
-        # unambiguous prefix match
-        matches = [c for c in cols if c == key or c.startswith(key + "_")]
-        return matches[0] if len(matches) == 1 else None
-
-    def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
-        """Apply a set of filters to a generated DataFrame."""
-        filtered_df = df
-        for key, val in filters.items():
-            if key.endswith("_min"):
-                filtered_df = self._apply_min_filter(filtered_df, key, val)
-            elif key.endswith("_max"):
-                filtered_df = self._apply_max_filter(filtered_df, key, val)
-            else:
-                filtered_df = self._apply_exact_filter(filtered_df, key, val)
-        return filtered_df
-
-    def _apply_min_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
-        col = self._resolve_col(key[:-4])
-        return df[df[col] >= val] if col else df
-
-    def _apply_max_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
-        col = self._resolve_col(key[:-4])
-        return df[df[col] <= val] if col else df
-
-    def _apply_exact_filter(self, df: pd.DataFrame, key: str, val: Any) -> pd.DataFrame:
-        col = self._resolve_col(key)
-        if not col:
-            return df
-        # Don't stringify — keep original types so numeric columns match numeric values
-        if isinstance(val, list):
-            return df[df[col].isin(val)]
-        return df[df[col] == val]
-
     # ── introspection ─────────────────────────────────────────────────────────
 
     @property

@@ -158,6 +158,26 @@ def _positive_int(val: str) -> int:
     return ival
 
 
+def _json_clean(obj):
+    import numpy as _np
+
+    if isinstance(obj, dict):
+        return {k: _json_clean(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_clean(v) for v in obj]
+    if isinstance(obj, (_np.integer,)):
+        return int(obj)
+    if isinstance(obj, (_np.floating,)):
+        return round(float(obj), 6)
+    if isinstance(obj, (_np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, _np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, float):
+        return round(obj, 6)
+    return obj
+
+
 def _create_generator_instance(generator_type: str, **kwargs) -> BaseGenerator:
     """Instantiate a generator of the given type with kwargs."""
     if generator_type == "ctgan":
@@ -281,26 +301,6 @@ def _rule_params_from_args(args) -> dict:
         raise ValueError("--rule-max-antecedents must be >= 1")
 
     return params
-
-
-def _json_clean(obj):
-    import numpy as _np
-
-    if isinstance(obj, dict):
-        return {k: _json_clean(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_json_clean(v) for v in obj]
-    if isinstance(obj, (_np.integer,)):
-        return int(obj)
-    if isinstance(obj, (_np.floating,)):
-        return round(float(obj), 6)
-    if isinstance(obj, (_np.bool_,)):
-        return bool(obj)
-    if isinstance(obj, _np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, float):
-        return round(obj, 6)
-    return obj
 
 
 def _prepare_generate_request(args):

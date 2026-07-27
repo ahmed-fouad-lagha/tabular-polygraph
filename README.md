@@ -123,7 +123,7 @@ These scripts verify the framework's sensitivity to semantic corruption across m
 
 ```bash
 # Census ACS Validation
-python scripts/04_hif_validation.py \
+python scripts/01_hif_validation.py \
   --dataset census_acs \
   --corruption-strategy manifold_rupture \
   --rows 5000 \
@@ -133,7 +133,7 @@ python scripts/04_hif_validation.py \
   --output-dir results/census
 
 # Adult Validation
-python scripts/04_hif_validation.py \
+python scripts/01_hif_validation.py \
   --dataset adult \
   --corruption-strategy manifold_rupture \
   --rows 2000 \
@@ -152,7 +152,7 @@ Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confir
 Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) on the BLS macroeconomic manifold. Includes the "real" ground-truth baseline for sanity checking.
 
 ```bash
-python scripts/05_cross_domain_audit.py \
+python scripts/04_metric_comparison.py \
   --dataset bls \
   --generators gaussian vine ctgan real \
   --rows 5000
@@ -163,7 +163,7 @@ These commands reproduce the results showing how selecting records that satisfy 
 
 ```bash
 # BLS Economic Audit (Table 1)
-python scripts/07_utility_filtering.py \
+python scripts/02_utility_filtering.py \
   --dataset bls \
   --target avg_weekly_wage \
   --generator ctgan \
@@ -173,7 +173,7 @@ python scripts/07_utility_filtering.py \
   --output results/table1_bls.csv
 
 # Census ACS Utility Audit (Table 1)
-python scripts/07_utility_filtering.py \
+python scripts/02_utility_filtering.py \
   --dataset census_acs \
   --target household_income \
   --generator ctgan \
