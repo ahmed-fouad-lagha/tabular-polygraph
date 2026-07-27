@@ -33,6 +33,7 @@ from tabular_polygraph.generators import (  # noqa: E402
     GaussianCopulaGenerator,
     TVAEGenerator,
 )
+from tabular_polygraph.generators.base import BaseGenerator  # noqa: E402
 
 
 def load_real_data(dataset_id: str, n: int = 5000) -> pd.DataFrame:
@@ -42,6 +43,7 @@ def load_real_data(dataset_id: str, n: int = 5000) -> pd.DataFrame:
 def generate_synthetic(
     real: pd.DataFrame, gen_type: str, rows: int, seed: int
 ) -> pd.DataFrame:
+    gen: BaseGenerator
     if gen_type == "gaussian_copula":
         gen = GaussianCopulaGenerator()
     elif gen_type == "ctgan":
@@ -70,7 +72,7 @@ def compute_structural_fidelity_score(real: pd.DataFrame, syn: pd.DataFrame) -> 
     # alpha_precision_beta_recall requires same row count — subsample real to match syn
     try:
         real_sub = real.sample(n=len(syn), random_state=42)
-        ab = alpha_precision_beta_recall(real_sub, syn, num_cols)
+        ab = alpha_precision_beta_recall(real_sub, syn)
         alpha = ab.get("alpha_precision", 0)
         beta = ab.get("beta_recall", 0)
     except Exception:
