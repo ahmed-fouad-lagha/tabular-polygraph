@@ -33,6 +33,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from tabular_polygraph.dataset import load_dataset  # noqa: E402
 from tabular_polygraph.fidelity import hif_score  # noqa: E402
 from tabular_polygraph.fidelity.logical import rule_violation_score  # noqa: E402
+from tabular_polygraph.generators import (  # noqa: E402
+    BaseGenerator,
+    CTGANGenerator,
+    GaussianCopulaGenerator,
+    TVAEGenerator,
+)
 from tabular_polygraph.utils import numeric_columns  # noqa: E402
 
 
@@ -130,23 +136,15 @@ def run_benchmark_seed(
     cat_cols: List[str],
 ) -> List[Dict]:
     """Runs the benchmark for a single seed with target-aware HIF auditing."""
-    from tabular_polygraph.generators.ctgan import CTGANGenerator
-    from tabular_polygraph.generators.gaussian_copula import (
-        GaussianCopulaGenerator,
-    )
-    from tabular_polygraph.generators.tvae import TVAEGenerator
-
-    gen_map = {
-        "gaussian": GaussianCopulaGenerator,
-        "ctgan": CTGANGenerator,
-        "tvae": TVAEGenerator,
-    }
-
-    gen_class = gen_map.get(args.generator, GaussianCopulaGenerator)
-    if args.generator in ("ctgan", "tvae"):
-        gen = gen_class(epochs=args.epochs)
+    gen: BaseGenerator
+    if args.generator == "ctgan":
+        gen = CTGANGenerator(epochs=args.epochs)
+    elif args.generator == "tvae":
+        gen = TVAEGenerator(epochs=args.epochs)
+    elif args.generator == "gaussian":
+        gen = GaussianCopulaGenerator()
     else:
-        gen = gen_class()
+        gen = GaussianCopulaGenerator()
     gen.fit(real_train)
 
     syn_raw = gen.generate(args.rows, seed=seed).drop(

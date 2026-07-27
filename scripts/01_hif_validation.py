@@ -219,7 +219,8 @@ def _corrupt_manifold_rupture(
     if not rules:
         return _corrupt_permutation(syn, cat_cols, num_cols, corruption_level, rng)
 
-    for rule in rng.permutation(rules):
+    for idx in rng.permutation(len(rules)):
+        rule = rules[idx]
         if current_ruptured >= target_rupture_count:
             break
 

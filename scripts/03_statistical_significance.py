@@ -32,7 +32,11 @@ from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.fidelity.downstream import tstr_score
 from tabular_polygraph.fidelity.logical import rule_violation_score
-from tabular_polygraph.generators import CTGANGenerator, GaussianCopulaGenerator
+from tabular_polygraph.generators import (
+    BaseGenerator,
+    CTGANGenerator,
+    GaussianCopulaGenerator,
+)
 
 
 def _compute_utility(real, syn, target, seed, num_cols, cat_cols):
@@ -95,6 +99,7 @@ def run_significance_test(
     real = load_dataset(dataset_id, n=n_rows)
 
     print(f"Fitting generator: {generator_type}")
+    gen: BaseGenerator
     if generator_type == "ctgan":
         gen = CTGANGenerator()
     else:
@@ -171,22 +176,22 @@ def run_significance_test(
         )
 
     # Convert to arrays
-    full_f1s = np.array(full_f1s)
-    rule_f1s = np.array(rule_f1s)
-    hif_f1s = np.array(hif_f1s)
+    full_f1s_arr = np.array(full_f1s)
+    rule_f1s_arr = np.array(rule_f1s)
+    hif_f1s_arr = np.array(hif_f1s)
 
     # Remove NaN pairs for paired tests
-    valid_mask = ~(np.isnan(full_f1s) | np.isnan(hif_f1s))
+    valid_mask = ~(np.isnan(full_f1s_arr) | np.isnan(hif_f1s_arr))
 
     # Paired t-test: Full vs HIF
     if valid_mask.sum() >= 3:
         t_stat, p_value_ttest = stats.ttest_rel(
-            full_f1s[valid_mask], hif_f1s[valid_mask]
+            full_f1s_arr[valid_mask], hif_f1s_arr[valid_mask]
         )
         # Wilcoxon signed-rank (non-parametric alternative)
         try:
             w_stat, p_value_wilcoxon = stats.wilcoxon(
-                full_f1s[valid_mask], hif_f1s[valid_mask]
+                full_f1s_arr[valid_mask], hif_f1s_arr[valid_mask]
             )
         except ValueError:
             w_stat, p_value_wilcoxon = np.nan, np.nan
@@ -195,7 +200,7 @@ def run_significance_test(
         w_stat, p_value_wilcoxon = np.nan, np.nan
 
     # 95% CI for the difference
-    diffs = hif_f1s[valid_mask] - full_f1s[valid_mask]
+    diffs = hif_f1s_arr[valid_mask] - full_f1s_arr[valid_mask]
     ci_low, ci_high = (
         stats.t.interval(0.95, len(diffs) - 1, loc=diffs.mean(), scale=stats.sem(diffs))
         if len(diffs) > 1
@@ -207,9 +212,9 @@ def run_significance_test(
     raw_df = pd.DataFrame(
         {
             "seed": [42 + i for i in range(n_seeds)],
-            "full_f1": full_f1s,
-            "rule_f1": rule_f1s,
-            "hif_f1": hif_f1s,
+            "full_f1": full_f1s_arr,
+            "rule_f1": rule_f1s_arr,
+            "hif_f1": hif_f1s_arr,
             "full_acc": full_accs,
             "rule_acc": rule_accs,
             "hif_acc": hif_accs,
@@ -228,13 +233,13 @@ def run_significance_test(
     print("| Variant | Retention% | F1 (mean ± SEM) | Accuracy (mean ± SEM) |")
     print("|---|---|---|---|")
     print(
-        f"| Full synthetic | 100.0% | {np.nanmean(full_f1s):.3f} ± {stats.sem(full_f1s[~np.isnan(full_f1s)]):.3f} | {np.nanmean(full_accs):.3f} ± {stats.sem(np.array(full_accs)[~np.isnan(full_accs)]):.3f} |"
+        f"| Full synthetic | 100.0% | {np.nanmean(full_f1s_arr):.3f} ± {stats.sem(full_f1s_arr[~np.isnan(full_f1s_arr)]):.3f} | {np.nanmean(full_accs):.3f} ± {stats.sem(np.array(full_accs)[~np.isnan(full_accs)]):.3f} |"
     )
     print(
-        f"| Rule-only | {np.nanmean(retentions_rule):.1f}% | {np.nanmean(rule_f1s):.3f} ± {stats.sem(rule_f1s[~np.isnan(rule_f1s)]):.3f} | {np.nanmean(rule_accs):.3f} ± {stats.sem(np.array(rule_accs)[~np.isnan(rule_accs)]):.3f} |"
+        f"| Rule-only | {np.nanmean(retentions_rule):.1f}% | {np.nanmean(rule_f1s_arr):.3f} ± {stats.sem(rule_f1s_arr[~np.isnan(rule_f1s_arr)]):.3f} | {np.nanmean(rule_accs):.3f} ± {stats.sem(np.array(rule_accs)[~np.isnan(rule_accs)]):.3f} |"
     )
     print(
-        f"| **HIF Oracle** | **{np.nanmean(retentions_hif):.1f}%** | **{np.nanmean(hif_f1s):.3f} ± {stats.sem(hif_f1s[~np.isnan(hif_f1s)]):.3f}** | **{np.nanmean(hif_accs):.3f} ± {stats.sem(np.array(hif_accs)[~np.isnan(hif_accs)]):.3f}** |"
+        f"| **HIF Oracle** | **{np.nanmean(retentions_hif):.1f}%** | **{np.nanmean(hif_f1s_arr):.3f} ± {stats.sem(hif_f1s_arr[~np.isnan(hif_f1s_arr)]):.3f}** | **{np.nanmean(hif_accs):.3f} ± {stats.sem(np.array(hif_accs)[~np.isnan(hif_accs)]):.3f}** |"
     )
     print()
     print(f"Paired t-test (Full vs HIF): t={t_stat:.3f}, p={p_value_ttest:.4f}")
@@ -274,13 +279,13 @@ def run_significance_test(
         f.write("| Variant | Retention% | F1 (mean ± SEM) | Accuracy (mean ± SEM) |\n")
         f.write("|---|---|---|---|\n")
         f.write(
-            f"| Full synthetic | 100.0% | {np.nanmean(full_f1s):.3f} ± {stats.sem(full_f1s[~np.isnan(full_f1s)]):.3f} | {np.nanmean(full_accs):.3f} ± {stats.sem(np.array(full_accs)[~np.isnan(full_accs)]):.3f} |\n"
+            f"| Full synthetic | 100.0% | {np.nanmean(full_f1s_arr):.3f} ± {stats.sem(full_f1s_arr[~np.isnan(full_f1s_arr)]):.3f} | {np.nanmean(full_accs):.3f} ± {stats.sem(np.array(full_accs)[~np.isnan(full_accs)]):.3f} |\n"
         )
         f.write(
-            f"| Rule-only | {np.nanmean(retentions_rule):.1f}% | {np.nanmean(rule_f1s):.3f} ± {stats.sem(rule_f1s[~np.isnan(rule_f1s)]):.3f} | {np.nanmean(rule_accs):.3f} ± {stats.sem(np.array(rule_accs)[~np.isnan(rule_accs)]):.3f} |\n"
+            f"| Rule-only | {np.nanmean(retentions_rule):.1f}% | {np.nanmean(rule_f1s_arr):.3f} ± {stats.sem(rule_f1s_arr[~np.isnan(rule_f1s_arr)]):.3f} | {np.nanmean(rule_accs):.3f} ± {stats.sem(np.array(rule_accs)[~np.isnan(rule_accs)]):.3f} |\n"
         )
         f.write(
-            f"| **HIF Oracle** | **{np.nanmean(retentions_hif):.1f}%** | **{np.nanmean(hif_f1s):.3f} ± {stats.sem(hif_f1s[~np.isnan(hif_f1s)]):.3f}** | **{np.nanmean(hif_accs):.3f} ± {stats.sem(np.array(hif_accs)[~np.isnan(hif_accs)]):.3f}** |\n"
+            f"| **HIF Oracle** | **{np.nanmean(retentions_hif):.1f}%** | **{np.nanmean(hif_f1s_arr):.3f} ± {stats.sem(hif_f1s_arr[~np.isnan(hif_f1s_arr)]):.3f}** | **{np.nanmean(hif_accs):.3f} ± {stats.sem(np.array(hif_accs)[~np.isnan(hif_accs)]):.3f}** |\n"
         )
         f.write("\n## Statistical Tests\n\n")
         f.write(

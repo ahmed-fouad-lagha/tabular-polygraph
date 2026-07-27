@@ -34,7 +34,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import hif_score
 from tabular_polygraph.fidelity.downstream import tstr_score
-from tabular_polygraph.generators import CTGANGenerator, GaussianCopulaGenerator
+from tabular_polygraph.generators import (
+    BaseGenerator,
+    CTGANGenerator,
+    GaussianCopulaGenerator,
+)
 
 ABLATION_CONFIGS = [
     {"name": "LSE-only", "ablation_mode": "lse_only", "aggregation": "geometric"},
@@ -118,6 +122,7 @@ def run_ablation(
     real = load_dataset(dataset_id, n=n_rows)
 
     print(f"Fitting generator: {generator_type}")
+    gen: BaseGenerator
     if generator_type == "ctgan":
         gen = CTGANGenerator()
     else:

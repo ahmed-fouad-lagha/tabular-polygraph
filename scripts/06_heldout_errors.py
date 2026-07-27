@@ -162,7 +162,7 @@ def corrupt_covariate_shift(
         biased = real
 
     replacements = biased.sample(
-        n=n_corrupt, replace=True, random_state=int(rng.integers(1e6))
+        n=n_corrupt, replace=True, random_state=int(rng.integers(1000000))
     )
     for i, idx in enumerate(row_idx):
         out.iloc[idx] = replacements.iloc[i]
@@ -354,9 +354,9 @@ def run_experiment(
 
                 # Apply corruption
                 if strategy_name == "row_duplication":
-                    corrupted, true_labels = corrupt_fn(syn_clean, level, rng)
+                    corrupted, true_labels = corrupt_fn(syn_clean, level, rng)  # type: ignore[operator]
                 else:
-                    corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)
+                    corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)  # type: ignore[operator]
 
                 # Detect with each method
                 try:
