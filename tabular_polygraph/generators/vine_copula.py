@@ -63,12 +63,12 @@ def _resolve_family_set(family_set):
 
     if family_set == "parametric":
         return [
-            pv.BicopFamily.gaussian,
-            pv.BicopFamily.student,
-            pv.BicopFamily.clayton,
-            pv.BicopFamily.gumbel,
-            pv.BicopFamily.frank,
-            pv.BicopFamily.joe,
+            pv.BicopFamily.gaussian,  # type: ignore
+            pv.BicopFamily.student,  # type: ignore
+            pv.BicopFamily.clayton,  # type: ignore
+            pv.BicopFamily.gumbel,  # type: ignore
+            pv.BicopFamily.frank,  # type: ignore
+            pv.BicopFamily.joe,  # type: ignore
         ]
 
     if family_set == "all":
@@ -95,29 +95,29 @@ def _tail_dependence_from_family(family, params: list[float]) -> tuple[float, fl
     """
     import pyvinecopulib as pv
 
-    if family == pv.BicopFamily.indep:
+    if family == pv.BicopFamily.indep:  # type: ignore
         return 0.0, 0.0
-    elif family == pv.BicopFamily.gaussian:
+    elif family == pv.BicopFamily.gaussian:  # type: ignore
         return 0.0, 0.0
-    elif family == pv.BicopFamily.frank:
+    elif family == pv.BicopFamily.frank:  # type: ignore
         return 0.0, 0.0
-    elif family == pv.BicopFamily.clayton:
+    elif family == pv.BicopFamily.clayton:  # type: ignore
         theta = params[0] if params else 0.0
         return (2.0 ** (-1.0 / theta), 0.0) if theta > 0 else (0.0, 0.0)
-    elif family == pv.BicopFamily.gumbel:
+    elif family == pv.BicopFamily.gumbel:  # type: ignore
         theta = params[0] if params else 1.0
         return (0.0, 2.0 - 2.0 ** (1.0 / theta)) if theta > 1 else (0.0, 0.0)
-    elif family == pv.BicopFamily.joe:
+    elif family == pv.BicopFamily.joe:  # type: ignore
         theta = params[0] if params else 1.0
         return (0.0, 2.0 - 2.0 ** (1.0 / theta)) if theta > 1 else (0.0, 0.0)
-    elif family == pv.BicopFamily.student:
+    elif family == pv.BicopFamily.student:  # type: ignore
         rho = params[0] if params else 0.0
         nu = params[1] if len(params) > 1 else 30.0
         lam = 2.0 * stats.t.cdf(
             -np.sqrt((nu + 1.0) * (1.0 - rho) / (1.0 + rho)), df=nu + 1
         )
         return lam, lam
-    elif family == pv.BicopFamily.bb1:
+    elif family == pv.BicopFamily.bb1:  # type: ignore
         theta = params[0] if params else 0.0
         delta = params[1] if len(params) > 1 else 0.0
         if theta > 0 and 0 < delta <= 1:

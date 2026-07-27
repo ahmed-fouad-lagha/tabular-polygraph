@@ -76,6 +76,15 @@ class CTGANGenerator(BaseGenerator):
         if seed is not None:
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
+            else:
+                import random
+
+                import numpy as np
+                import torch
+
+                random.seed(seed)
+                np.random.seed(seed)
+                torch.manual_seed(seed)
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
