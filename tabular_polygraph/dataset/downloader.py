@@ -377,7 +377,7 @@ def download_all(
     for ds_id in DATASETS:
         try:
             results[ds_id] = download(ds_id, force=force, n_sample=n_sample)
-        except Exception as e:
+        except (urllib.error.URLError, OSError, TimeoutError, ValueError) as e:
             print(f"  [fail] {ds_id}: {e}")
 
     failed = [ds_id for ds_id in DATASETS if ds_id not in results]
