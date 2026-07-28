@@ -14,6 +14,7 @@ Requirements:
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 import pandas as pd
 
@@ -39,7 +40,6 @@ class TVAEGenerator(BaseGenerator):
         decompress_dims: tuple[int, ...] = (128, 128),
         l2scale: float = 1e-5,
         loss_factor: float = 2,
-        discrete_threshold: int = 20,
         verbose: bool = False,
         **kwargs,
     ):
@@ -50,19 +50,14 @@ class TVAEGenerator(BaseGenerator):
         self._decompress_dims = decompress_dims
         self._l2scale = l2scale
         self._loss_factor = loss_factor
-        self._discrete_threshold = discrete_threshold
         self._verbose = verbose
-        self._model = None
+        self._model: Any = None
 
     def _require_sdv(self):
         try:
             from sdv.single_table import TVAESynthesizer  # noqa: F401
         except ImportError:
-            raise ImportError(
-                "SDV is not installed.\n"
-                "Run: pip install sdv\n\n"
-                "This installs sdv and its dependencies."
-            ) from None
+            raise ImportError("SDV is not installed.") from None
 
     def fit(self, data: pd.DataFrame) -> "TVAEGenerator":
         self._require_sdv()
@@ -90,8 +85,6 @@ class TVAEGenerator(BaseGenerator):
                 loss_factor=self._loss_factor,
                 verbose=self._verbose,
             )
-            if self._model is None:
-                raise RuntimeError("TVAE model failed to initialise.")
             self._model.fit(data[self._columns])
 
         self._fitted = True
@@ -104,13 +97,9 @@ class TVAEGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         self._require_sdv()
-        self._require_fitted()
-        if self._model is None:
-            raise RuntimeError("TVAE model is not initialised. Call fit() first.")
 
         if seed is not None:
-            if hasattr(self._model, "set_random_state"):
-                self._model.set_random_state(seed)
+            self._model.set_random_state(seed)
 
         def _sample(count: int) -> pd.DataFrame:
             with warnings.catch_warnings():

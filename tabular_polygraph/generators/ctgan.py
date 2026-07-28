@@ -7,6 +7,7 @@ CTGAN (Conditional Tabular GAN) generator.
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 import pandas as pd
 
@@ -28,7 +29,7 @@ class CTGANGenerator(BaseGenerator):
         self._epochs = epochs
         self._batch_size = batch_size
         self._verbose = verbose
-        self._model = None
+        self._model: Any = None
 
     def _require_sdv(self):
         try:
@@ -57,8 +58,6 @@ class CTGANGenerator(BaseGenerator):
                 batch_size=self._batch_size,
                 verbose=self._verbose,
             )
-            if self._model is None:
-                raise RuntimeError("CTGAN model failed to initialise.")
             self._model.fit(data[self._columns])
 
         self._fitted = True
@@ -71,22 +70,9 @@ class CTGANGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         self._require_sdv()
-        self._require_fitted()
-        if self._model is None:
-            raise RuntimeError("CTGAN model is not initialised.")
 
         if seed is not None:
-            if hasattr(self._model, "set_random_state"):
-                self._model.set_random_state(seed)
-            else:
-                import random
-
-                import numpy as np
-                import torch
-
-                random.seed(seed)
-                np.random.seed(seed)
-                torch.manual_seed(seed)
+            self._model.set_random_state(seed)
 
         def _sample(count: int) -> pd.DataFrame:
             with warnings.catch_warnings():

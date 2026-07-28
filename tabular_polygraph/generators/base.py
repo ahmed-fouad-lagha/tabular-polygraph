@@ -121,11 +121,15 @@ class BaseGenerator(ABC):
         for col, dtype in self._dtypes.items():
             if col not in df.columns:
                 continue
-            if pd.api.types.is_integer_dtype(dtype):
-                try:
+            try:
+                if pd.api.types.is_integer_dtype(dtype):
                     df[col] = df[col].round(0).astype("Int64")
-                except (ValueError, TypeError):
-                    pass
+                elif pd.api.types.is_bool_dtype(dtype):
+                    df[col] = df[col].round(0).astype("boolean")
+                elif isinstance(dtype, pd.CategoricalDtype):
+                    df[col] = df[col].astype(dtype)
+            except (ValueError, TypeError):
+                pass
         return df
 
     def _add_syn_id(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -152,6 +156,8 @@ class BaseGenerator(ABC):
         sample_fn  : callable that takes a row count and returns a DataFrame
         max_attempts: maximum retry iterations
         """
+        import warnings
+
         if not filters:
             return self._add_syn_id(sample_fn(n).head(n))
 
@@ -161,6 +167,12 @@ class BaseGenerator(ABC):
             attempts += 1
             df_more = self._apply_filters(sample_fn(n * 10), filters)
             df = pd.concat([df, df_more], ignore_index=True)
+
+        if len(df) < n:
+            warnings.warn(
+                f"Requested {n} rows but filters yielded only {len(df)}",
+                stacklevel=3,
+            )
 
         return self._add_syn_id(df.head(n))
 
@@ -183,25 +195,50 @@ class BaseGenerator(ABC):
     def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         """Apply column filters to a generated DataFrame.
 
-        Supports exact match, ``_min``, and ``_max`` suffixes with prefix matching.
+        Exact column name match takes priority over ``_min``/``_max`` suffix
+        range filtering.  Prefix matching is used as a last resort.
         """
+        import warnings
+
         cols = list(df.columns)
         for key, val in filters.items():
+            # Priority 1: exact column match (even if key ends with _min/_max)
+            if key in cols:
+                if isinstance(val, list):
+                    df = df[df[key].isin(val)]
+                else:
+                    df = df[df[key] == val]
+                continue
+
+            # Priority 2: _min / _max suffix → range filter
             if key.endswith("_min"):
-                base_key = key[:-4]
-                col = self._resolve_col(base_key, cols)
+                col = self._resolve_col(key[:-4], cols)
                 if col and col in df.columns:
                     df = df[df[col] >= val]
-            elif key.endswith("_max"):
-                base_key = key[:-4]
-                col = self._resolve_col(base_key, cols)
+                else:
+                    warnings.warn(
+                        f"Filter key '{key}' did not match any column", stacklevel=2
+                    )
+                continue
+            if key.endswith("_max"):
+                col = self._resolve_col(key[:-4], cols)
                 if col and col in df.columns:
                     df = df[df[col] <= val]
+                else:
+                    warnings.warn(
+                        f"Filter key '{key}' did not match any column", stacklevel=2
+                    )
+                continue
+
+            # Priority 3: prefix match for exact filtering
+            col = self._resolve_col(key, cols)
+            if col and col in df.columns:
+                if isinstance(val, list):
+                    df = df[df[col].isin(val)]
+                else:
+                    df = df[df[col] == val]
             else:
-                col = self._resolve_col(key, cols)
-                if col and col in df.columns:
-                    if isinstance(val, list):
-                        df = df[df[col].isin(val)]
-                    else:
-                        df = df[df[col] == val]
+                warnings.warn(
+                    f"Filter key '{key}' did not match any column", stacklevel=2
+                )
         return df

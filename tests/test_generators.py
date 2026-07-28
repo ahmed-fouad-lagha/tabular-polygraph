@@ -220,7 +220,7 @@ class TestCTGAN:
         from tabular_polygraph.generators.ctgan import CTGANGenerator
 
         pytest.importorskip("ctgan")
-        gen = CTGANGenerator(epochs=1, discrete_columns=["category"])
+        gen = CTGANGenerator(epochs=1)
         gen.fit(sample_data)
         assert gen._fitted
 
@@ -231,9 +231,6 @@ class TestCTGAN:
         gen = CTGANGenerator(
             epochs=2,
             batch_size=100,
-            generator_lr=1e-3,
-            discriminator_steps=5,
-            discrete_threshold=5,
         )
         gen.fit(sample_data)
         assert gen._epochs == 2
