@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 import pandas as pd
 
 from .registry import DATASETS
@@ -18,7 +20,7 @@ def list_datasets(vertical: str | None = None) -> pd.DataFrame:
                 "id": key,
                 "name": m["name"],
                 "vertical": m["vertical"],
-                "columns": m["col_count"],
+                "columns": len(m["columns"]),
                 "source": m["source"],
             }
         )
@@ -27,8 +29,6 @@ def list_datasets(vertical: str | None = None) -> pd.DataFrame:
 
 def get_dataset_info(dataset_id: str) -> dict:
     """Return full metadata for a single dataset profile."""
-    import copy
-
     if dataset_id not in DATASETS:
         raise ValueError(
             f"Unknown dataset '{dataset_id}'. Available: {', '.join(sorted(DATASETS))}"

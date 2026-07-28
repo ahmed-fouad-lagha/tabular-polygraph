@@ -21,7 +21,6 @@ DATASETS: dict[str, dict] = {
             "age_group",
             "education",
         ],
-        "col_count": 11,
         "drop_cols": ["puma"],
         "tags": ["GDPR safe", "CSV", "Parquet"],
         "use_cases": [
@@ -30,7 +29,6 @@ DATASETS: dict[str, dict] = {
             "Housing demand forecasting",
         ],
         "url": "https://api.census.gov/data/2022/acs/acs5",
-        "method": "census_api",
         "size_hint": "~10 MB",
         "indicators": {
             "B19013_001E": "household_income",
@@ -68,7 +66,6 @@ DATASETS: dict[str, dict] = {
             "native_country",
             "income",
         ],
-        "col_count": 13,
         "drop_cols": ["capital_gain", "capital_loss"],
         "tags": ["CSV", "Classification", "Benchmark"],
         "use_cases": [
@@ -77,23 +74,7 @@ DATASETS: dict[str, dict] = {
             "Synthetic data benchmarking",
         ],
         "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data",
-        "method": "direct_csv",
         "size_hint": "~4 MB — fast",
-        "indicators": {
-            "age": "age",
-            "workclass": "workclass",
-            "education": "education",
-            "marital_status": "marital_status",
-            "occupation": "occupation",
-            "relationship": "relationship",
-            "race": "race",
-            "sex": "sex",
-            "capital_gain": "capital_gain",
-            "capital_loss": "capital_loss",
-            "hours_per_week": "hours_per_week",
-            "native_country": "native_country",
-            "income": "income",
-        },
     },
     "credit": {
         "name": "Credit Card Default",
@@ -126,7 +107,6 @@ DATASETS: dict[str, dict] = {
             "pay_amt6",
             "default_payment",
         ],
-        "col_count": 24,
         "tags": ["CSV", "Classification", "Benchmark"],
         "use_cases": [
             "Credit risk modeling",
@@ -134,7 +114,6 @@ DATASETS: dict[str, dict] = {
             "Synthetic data benchmarking",
         ],
         "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls",
-        "method": "direct_excel",
         "size_hint": "~2 MB — fast",
         "indicators": {
             "LIMIT_BAL": "limit_bal",
@@ -183,7 +162,6 @@ DATASETS: dict[str, dict] = {
             "gross_income",
             "customer_rating",
         ],
-        "col_count": 13,
         "tags": ["CSV", "Regression", "Retail", "Hard Constraints"],
         "use_cases": [
             "Sales forecasting",
@@ -191,7 +169,6 @@ DATASETS: dict[str, dict] = {
             "Synthetic data benchmarking",
         ],
         "url": "https://raw.githubusercontent.com/plotly/datasets/master/supermarket_Sales.csv",
-        "method": "supermarket_csv",
         "size_hint": "~100 KB — instant",
         "indicators": {
             "Invoice ID": "invoice_id",
@@ -227,7 +204,6 @@ DATASETS: dict[str, dict] = {
             "item_tax",
             "item_total",
         ],
-        "col_count": 7,
         "tags": ["CSV", "Regression", "E-commerce", "Hard Constraints"],
         "use_cases": [
             "Purchase analysis",
@@ -235,7 +211,6 @@ DATASETS: dict[str, dict] = {
             "Synthetic data benchmarking",
         ],
         "url": "https://raw.githubusercontent.com/ptvan/datasets/master/online_purchases/purchases_2006-2019.csv",
-        "method": "purchases_csv",
         "size_hint": "~500 KB — fast",
         "indicators": {
             "order_date": "order_date",

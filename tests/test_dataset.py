@@ -8,13 +8,12 @@ from tabular_polygraph.dataset.registry import DATASETS
 
 class TestCatalogRegistry:
     def test_registry_completeness(self):
-        """Ensure every registered downloader has mandatory metadata."""
+        """Ensure every registered dataset has mandatory metadata."""
         for _did, info in DATASETS.items():
             assert "name" in info
             assert "source" in info
-            assert "method" in info
-            # url is optional but good to have
-            # assert "url" in info
+            assert "url" in info
+            assert "columns" in info
 
 
 class TestCacheLogic:
@@ -28,14 +27,14 @@ class TestCacheLogic:
 class TestSchemaIntegrity:
     def test_cached_data_columns(self):
         """Validate that all cached datasets have the expected core columns."""
-        for did in DATASETS:
-            if is_cached(did):
-                df = load_cached(did)
-                expected = set(DATASETS[did].get("columns", []))
-                drop_cols = set(DATASETS[did].get("drop_cols", []))
+        for dataset_id in DATASETS:
+            if is_cached(dataset_id):
+                df = load_cached(dataset_id)
+                expected = set(DATASETS[dataset_id].get("columns", []))
+                drop_cols = set(DATASETS[dataset_id].get("drop_cols", []))
                 actual = set(df.columns)
                 missing = (expected - drop_cols) - actual
-                assert not missing, f"Dataset '{did}' missing columns: {missing}"
+                assert not missing, f"Dataset '{dataset_id}' missing columns: {missing}"
 
 
 class TestCustomGeneration:

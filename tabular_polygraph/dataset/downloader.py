@@ -275,13 +275,12 @@ def _download_online_purchases(n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-# Mapping of registry methods to internal downloader functions
-METHOD_MAP = {
-    "census_api": _download_census,
-    "direct_csv": _download_adult,
-    "direct_excel": _download_credit,
-    "supermarket_csv": _download_supermarket_sales,
-    "purchases_csv": _download_online_purchases,
+_DOWNLOADERS = {
+    "census_acs": _download_census,
+    "adult": _download_adult,
+    "credit": _download_credit,
+    "supermarket_sales": _download_supermarket_sales,
+    "online_purchases": _download_online_purchases,
 }
 
 
@@ -313,13 +312,13 @@ def download(
     """
     if dataset_id == "all":
         results = {}
-        for did in DATASETS:
+        for ds_id in DATASETS:
             try:
-                results[did] = download(did, force=force, n_sample=n_sample)
+                results[ds_id] = download(ds_id, force=force, n_sample=n_sample)
             except Exception as e:
-                print(f"  ✗ {did}: {e}")
+                print(f"  ✗ {ds_id}: {e}")
 
-        failed = [did for did in DATASETS if did not in results]
+        failed = [ds_id for ds_id in DATASETS if ds_id not in results]
         if failed:
             print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
 
@@ -344,16 +343,14 @@ def download(
     print(f"  Source: {info['source']}")
     print(f"  Size:   {info['size_hint']}")
 
-    method = info["method"]
-    if method in METHOD_MAP:
-        df = METHOD_MAP[method](n_sample)
+    if dataset_id in _DOWNLOADERS:
+        df = _DOWNLOADERS[dataset_id](n_sample)
     else:
         raise NotImplementedError(
-            f"Downloader for '{dataset_id}' (method: {method}) requires manual download.\n"
+            f"No downloader for '{dataset_id}'.\n"
             f"Please download the data from {info['url']} and save it as a CSV, then load it with gen.fit(your_csv)."
         )
 
-    # 3. Cache it
     df.to_parquet(cached, index=False)
     print(f"  ✓ Cached {len(df):,} rows → {cached}")
     return df
@@ -376,12 +373,12 @@ def load_cached(dataset_id: str) -> pd.DataFrame | None:
 def status() -> pd.DataFrame:
     """Show which datasets have been downloaded and cached."""
     rows = []
-    for did in DATASETS:
-        p = cache_path(did)
+    for dataset_id in DATASETS:
+        p = cache_path(dataset_id)
         if p.exists():
             rows.append(
                 {
-                    "dataset": did,
+                    "dataset": dataset_id,
                     "status": "cached",
                     "size": f"{p.stat().st_size // 1024:,} KB",
                     "path": str(p),
@@ -390,7 +387,7 @@ def status() -> pd.DataFrame:
         else:
             rows.append(
                 {
-                    "dataset": did,
+                    "dataset": dataset_id,
                     "status": "not downloaded",
                     "size": "—",
                     "path": "—",

@@ -605,7 +605,7 @@ def cmd_info(args):
     pairs = [
         ("Vertical", meta["vertical"]),
         ("Source", meta["source"]),
-        ("Columns", str(meta["col_count"])),
+        ("Columns", str(len(meta["columns"]))),
         ("Tags", ", ".join(meta["tags"])),
     ]
     for label, value in pairs:
