@@ -101,5 +101,9 @@ exclude_lines = [
     "pass"
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+
 [tool.mypy]
 ignore_missing_imports = true

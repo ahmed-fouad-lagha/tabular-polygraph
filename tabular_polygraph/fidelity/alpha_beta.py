@@ -131,7 +131,7 @@ def alpha_precision_beta_recall(
         # neighbor falls within the α-quantile ball of the real distribution
         beta_coverage_curve.append(np.mean(real_synth_closest_d <= Radii[k]))
 
-    denom = np.sum(alphas)
+    denom: float = float(np.sum(alphas))
     if denom < 1e-9:
         denom = 1.0
 

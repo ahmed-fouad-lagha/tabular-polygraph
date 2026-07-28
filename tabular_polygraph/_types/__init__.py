@@ -1,13 +1,13 @@
 from .metrics import Metric
 from .report import (
-    FidelityReport,
-    Summary,
-    PerColumnScore,
     CoverageScore,
-    JointScore,
-    StylizedFactsScore,
     DownstreamScore,
+    FidelityReport,
+    JointScore,
     LogicalScore,
+    PerColumnScore,
+    StylizedFactsScore,
+    Summary,
 )
 
 __all__ = [

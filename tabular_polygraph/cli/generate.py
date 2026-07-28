@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from tabular_polygraph.utils import set_seed
+
 from .utils import C, _c, bar, err, header, info, ok, section, warn
 
 
@@ -51,8 +52,10 @@ def _fit_custom_input_generator(
     if not Path(input_file).exists():
         raise FileNotFoundError(input_file)
 
-    from tabular_polygraph.io import read, validate as validate_df
+    from tabular_polygraph.io import read
+    from tabular_polygraph.io import validate as validate_df
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
+
     from .helpers import _create_generator_instance, _drop_existing_columns
 
     seed_df = read(input_file)

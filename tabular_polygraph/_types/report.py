@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import numpy as np
@@ -108,15 +108,15 @@ def _json_safe(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_json_safe(v) for v in obj]
     if isinstance(obj, tuple) and hasattr(obj, "_fields"):
-        return _json_safe(dict(obj._asdict()))
+        return _json_safe(dict(obj._asdict()))  # type: ignore[attr-defined]
     if isinstance(obj, tuple):
         return [_json_safe(v) for v in obj]
-    if isinstance(obj, float):
-        return None if (np.isnan(obj) or np.isinf(obj)) else obj
+    if isinstance(obj, np.floating):
+        return None if (np.isnan(obj) or np.isinf(obj)) else float(obj)
     if isinstance(obj, np.integer):
         return int(obj)
-    if isinstance(obj, np.floating):
-        return _json_safe(float(obj))
+    if isinstance(obj, float):
+        return None if (np.isnan(obj) or np.isinf(obj)) else obj
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, np.bool_):

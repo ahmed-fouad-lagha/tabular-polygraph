@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from tabular_polygraph._config import DEFAULT_KS_MIN_SAMPLES
 from tabular_polygraph._types import Metric
 from tabular_polygraph._utils import to_numeric_array
-from tabular_polygraph._config import DEFAULT_KS_MIN_SAMPLES
+
 from . import register
 
 

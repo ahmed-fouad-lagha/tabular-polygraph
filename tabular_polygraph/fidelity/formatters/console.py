@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
+PLACEHOLDER = "\u2014"
 
 
 class ConsoleFormatter:
@@ -16,8 +16,10 @@ class ConsoleFormatter:
         lines.append("=" * self.width)
         lines.append("  FIDELITY REPORT")
         lines.append("=" * self.width)
-        lines.append(f"  Dataset type    : {report.get('dataset_type', '\u2014')}")
-        lines.append(f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}")
+        lines.append(f"  Dataset type    : {report.get('dataset_type', PLACEHOLDER)}")
+        lines.append(
+            f"  Rows (real/syn) : {s.get('rows_real', '?')} / {s.get('rows_synthetic', '?')}"
+        )
         lines.append("")
         lines.append("-" * self.width)
         lines.append(f"  Moment matching : {s.get('moment_matching_score', 0):>6.2f}%")
@@ -37,11 +39,13 @@ class ConsoleFormatter:
         lines.append("-" * self.width)
         lines.append("")
 
-        sf = report.get("stylized_facts", {}).get("_summary", report.get("stylized_facts", {}))
+        sf = report.get("stylized_facts", {}).get(
+            "_summary", report.get("stylized_facts", {})
+        )
         lines.append("  Stylized facts:")
         if sf.get("applicable", True):
-            lines.append(f"    Mean score  : {sf.get('mean_score', '\u2014')}%")
-            lines.append(f"    Columns     : {sf.get('columns_tested', '\u2014')}")
+            lines.append(f"    Mean score  : {sf.get('mean_score', PLACEHOLDER)}%")
+            lines.append(f"    Columns     : {sf.get('columns_tested', PLACEHOLDER)}")
         else:
             lines.append(f"    {sf.get('note', 'Not evaluated.')}")
         lines.append("")
@@ -70,7 +74,9 @@ class ConsoleFormatter:
                 lines.append(f"    Skipped: {ds.get('reason')}")
             elif ds.get("tstr_score") is not None:
                 lines.append(f"    Target  : {ds.get('target_col')}")
-                lines.append(f"    Metric  : {ds.get('metric')} | TSTR {ds.get('tstr_score')} | TRR {ds.get('trr_score')}")
+                lines.append(
+                    f"    Metric  : {ds.get('metric')} | TSTR {ds.get('tstr_score')} | TRR {ds.get('trr_score')}"
+                )
                 lines.append(f"    Ratio   : {ds.get('ratio')}")
 
         lg = report.get("logical", {})
@@ -79,12 +85,24 @@ class ConsoleFormatter:
         if lg.get("error"):
             lines.append(f"    Status         : ERROR ({lg['error']})")
         else:
-            lines.append(f"    Unified violation rate : {lg.get('hif_violation_rate_pct', '\u2014')}%")
-            lines.append(f"    NIC (Continuous) rate  : {lg.get('nic_violation_rate_pct', '\u2014')}%")
-            lines.append(f"    Rule violation rate    : {lg.get('rule_violation_rate_pct', '\u2014')}%")
-            lines.append(f"    Mean penalty           : {lg.get('mean_penalty_pct', '\u2014')}%")
-            lines.append(f"    Noise floor threshold  : {lg.get('violation_threshold', '\u2014')}")
-            lines.append(f"    Violations found       : {lg.get('num_hif_violations', '\u2014')} (rules mined: {lg.get('num_rules_mined', '\u2014')})")
+            lines.append(
+                f"    Unified violation rate : {lg.get('hif_violation_rate_pct', PLACEHOLDER)}%"
+            )
+            lines.append(
+                f"    NIC (Continuous) rate  : {lg.get('nic_violation_rate_pct', PLACEHOLDER)}%"
+            )
+            lines.append(
+                f"    Rule violation rate    : {lg.get('rule_violation_rate_pct', PLACEHOLDER)}%"
+            )
+            lines.append(
+                f"    Mean penalty           : {lg.get('mean_penalty_pct', PLACEHOLDER)}%"
+            )
+            lines.append(
+                f"    Noise floor threshold  : {lg.get('violation_threshold', PLACEHOLDER)}"
+            )
+            lines.append(
+                f"    Violations found       : {lg.get('num_hif_violations', PLACEHOLDER)} (rules mined: {lg.get('num_rules_mined', PLACEHOLDER)})"
+            )
 
             top_rules = lg.get("top_violated_rules", [])
             if top_rules:
@@ -98,7 +116,7 @@ class ConsoleFormatter:
                     lines.append(
                         f"      IF {ant} "
                         f"THEN {rule.get('consequent_feature')}={rule.get('consequent_value')} "
-                        f"| conf={rule.get('confidence')} lift={rule.get('lift', '\u2014')} "
+                        f"| conf={rule.get('confidence')} lift={rule.get('lift', PLACEHOLDER)} "
                         f"support={rule.get('support')} violations={rule.get('violation_count')}"
                     )
 

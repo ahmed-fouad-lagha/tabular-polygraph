@@ -7,12 +7,18 @@ import sys
 from pathlib import Path
 
 from tabular_polygraph.utils import set_seed
+
 from .utils import _json_clean, err, header, info, ok
 
 
 def cmd_evaluate(args):
     from tabular_polygraph.fidelity import fidelity_report, format_report
-    from .helpers import _apply_eval_drop_cols, _load_eval_frames, _rule_params_from_args
+
+    from .helpers import (
+        _apply_eval_drop_cols,
+        _load_eval_frames,
+        _rule_params_from_args,
+    )
 
     set_seed(args.seed)
     header("Fidelity evaluation", f"{args.real}  vs  {args.synthetic}")

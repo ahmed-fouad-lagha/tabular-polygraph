@@ -1,3 +1,5 @@
+# ruff: noqa: E402 — submodule imports must stay after register()
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Type
@@ -9,7 +11,7 @@ _METRICS: dict[str, type[Metric]] = {}
 
 
 def register(metric_cls: type[Metric]) -> type[Metric]:
-    _METRICS[metric_cls.name] = metric_cls
+    _METRICS[metric_cls.name] = metric_cls  # type: ignore[index]
     return metric_cls
 
 
@@ -23,11 +25,13 @@ def get_metric_cls(name: str) -> Type[Metric]:
     return _METRICS[name]
 
 
-from . import moment_matching  # noqa: F401, E402
-from . import ks_test  # noqa: F401, E402
-from . import tvd  # noqa: F401, E402
-from . import correlation  # noqa: F401, E402
-from . import alpha_beta  # noqa: F401, E402
-from . import stylized_facts  # noqa: F401, E402
-from . import downstream  # noqa: F401, E402
-from . import hif  # noqa: F401, E402
+from . import (
+    alpha_beta,  # noqa: F401
+    correlation,  # noqa: F401
+    downstream,  # noqa: F401
+    hif,  # noqa: F401
+    ks_test,  # noqa: F401
+    moment_matching,  # noqa: F401
+    stylized_facts,  # noqa: F401
+    tvd,  # noqa: F401
+)

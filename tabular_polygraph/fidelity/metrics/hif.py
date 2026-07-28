@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
-from tabular_polygraph._types import Metric
 from tabular_polygraph._config import HIFConfig
+from tabular_polygraph._types import Metric
+
 from . import register
 
 
@@ -20,22 +20,8 @@ class HIFMetric(Metric):
         return {"all"}
 
     def fit(self, real: pd.DataFrame, columns: list[str]) -> None:
-        from tabular_polygraph.fidelity.hif import hif_score
-
-        self._result = hif_score(
-            real,
-            real,
-            columns=columns,
-            hif_epochs=self._config.epochs,
-            hif_hubs=self._config.hubs,
-            hif_depth=self._config.depth,
-            rule_min_confidence=self._config.rule_min_confidence,
-            rule_min_support=self._config.rule_min_support,
-            rule_max_rules=self._config.rule_max_rules,
-            rule_min_lift=self._config.rule_min_lift,
-            rule_max_antecedents=self._config.rule_max_antecedents,
-            verbose=False,
-        )
+        self._real = real
+        self._columns = columns
 
     def compute(
         self, real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str]
@@ -54,7 +40,9 @@ class HIFMetric(Metric):
             rule_max_rules=self._config.rule_max_rules,
             rule_min_lift=self._config.rule_min_lift,
             rule_max_antecedents=self._config.rule_max_antecedents,
+            random_state=self._config.random_state,
             verbose=False,
+            progress_callback=self._config.progress_callback,
         )
 
         logical_validity = round(float(result["hif_score"] * 100.0), 2)
@@ -65,9 +53,15 @@ class HIFMetric(Metric):
             "mean_penalty_pct": round(float(result["mean_penalty"] * 100.0), 2),
             "num_hif_violations": int(result["num_violations"]),
             "violation_threshold": result.get("violation_threshold"),
-            "nic_violation_rate_pct": round(float(result.get("nic_violation_rate", 0) * 100.0), 2),
-            "lse_violation_rate_pct": round(float(result.get("lse_violation_rate", 0) * 100.0), 2),
-            "rule_violation_rate_pct": round(float(result.get("rule_violation_rate", 0) * 100.0), 2),
+            "nic_violation_rate_pct": round(
+                float(result.get("nic_violation_rate", 0) * 100.0), 2
+            ),
+            "lse_violation_rate_pct": round(
+                float(result.get("lse_violation_rate", 0) * 100.0), 2
+            ),
+            "rule_violation_rate_pct": round(
+                float(result.get("rule_violation_rate", 0) * 100.0), 2
+            ),
             "num_rule_violations": int(result.get("num_rule_violations", 0)),
             "num_rules_mined": int(result["num_rules_mined"]),
             "columns_used": result["columns_used"],

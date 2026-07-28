@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tabular_polygraph.generators import BaseGenerator
@@ -70,15 +70,19 @@ def _positive_int(val: str) -> int:
 def _create_generator_instance(generator_type: str, **kwargs) -> BaseGenerator:
     if generator_type == "ctgan":
         from tabular_polygraph.generators import CTGANGenerator
+
         return CTGANGenerator(**kwargs)
     elif generator_type == "tvae":
         from tabular_polygraph.generators import TVAEGenerator
+
         return TVAEGenerator(**kwargs)
     elif generator_type == "vine":
         from tabular_polygraph.generators import VineCopulaGenerator
+
         return VineCopulaGenerator(**kwargs)
     else:
         from tabular_polygraph.generators import GaussianCopulaGenerator
+
         return GaussianCopulaGenerator(**kwargs)
 
 
@@ -92,6 +96,7 @@ def _load_generator(
     from tabular_polygraph.dataset import load_dataset
     from tabular_polygraph.dataset.loader import load_cached
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
+
     from .utils import info
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)
@@ -128,6 +133,7 @@ def _load_generator(
 
 def _load_eval_frames(real_path: str, syn_path: str):
     from tabular_polygraph.io import read
+
     from .utils import info
 
     for p in [Path(real_path), Path(syn_path)]:
@@ -143,6 +149,7 @@ def _load_eval_frames(real_path: str, syn_path: str):
 
 def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
+
     from .utils import info
 
     drop_cols = _parse_drop_cols(drop_cols_arg) or []

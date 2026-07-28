@@ -5,10 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from tabular_polygraph.cli.main import main
-from tabular_polygraph.cli.listinfo import cmd_info, cmd_list
-from tabular_polygraph.cli.validate import cmd_validate
 from tabular_polygraph.cli.download import cmd_download
+from tabular_polygraph.cli.listinfo import cmd_info, cmd_list
+from tabular_polygraph.cli.main import main
+from tabular_polygraph.cli.validate import cmd_validate
 
 
 class TestCLIMain:

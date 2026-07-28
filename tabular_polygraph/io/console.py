@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import sys
 
-import numpy as np
-
 
 def ok(msg: str) -> None:
     print(f"  [OK] {msg}")

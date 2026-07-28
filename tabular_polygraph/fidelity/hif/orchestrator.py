@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from tabular_polygraph._config import HIFConfig
+
 from .auditor import HIFAuditor
 
 logger = logging.getLogger(__name__)

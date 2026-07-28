@@ -3,15 +3,29 @@ from __future__ import annotations
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
+from typing import Callable
 
 import pandas as pd
 
 from tabular_polygraph._config import FidelityConfig
-from tabular_polygraph._types import FidelityReport, Summary, PerColumnScore, Metric
-from tabular_polygraph._utils import DEFAULT_DROP_LIST, numeric_columns, categorical_columns
-from . import metrics as _metrics
+from tabular_polygraph._types import (
+    CoverageScore,
+    DownstreamScore,
+    FidelityReport,
+    JointScore,
+    LogicalScore,
+    Metric,
+    PerColumnScore,
+    StylizedFactsScore,
+    Summary,
+)
+from tabular_polygraph._utils import (
+    DEFAULT_DROP_LIST,
+    categorical_columns,
+    numeric_columns,
+)
 
+from . import metrics as _metrics
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +50,7 @@ def _resolve_columns(real: pd.DataFrame, column_types: set[str]) -> list[str]:
     return result
 
 
-_OLD_TO_NEW = {
+_OLD_TO_NEW: dict[str, str] = {
     "moment_matching": "moment_matching",
     "ks_test": "distribution_fit",
     "tvd": "categorical_tvd",
@@ -76,13 +90,106 @@ def _build_summary(report: FidelityReport) -> Summary:
     )
 
 
+_SCORE_HANDLERS: dict[str, Callable[[FidelityReport, dict], None]] = {}
+
+
+def _per_col(report: FidelityReport, result: dict) -> None:
+    cols = result.get("column_scores", {})
+    report.distribution_fit = PerColumnScore(
+        columns=cols, mean=result.get("mean_score", 0.0)
+    )
+
+
+def _moment_matching(report: FidelityReport, result: dict) -> None:
+    cols = result.get("column_scores", {})
+    report.moment_matching = PerColumnScore(
+        columns=cols, mean=result.get("mean_score", 0.0)
+    )
+
+
+def _categorical_tvd(report: FidelityReport, result: dict) -> None:
+    cols = result.get("column_scores", {})
+    report.categorical_tvd = PerColumnScore(
+        columns=cols, mean=result.get("mean_score", 0.0)
+    )
+
+
+def _joint(report: FidelityReport, result: dict) -> None:
+    report.joint = JointScore(
+        correlation_distance_score=result.get("correlation_distance_score", 0.0),
+        pairwise_deltas=result.get("pairwise_deltas", {}),
+    )
+
+
+def _coverage(report: FidelityReport, result: dict) -> None:
+    report.coverage = CoverageScore(
+        alpha_precision=result.get("alpha_precision"),
+        beta_recall=result.get("beta_recall"),
+        authenticity=result.get("authenticity"),
+    )
+
+
+def _stylized_facts(report: FidelityReport, result: dict) -> None:
+    report.stylized_facts = StylizedFactsScore(
+        per_column=result.get("per_column", {}),
+        mean_score=result.get("mean_score"),
+        columns_tested=result.get("columns_tested", 0),
+        applicable=result.get("applicable", True),
+    )
+
+
+def _downstream(report: FidelityReport, result: dict) -> None:
+    if "error" in result:
+        report.downstream = DownstreamScore(status="skipped", reason=result["error"])
+    else:
+        report.downstream = DownstreamScore(
+            target_col=result.get("target_col", ""),
+            metric=result.get("metric", ""),
+            task=result.get("task", ""),
+            tstr_score=result.get("tstr_score", 0.0),
+            trr_score=result.get("trr_score", 0.0),
+            ratio=result.get("ratio", 0.0),
+        )
+
+
+def _logical(report: FidelityReport, result: dict) -> None:
+    if "error" in result:
+        report.logical = LogicalScore(error=result["error"])
+    else:
+        report.logical = LogicalScore(
+            hif_score_pct=result.get("hif_score_pct", 0.0),
+            hif_violation_rate_pct=result.get("hif_violation_rate_pct", 0.0),
+            mean_penalty_pct=result.get("mean_penalty_pct", 0.0),
+            num_hif_violations=result.get("num_hif_violations", 0),
+            violation_threshold=result.get("violation_threshold"),
+            nic_violation_rate_pct=result.get("nic_violation_rate_pct", 0.0),
+            lse_violation_rate_pct=result.get("lse_violation_rate_pct", 0.0),
+            rule_violation_rate_pct=result.get("rule_violation_rate_pct", 0.0),
+            num_rule_violations=result.get("num_rule_violations", 0),
+            num_rules_mined=result.get("num_rules_mined", 0),
+            columns_used=result.get("columns_used", []),
+            top_violated_rules=result.get("top_violated_rules", []),
+            violation_examples=result.get("violation_examples", []),
+        )
+
+
+_SCORE_HANDLERS = {
+    "moment_matching": _moment_matching,
+    "distribution_fit": _per_col,
+    "categorical_tvd": _categorical_tvd,
+    "joint": _joint,
+    "coverage": _coverage,
+    "stylized_facts": _stylized_facts,
+    "downstream": _downstream,
+    "logical": _logical,
+}
+
+
 class FidelityPipeline:
     def __init__(self, config: FidelityConfig | None = None):
         self.config = config or FidelityConfig()
 
-    def run(
-        self, real: pd.DataFrame, synthetic: pd.DataFrame
-    ) -> FidelityReport:
+    def run(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> FidelityReport:
         t0 = time.time()
         cols = _shared_columns(real, synthetic, self.config.columns)
         real = real[cols].copy()
@@ -99,9 +206,14 @@ class FidelityPipeline:
         for name in _metrics.list_metrics():
             cls = _metrics.get_metric_cls(name)
             if name == "downstream":
-                inst = cls(target_col=self.config.target_col)
+                inst = cls(target_col=self.config.target_col)  # type: ignore[call-arg]
             elif name == "hif":
-                inst = cls(config=self.config.hif)
+                if (
+                    self.config.progress_callback is not None
+                    and self.config.hif.progress_callback is None
+                ):
+                    self.config.hif.progress_callback = self.config.progress_callback
+                inst = cls(config=self.config.hif)  # type: ignore[call-arg]
             else:
                 inst = cls()
 
@@ -156,8 +268,7 @@ class FidelityPipeline:
     ) -> None:
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as ex:
             fit_futures = {
-                ex.submit(inst.fit, real, targets[inst.name]): inst
-                for inst in metrics
+                ex.submit(inst.fit, real, targets[inst.name]): inst for inst in metrics
             }
             for fut in as_completed(fit_futures):
                 inst = fit_futures[fut]
@@ -168,14 +279,15 @@ class FidelityPipeline:
 
             compute_futures = {}
             for inst in metrics:
-                fut = ex.submit(inst.compute, real, syn, targets[inst.name])
+                fut = ex.submit(inst.compute, real, syn, targets[inst.name])  # type: ignore[arg-type]
                 compute_futures[fut] = inst
 
             for fut in as_completed(compute_futures):
                 inst = compute_futures[fut]
                 try:
                     result = fut.result()
-                    self._assign_result(report, inst.name, result)
+                    if result is not None:
+                        self._assign_result(report, inst.name, result)
                 except Exception as e:
                     logger.warning("Metric '%s'.compute() failed: %s", inst.name, e)
 
@@ -183,72 +295,8 @@ class FidelityPipeline:
         self, report: FidelityReport, metric_name: str, result: dict
     ) -> None:
         section = _OLD_TO_NEW.get(metric_name)
-        if section == "moment_matching":
-            cols = result.get("column_scores", {})
-            report.moment_matching = PerColumnScore(
-                columns=cols, mean=result.get("mean_score", 0.0)
-            )
-        elif section == "distribution_fit":
-            cols = result.get("column_scores", {})
-            report.distribution_fit = PerColumnScore(
-                columns=cols, mean=result.get("mean_score", 0.0)
-            )
-        elif section == "categorical_tvd":
-            cols = result.get("column_scores", {})
-            report.categorical_tvd = PerColumnScore(
-                columns=cols, mean=result.get("mean_score", 0.0)
-            )
-        elif section == "joint":
-            from tabular_polygraph._types.report import JointScore
-            report.joint = JointScore(
-                correlation_distance_score=result.get("correlation_distance_score", 0.0),
-                pairwise_deltas=result.get("pairwise_deltas", {}),
-            )
-        elif section == "coverage":
-            from tabular_polygraph._types.report import CoverageScore
-            report.coverage = CoverageScore(
-                alpha_precision=result.get("alpha_precision"),
-                beta_recall=result.get("beta_recall"),
-                authenticity=result.get("authenticity"),
-            )
-        elif section == "stylized_facts":
-            from tabular_polygraph._types.report import StylizedFactsScore
-            report.stylized_facts = StylizedFactsScore(
-                per_column=result.get("per_column", {}),
-                mean_score=result.get("mean_score"),
-                columns_tested=result.get("columns_tested", 0),
-                applicable=result.get("applicable", True),
-            )
-        elif section == "downstream":
-            from tabular_polygraph._types.report import DownstreamScore
-            if "error" in result:
-                report.downstream = DownstreamScore(status="skipped", reason=result["error"])
-            else:
-                report.downstream = DownstreamScore(
-                    target_col=result.get("target_col", ""),
-                    metric=result.get("metric", ""),
-                    task=result.get("task", ""),
-                    tstr_score=result.get("tstr_score", 0.0),
-                    trr_score=result.get("trr_score", 0.0),
-                    ratio=result.get("ratio", 0.0),
-                )
-        elif section == "logical":
-            from tabular_polygraph._types.report import LogicalScore
-            if "error" in result:
-                report.logical = LogicalScore(error=result["error"])
-            else:
-                report.logical = LogicalScore(
-                    hif_score_pct=result.get("hif_score_pct", 0.0),
-                    hif_violation_rate_pct=result.get("hif_violation_rate_pct", 0.0),
-                    mean_penalty_pct=result.get("mean_penalty_pct", 0.0),
-                    num_hif_violations=result.get("num_hif_violations", 0),
-                    violation_threshold=result.get("violation_threshold"),
-                    nic_violation_rate_pct=result.get("nic_violation_rate_pct", 0.0),
-                    lse_violation_rate_pct=result.get("lse_violation_rate_pct", 0.0),
-                    rule_violation_rate_pct=result.get("rule_violation_rate_pct", 0.0),
-                    num_rule_violations=result.get("num_rule_violations", 0),
-                    num_rules_mined=result.get("num_rules_mined", 0),
-                    columns_used=result.get("columns_used", []),
-                    top_violated_rules=result.get("top_violated_rules", []),
-                    violation_examples=result.get("violation_examples", []),
-                )
+        if section is None:
+            return
+        handler = _SCORE_HANDLERS.get(section)
+        if handler is not None:
+            handler(report, result)

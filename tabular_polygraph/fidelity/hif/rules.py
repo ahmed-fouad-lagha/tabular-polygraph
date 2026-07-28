@@ -16,14 +16,14 @@ import numpy as np
 import pandas as pd
 from sklearn.utils import check_random_state
 
+from tabular_polygraph._config import DEFAULT_RULE_MAX_CANDIDATES
+
 from .binning import (
     RULE_QUANTIZATION_BINS,
     apply_binning,
     canonicalize_code_columns,
     fit_binning,
 )
-
-from tabular_polygraph._config import DEFAULT_RULE_MAX_CANDIDATES
 
 logger = logging.getLogger(__name__)
 

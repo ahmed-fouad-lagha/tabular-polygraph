@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from tabular_polygraph._types import Metric
-from tabular_polygraph._utils import numeric_columns
 from tabular_polygraph._config import (
+    DEFAULT_STYLIZED_CONCENTRATION_TOP,
     DEFAULT_STYLIZED_MIN_SAMPLES,
     DEFAULT_STYLIZED_TAIL_PERCENTILES,
-    DEFAULT_STYLIZED_CONCENTRATION_TOP,
 )
+from tabular_polygraph._types import Metric
+
 from . import register
 
 
@@ -29,8 +29,12 @@ def _predictive_parity(real: pd.DataFrame, syn: pd.DataFrame, cols: list[str]) -
     common = r_corr.index.intersection(s_corr.index)
     if len(common) < 2:
         return 100.0
-    r_vals = r_corr.loc[common, common].values[np.triu_indices_from(r_corr.loc[common, common], k=1)]
-    s_vals = s_corr.loc[common, common].values[np.triu_indices_from(s_corr.loc[common, common], k=1)]
+    r_vals = r_corr.loc[common, common].values[
+        np.triu_indices_from(r_corr.loc[common, common], k=1)
+    ]
+    s_vals = s_corr.loc[common, common].values[
+        np.triu_indices_from(s_corr.loc[common, common], k=1)
+    ]
     rank_match, _ = stats.spearmanr(r_vals, s_vals)
     if np.isnan(rank_match):
         return 100.0
@@ -41,9 +45,9 @@ def _concentration_match(r: np.ndarray, s: np.ndarray) -> float:
     top = DEFAULT_STYLIZED_CONCENTRATION_TOP
     r_sorted = np.sort(np.abs(r))[::-1]
     s_sorted = np.sort(np.abs(s))[::-1]
-    r_top = r_sorted[:max(1, int(len(r_sorted) * top))].sum()
+    r_top = r_sorted[: max(1, int(len(r_sorted) * top))].sum()
     r_bot = r_sorted.sum()
-    s_top = s_sorted[:max(1, int(len(s_sorted) * top))].sum()
+    s_top = s_sorted[: max(1, int(len(s_sorted) * top))].sum()
     s_bot = s_sorted.sum()
     r_conc = r_top / max(r_bot, 1e-9)
     s_conc = s_top / max(s_bot, 1e-9)
@@ -66,14 +70,22 @@ class StylizedFacts(Metric):
         for col in columns:
             r = real[col].dropna().values.astype(float)
             s = synthetic[col].dropna().values.astype(float)
-            if len(r) < DEFAULT_STYLIZED_MIN_SAMPLES or len(s) < DEFAULT_STYLIZED_MIN_SAMPLES:
+            if (
+                len(r) < DEFAULT_STYLIZED_MIN_SAMPLES
+                or len(s) < DEFAULT_STYLIZED_MIN_SAMPLES
+            ):
                 continue
             tail = _tail_integrity(r, s)
             conc = _concentration_match(r, s)
-            per_column[col] = {"tail_integrity": round(tail, 2), "concentration_match": round(conc, 2)}
+            per_column[col] = {
+                "tail_integrity": round(tail, 2),
+                "concentration_match": round(conc, 2),
+            }
             tested += 1
 
-        parity = _predictive_parity(real, synthetic, columns) if len(columns) >= 2 else None
+        parity = (
+            _predictive_parity(real, synthetic, columns) if len(columns) >= 2 else None
+        )
 
         if parity is not None:
             for col in per_column:

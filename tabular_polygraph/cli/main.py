@@ -11,6 +11,7 @@ from tabular_polygraph.cli.evaluate import cmd_evaluate
 from tabular_polygraph.cli.generate import cmd_generate
 from tabular_polygraph.cli.listinfo import cmd_info, cmd_list
 from tabular_polygraph.cli.validate import cmd_validate
+
 from .helpers import _positive_int
 from .utils import dim
 

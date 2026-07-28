@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from .utils import _c, C, dim, err, header
+from .utils import C, _c, dim, header
 
 
 def cmd_list(args):
@@ -35,6 +35,7 @@ def cmd_info(args):
         meta = get_dataset_info(args.dataset)
     except ValueError as e:
         from .utils import err as _err
+
         _err(str(e))
         sys.exit(1)
 

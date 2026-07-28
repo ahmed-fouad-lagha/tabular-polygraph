@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 
 from tabular_polygraph._config import (
-    DEFAULT_PRIVACY_N_ATTACKS,
     DEFAULT_PRIVACY_QUASI_ID_MAX,
     DEFAULT_PRIVACY_SEED,
     DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS,
@@ -44,7 +43,9 @@ def singling_out_risk(
 
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
     if quasi_id_cols is None:
-        qi_cols = [c for c in categorical_columns(real) if c in shared][:DEFAULT_PRIVACY_QUASI_ID_MAX]
+        qi_cols = [c for c in categorical_columns(real) if c in shared][
+            :DEFAULT_PRIVACY_QUASI_ID_MAX
+        ]
     else:
         qi_cols = quasi_id_cols
 

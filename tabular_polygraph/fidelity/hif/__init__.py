@@ -7,13 +7,7 @@ from .binning import (  # noqa: F401
     canonicalize_code_columns,
     fit_binning,
 )
-from .nic import (  # noqa: F401
-    NIC_COLLAPSE_PENALTY,
-    NIC_COLLAPSE_THRESHOLD,
-    NIC_GAMMA_PERCENTILE,
-    NIC_Z_PERCENTILE,
-    NeighborInvariantContinuity,
-)
+from .nic import NeighborInvariantContinuity  # noqa: F401
 from .orchestrator import hif_score  # noqa: F401
 from .rules import (  # noqa: F401
     MAX_RULE_CANDIDATES,
@@ -39,9 +33,5 @@ __all__ = [
     "fit_binning",
     "MAX_RULE_CANDIDATES",
     "LSE_MIN_SAMPLES_LEAF",
-    "NIC_COLLAPSE_THRESHOLD",
-    "NIC_COLLAPSE_PENALTY",
-    "NIC_Z_PERCENTILE",
-    "NIC_GAMMA_PERCENTILE",
     "RULE_QUANTIZATION_BINS",
 ]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from .utils import _c, C, dim, err, header, info, ok, warn
+from .utils import C, _c, dim, err, header, info, ok, warn
 
 
 def cmd_download(args):

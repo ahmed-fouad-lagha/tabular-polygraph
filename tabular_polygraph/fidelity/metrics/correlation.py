@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency, spearmanr
 
-from tabular_polygraph._types import Metric
 from tabular_polygraph._config import DEFAULT_JOINT_MIN_COLS
+from tabular_polygraph._types import Metric
+
 from . import register
 
 

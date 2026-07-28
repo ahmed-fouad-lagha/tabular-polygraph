@@ -3,8 +3,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph._types import Metric
 from tabular_polygraph._config import DEFAULT_TVD_MIN_SAMPLES
+from tabular_polygraph._types import Metric
+
 from . import register
 
 

@@ -8,35 +8,49 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from tabular_polygraph._types import Metric
 from tabular_polygraph._config import (
-    DEFAULT_ALPHA_BETA_N_STEPS,
     DEFAULT_ALPHA_BETA_MAX_ROWS,
     DEFAULT_ALPHA_BETA_MIN_ROWS,
+    DEFAULT_ALPHA_BETA_N_STEPS,
 )
+from tabular_polygraph._types import Metric
+
 from . import register
 
 
-def _encode(
-    real: pd.DataFrame, syn: pd.DataFrame
-) -> tuple[np.ndarray, np.ndarray]:
+def _encode(real: pd.DataFrame, syn: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     num_cols = real.select_dtypes(include=[np.number]).columns.tolist()
     cat_cols = real.select_dtypes(exclude=[np.number]).columns.tolist()
 
     transformers = []
     if num_cols:
         transformers.append(
-            ("num", Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler", StandardScaler()),
-            ]), num_cols)
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                num_cols,
+            )
         )
     if cat_cols:
         transformers.append(
-            ("cat", Pipeline([
-                ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-            ]), cat_cols)
+            (
+                "cat",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="most_frequent")),
+                        (
+                            "ohe",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                        ),
+                    ]
+                ),
+                cat_cols,
+            )
         )
 
     if not transformers:
@@ -76,9 +90,7 @@ class AlphaBeta(Metric):
 
         emb_center = np.mean(X, axis=0)
         alphas = np.linspace(0, 1, DEFAULT_ALPHA_BETA_N_STEPS)
-        Radii = np.quantile(
-            np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas
-        )
+        Radii = np.quantile(np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas)
         synth_to_center = np.sqrt(np.sum((X_syn - emb_center) ** 2, axis=1))
 
         nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(X)
@@ -90,9 +102,7 @@ class AlphaBeta(Metric):
         real_synth_closest_d = np.sqrt(
             np.sum((real_synth_closest - emb_center) ** 2, axis=1)
         )
-        real_to_synth_d = np.sqrt(
-            np.sum((real_synth_closest - X) ** 2, axis=1)
-        )
+        real_to_synth_d = np.sqrt(np.sum((real_synth_closest - X) ** 2, axis=1))
 
         precision_curve = [(synth_to_center <= r).mean() for r in Radii]
         coverage_curve = [(real_synth_closest_d <= r).mean() for r in Radii]

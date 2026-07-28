@@ -6,6 +6,7 @@ Abstract base class that every generator must implement.
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -30,6 +31,7 @@ class BaseGenerator(ABC):
         self._columns: list[str] = []  # column order from fit
         self._dtypes: dict[str, Any] = {}  # original dtypes
         self._syn_id_counter = 0
+        self._model: Any = None
         self._init(**kwargs)
 
     @abstractmethod
@@ -65,7 +67,6 @@ class BaseGenerator(ABC):
             from tabular_polygraph.utils import set_seed
 
             set_seed(seed)
-            self._syn_id_counter = 0
 
         df = self._generate(n, filters=filters, seed=seed)
         return self._add_syn_id(df)
@@ -122,6 +123,53 @@ class BaseGenerator(ABC):
     def __repr__(self) -> str:
         status = f"fitted on {self._n_fit:,} rows" if self._fitted else "not fitted"
         return f"{self.__class__.__name__}({status})"
+
+    def _sdv_generate(
+        self,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
+        """Shared generate logic for SDV-based generators (CTGAN, TVAE)."""
+        from sdv.sampling import Condition
+
+        if seed is not None:
+            self._model.set_random_state(seed)
+
+        if not filters:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning)
+                df = self._model.sample(n)
+            return self._cast_types(df)
+
+        exact_filters: dict[str, Any] = {}
+        post_filters: dict[str, Any] = {}
+        for k, v in filters.items():
+            if k in self._columns and not isinstance(v, list):
+                exact_filters[k] = v
+            else:
+                post_filters[k] = v
+
+        n_sample = n * 10 if post_filters else n
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            if exact_filters:
+                conditions = [Condition(column_values=exact_filters, num_rows=n_sample)]
+                df = self._model.sample_from_conditions(conditions=conditions)
+            else:
+                df = self._model.sample(n_sample)
+
+        if post_filters:
+            df = self._apply_filters(df, post_filters)
+            if len(df) < n:
+                warnings.warn(
+                    f"Requested {n} rows but filters yielded only {len(df)}",
+                    stacklevel=3,
+                )
+
+        df = df.head(n)
+        return self._cast_types(df)
 
     def _apply_filters(self, df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         """Apply column filters to a generated DataFrame.

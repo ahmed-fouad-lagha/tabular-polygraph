@@ -5,8 +5,9 @@ from typing import Any
 import pandas as pd
 
 from tabular_polygraph._config import FidelityConfig
-from .pipeline import FidelityPipeline
+
 from .formatters import ConsoleFormatter
+from .pipeline import FidelityPipeline
 
 
 def fidelity_report(
@@ -47,6 +48,7 @@ def fidelity_report(
             rule_max_rules=rule_max_rules,
             rule_min_lift=rule_min_lift,
             rule_max_antecedents=rule_max_antecedents,
+            random_state=random_state,
         ),
     )
 

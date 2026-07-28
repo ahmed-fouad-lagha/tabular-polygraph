@@ -8,8 +8,7 @@ import pandas as pd
 class Metric(ABC):
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     def required_column_types(self) -> set[str]:
         return {"all"}
@@ -18,10 +17,9 @@ class Metric(ABC):
         return None
 
     def fit(self, real: pd.DataFrame, columns: list[str]) -> None:
-        pass
+        return None
 
     @abstractmethod
     def compute(
         self, real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str]
-    ) -> dict:
-        ...
+    ) -> dict: ...

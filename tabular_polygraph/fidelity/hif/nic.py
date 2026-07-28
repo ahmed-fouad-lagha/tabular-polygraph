@@ -19,27 +19,13 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 
-from tabular_polygraph._config import (
-    DEFAULT_NIC_COLLAPSE_PENALTY,
-    DEFAULT_NIC_COLLAPSE_THRESHOLD,
-    DEFAULT_NIC_GAMMA_PERCENTILE,
-    DEFAULT_NIC_Z_PERCENTILE,
-)
+from tabular_polygraph._config import HIFConfig
 
 from .sentinel import ManifoldEncoder
 
 logger = logging.getLogger(__name__)
 
-NIC_COLLAPSE_THRESHOLD = DEFAULT_NIC_COLLAPSE_THRESHOLD
-NIC_COLLAPSE_PENALTY = DEFAULT_NIC_COLLAPSE_PENALTY
-NIC_Z_PERCENTILE = DEFAULT_NIC_Z_PERCENTILE
-NIC_GAMMA_PERCENTILE = DEFAULT_NIC_GAMMA_PERCENTILE
-
 __all__ = [
-    "NIC_COLLAPSE_THRESHOLD",
-    "NIC_COLLAPSE_PENALTY",
-    "NIC_Z_PERCENTILE",
-    "NIC_GAMMA_PERCENTILE",
     "NeighborInvariantContinuity",
 ]
 
@@ -50,7 +36,8 @@ class NeighborInvariantContinuity:
     Audits continuous features against categorical manifold using non-linear reconstruction.
     """
 
-    def __init__(self, random_state: int = 42):
+    def __init__(self, config: HIFConfig | None = None, random_state: int = 42):
+        self.config = config
         self.regressors: dict[str, HistGradientBoostingRegressor] = {}
         self.scalers: dict[str, StandardScaler] = {}
         self.z_thresholds: dict[str, float] = {}
@@ -60,6 +47,7 @@ class NeighborInvariantContinuity:
         self.latent_scaler = StandardScaler(with_mean=False)
         self.encoder = ManifoldEncoder()
         self.random_state = random_state
+        self._collapsed: dict[str, bool] = {}
 
     def _continuous_columns(self, continuous_df: pd.DataFrame) -> list[str]:
         return [c for c in continuous_df.columns if continuous_df[c].nunique() > 1]
@@ -83,7 +71,8 @@ class NeighborInvariantContinuity:
         if n_feat < 1 or n_samples < 2:
             return None, 0
 
-        n_comp = max(1, min(n_samples // 2, n_feat, 32))
+        dim_cap = self.config.nic_latent_dim_cap if self.config else 32
+        n_comp = max(1, min(n_samples // 2, n_feat, dim_cap))
         if verbose:
             logger.debug(f"Spectral Embedding ({n_feat} -> {n_comp} target)...")
 
@@ -123,12 +112,27 @@ class NeighborInvariantContinuity:
         scaler = StandardScaler()
         y_scaled = scaler.fit_transform(y_valid.reshape(-1, 1)).ravel()
 
+        if self.config is not None:
+            max_iter = self.config.nic_max_iter
+            max_depth = self.config.nic_max_depth
+            learning_rate = self.config.nic_learning_rate
+            l2_reg = self.config.nic_l2_regularization
+            z_pct = self.config.nic_z_percentile
+            gamma_pct = self.config.nic_gamma_percentile
+        else:
+            max_iter = 100
+            max_depth = 5
+            learning_rate = 0.1
+            l2_reg = 1.0
+            z_pct = 95
+            gamma_pct = 98
+
         reg = HistGradientBoostingRegressor(
-            max_iter=100,
-            max_depth=5,
-            learning_rate=0.1,
+            max_iter=max_iter,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
             random_state=self.random_state,
-            l2_regularization=1.0,
+            l2_regularization=l2_reg,
         )
         reg.fit(latent_valid, y_scaled)
         if verbose:
@@ -142,12 +146,16 @@ class NeighborInvariantContinuity:
 
         mad = float(median_abs_deviation(residuals))
         med = float(np.median(residuals))
-        p98 = float(np.percentile(residuals, 98))
+        p_z = float(np.percentile(residuals, z_pct))
 
-        self.z_thresholds[column_name] = max(p98, med + 2.0 * mad)
+        self.z_thresholds[column_name] = max(p_z, med + 2.0 * mad)
+        p_gamma = float(np.percentile(residuals, gamma_pct))
         self.gamma_scalings[column_name] = max(
-            2.0 * self.z_thresholds[column_name], 3.0 * mad, 0.1
+            max(p_gamma, 2.0 * self.z_thresholds[column_name]), 3.0 * mad, 0.1
         )
+
+        collapse_threshold = self.config.nic_collapse_threshold if self.config else 0.5
+        self._collapsed[column_name] = float(np.std(y_pred)) < collapse_threshold
 
     def fit(
         self,
@@ -192,6 +200,8 @@ class NeighborInvariantContinuity:
         latent = self.pca.transform(x_scaled)
         row_penalties = np.zeros(len(continuous_df))
 
+        collapse_penalty = self.config.nic_collapse_penalty if self.config else 0.6
+
         for col in continuous_df.columns:
             if col not in self.regressors:
                 continue
@@ -208,11 +218,17 @@ class NeighborInvariantContinuity:
             y_pred = self.regressors[col].predict(latent_valid)
             residuals = np.abs(y_scaled - y_pred)
 
-            threshold = self.z_thresholds[col]
-            gamma = self.gamma_scalings[col]
             col_penalty = np.zeros(len(y))
-            if threshold > 0:
-                col_penalty[valid_mask] = np.clip((residuals - threshold) / gamma, 0, 1)
+
+            if self._collapsed.get(col, False):
+                col_penalty[valid_mask] = collapse_penalty
+            else:
+                threshold = self.z_thresholds[col]
+                gamma = self.gamma_scalings[col]
+                if threshold > 0:
+                    col_penalty[valid_mask] = np.clip(
+                        (residuals - threshold) / gamma, 0, 1
+                    )
 
             row_penalties = np.maximum(row_penalties, col_penalty)
 

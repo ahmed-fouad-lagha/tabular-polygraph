@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .utils import _c, C, err, header, info, ok, section
+from .utils import C, _c, err, header, info, ok, section
 
 
 def cmd_validate(args):

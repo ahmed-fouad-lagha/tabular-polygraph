@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -12,13 +10,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
-from tabular_polygraph._types import Metric
-from tabular_polygraph._utils import numeric_columns, categorical_columns
 from tabular_polygraph._config import (
-    DEFAULT_DOWNSTREAM_TEST_FRAC,
-    DEFAULT_DOWNSTREAM_N_ESTIMATORS,
     DEFAULT_DOWNSTREAM_CLASS_THRESHOLD,
+    DEFAULT_DOWNSTREAM_N_ESTIMATORS,
+    DEFAULT_DOWNSTREAM_TEST_FRAC,
 )
+from tabular_polygraph._types import Metric
+from tabular_polygraph._utils import categorical_columns, numeric_columns
+
 from . import register
 
 
@@ -49,14 +48,11 @@ class Downstream(Metric):
 
         y_real = real[self._target_col]
         X_real = real[feature_cols]
-        X_syn = syn[feature_cols]
-
         n_unique = y_real.nunique()
         if n_unique <= DEFAULT_DOWNSTREAM_CLASS_THRESHOLD:
             task = "class"
             metric_fn = f1_score
             metric_name = "f1_macro"
-            y_real_str = y_real.astype(str)
         else:
             task = "reg"
             metric_fn = r2_score
@@ -67,17 +63,34 @@ class Downstream(Metric):
         transformers = []
         if num_cols:
             transformers.append(
-                ("num", Pipeline([
-                    ("imputer", SimpleImputer(strategy="median")),
-                    ("scaler", StandardScaler()),
-                ]), num_cols)
+                (
+                    "num",
+                    Pipeline(
+                        [
+                            ("imputer", SimpleImputer(strategy="median")),
+                            ("scaler", StandardScaler()),
+                        ]
+                    ),
+                    num_cols,
+                )
             )
         if cat_cols:
             transformers.append(
-                ("cat", Pipeline([
-                    ("imputer", SimpleImputer(strategy="most_frequent")),
-                    ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-                ]), cat_cols)
+                (
+                    "cat",
+                    Pipeline(
+                        [
+                            ("imputer", SimpleImputer(strategy="most_frequent")),
+                            (
+                                "ohe",
+                                OneHotEncoder(
+                                    handle_unknown="ignore", sparse_output=False
+                                ),
+                            ),
+                        ]
+                    ),
+                    cat_cols,
+                )
             )
 
         if not transformers:
@@ -100,7 +113,9 @@ class Downstream(Metric):
 
             mask = np.isin(y_real_enc, le.classes_)
             if mask.sum() < 10:
-                return {"error": "Too few valid synthetic samples after label alignment"}
+                return {
+                    "error": "Too few valid synthetic samples after label alignment"
+                }
 
             rf_tstr = RandomForestClassifier(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
@@ -109,14 +124,16 @@ class Downstream(Metric):
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )
 
-            from sklearn.base import clone
             rf_tstr.fit(X_syn_pre[mask], y_real_enc[mask])
             rf_trr.fit(X_real_pre, y_real_enc)
 
-            tstr = float(metric_fn(y_test_enc, rf_tstr.predict(X_test_pre), average="macro"))
-            trr = float(metric_fn(y_test_enc, rf_trr.predict(X_test_pre), average="macro"))
+            tstr = float(
+                metric_fn(y_test_enc, rf_tstr.predict(X_test_pre), average="macro")
+            )
+            trr = float(
+                metric_fn(y_test_enc, rf_trr.predict(X_test_pre), average="macro")
+            )
         else:
-            from sklearn.base import clone
             rf_tstr = RandomForestRegressor(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )

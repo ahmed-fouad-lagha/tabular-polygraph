@@ -4,13 +4,14 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from tabular_polygraph._types import Metric
-from tabular_polygraph._utils import to_numeric_array
 from tabular_polygraph._config import (
-    DEFAULT_MOMENT_WEIGHTS,
     DEFAULT_MOMENT_EPS,
     DEFAULT_MOMENT_MIN_SAMPLES,
+    DEFAULT_MOMENT_WEIGHTS,
 )
+from tabular_polygraph._types import Metric
+from tabular_polygraph._utils import to_numeric_array
+
 from . import register
 
 
@@ -30,7 +31,10 @@ class MomentMatching(Metric):
                 continue
             r = to_numeric_array(real[col], fill_method="dropna")
             s = to_numeric_array(synthetic[col], fill_method="dropna")
-            if len(r) < DEFAULT_MOMENT_MIN_SAMPLES or len(s) < DEFAULT_MOMENT_MIN_SAMPLES:
+            if (
+                len(r) < DEFAULT_MOMENT_MIN_SAMPLES
+                or len(s) < DEFAULT_MOMENT_MIN_SAMPLES
+            ):
                 continue
 
             mean_r, std_r = float(r.mean()), float(r.std(ddof=0))
@@ -40,10 +44,14 @@ class MomentMatching(Metric):
             kurt_r = float(stats.kurtosis(r, fisher=False, nan_policy="omit"))
             kurt_s = float(stats.kurtosis(s, fisher=False, nan_policy="omit"))
 
-            if not np.isfinite(skew_r): skew_r = 0.0
-            if not np.isfinite(skew_s): skew_s = 0.0
-            if not np.isfinite(kurt_r): kurt_r = 0.0
-            if not np.isfinite(kurt_s): kurt_s = 0.0
+            if not np.isfinite(skew_r):
+                skew_r = 0.0
+            if not np.isfinite(skew_s):
+                skew_s = 0.0
+            if not np.isfinite(kurt_r):
+                kurt_r = 0.0
+            if not np.isfinite(kurt_s):
+                kurt_s = 0.0
 
             eps = DEFAULT_MOMENT_EPS
             mean_err = min(abs(mean_s - mean_r) / max(abs(mean_r), eps), 1.0)
@@ -53,7 +61,11 @@ class MomentMatching(Metric):
 
             w = DEFAULT_MOMENT_WEIGHTS
             score = 100.0 * (
-                1.0 - w[0] * mean_err - w[1] * std_err - w[2] * skew_err - w[3] * kurt_err
+                1.0
+                - w[0] * mean_err
+                - w[1] * std_err
+                - w[2] * skew_err
+                - w[3] * kurt_err
             )
             scores[col] = round(float(max(0.0, min(100.0, score))), 2)
 

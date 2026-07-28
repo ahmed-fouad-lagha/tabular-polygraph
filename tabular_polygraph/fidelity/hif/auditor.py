@@ -9,11 +9,12 @@ import numpy as np
 import pandas as pd
 
 from tabular_polygraph._config import HIFConfig
+
 from .binning import apply_binning as _apply_binning
 from .binning import canonicalize_code_columns as _canonicalize_code_columns
 from .binning import fit_binning as _fit_binning
 from .nic import NeighborInvariantContinuity
-from .rules import mine_implication_rules, rule_violation_score
+from .rules import rule_violation_score
 from .sentinel import LogicalSentinelEnsemble, ManifoldEncoder
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class HIFAuditor:
         self._columns: list[str] = []
         self._valid_cols: list[str] = []
         self._skipped_cols: list[str] = []
+        self._real_f: pd.DataFrame | None = None
         self._is_fitted: bool = False
 
     def fit(
@@ -57,6 +59,7 @@ class HIFAuditor:
         self._bin_edges = _fit_binning(real[columns], columns)
 
         real_f = _apply_binning(real[columns], columns, self._bin_edges)
+        self._real_f = real_f
         self.encoder = ManifoldEncoder()
         self.encoder.fit(real_f)
         x_real_cat = self.encoder.transform(real_f)
@@ -78,7 +81,10 @@ class HIFAuditor:
         nic_targets = [c for c in self._skipped_cols if c not in self.oracle.hubs]
         if nic_targets:
             cat_context_real = real_f[self.oracle.hubs] if self.oracle.hubs else real_f
-            self.nic_auditor = NeighborInvariantContinuity(random_state=42)
+            self.nic_auditor = NeighborInvariantContinuity(
+                config=cfg,
+                random_state=cfg.random_state,
+            )
             self.nic_auditor.fit(
                 cat_context_real,
                 real[nic_targets],
@@ -98,13 +104,12 @@ class HIFAuditor:
 
         cfg = self.config
         columns = self._columns
-        synthetic_f = _apply_binning(
-            synthetic[columns], columns, self._bin_edges
-        )
+        synthetic_f = _apply_binning(synthetic[columns], columns, self._bin_edges)
 
         if callable(progress_callback):
             progress_callback(1, 3, "Auditing Sentinels...")
 
+        assert self.encoder is not None and self.oracle is not None
         x_syn_cat = self.encoder.transform(synthetic_f)
         _, cat_penalties, meta = self.oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
 
@@ -115,8 +120,10 @@ class HIFAuditor:
         if callable(progress_callback):
             progress_callback(2, 3, "Auditing Continuity (NIC)...")
 
-        if nic_targets and self.nic_auditor is not None:
-            cat_context_syn = synthetic_f[self.oracle.hubs] if self.oracle.hubs else synthetic_f
+        if nic_targets and self.nic_auditor is not None and self.oracle is not None:
+            cat_context_syn = (
+                synthetic_f[self.oracle.hubs] if self.oracle.hubs else synthetic_f
+            )
             _, nic_penalties_raw = self.nic_auditor.score(
                 cat_context_syn, synthetic[nic_targets], x_precomputed=None
             )
@@ -126,10 +133,9 @@ class HIFAuditor:
         if callable(progress_callback):
             progress_callback(3, 3, "Mining Implication Rules...")
 
-        real_f = _apply_binning(
-            synthetic[columns], columns, self._bin_edges
+        real_f, synthetic_f_norm = _canonicalize_code_columns(
+            self._real_f, synthetic_f, columns
         )
-        real_f, synthetic_f_norm = _canonicalize_code_columns(real_f, synthetic_f, columns)
         rule_result = rule_violation_score(
             real_f,
             synthetic_f_norm,
@@ -144,7 +150,9 @@ class HIFAuditor:
         )
         rule_penalties = np.zeros(len(synthetic))
         if rule_result.get("num_rows_with_violations", 0) > 0:
-            rule_penalties = rule_result.get("row_violation_mask", np.zeros(len(synthetic)))
+            rule_penalties = rule_result.get(
+                "row_violation_mask", np.zeros(len(synthetic))
+            )
 
         eps = cfg.component_floor
 
