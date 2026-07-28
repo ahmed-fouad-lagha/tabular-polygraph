@@ -36,6 +36,26 @@ def get_dataset_info(dataset_id: str) -> dict:
     return copy.deepcopy(DATASETS[dataset_id])
 
 
+def load_cached(dataset_id: str) -> pd.DataFrame | None:
+    """Load cached real data if available, else return None.
+
+    Columns listed in ``drop_cols`` are silently removed so downstream
+    consumers never see administrative / identifier columns.
+    """
+    from .downloader import cache_path
+
+    p = cache_path(dataset_id)
+    if p.exists():
+        df = pd.read_parquet(p)
+        drop_cols = DATASETS.get(dataset_id, {}).get("drop_cols", [])
+        if drop_cols:
+            existing = [c for c in drop_cols if c in df.columns]
+            if existing:
+                df = df.drop(columns=existing)
+        return df
+    return None
+
+
 def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     """
     Load real data for a dataset via API downloader.
@@ -62,9 +82,6 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
             f"Available real datasets: {available}\n"
             f"Download real data: from tabular_polygraph.dataset.downloader import download"
         )
-
-    # Always load from cache if available
-    from .downloader import load_cached  # type: ignore
 
     cached = load_cached(dataset_id)
     if cached is not None and len(cached) >= 100:

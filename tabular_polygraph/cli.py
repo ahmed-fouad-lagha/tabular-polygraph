@@ -207,7 +207,7 @@ def _load_generator(
 ):
     """Load and fit a generator for the given dataset."""
     from tabular_polygraph.dataset import load_dataset
-    from tabular_polygraph.dataset.downloader import load_cached
+    from tabular_polygraph.dataset.loader import load_cached
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     generator_type = _resolve_generator_type(dataset_id, generator_type)

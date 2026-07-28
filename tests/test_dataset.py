@@ -1,12 +1,12 @@
 from tabular_polygraph.dataset.downloader import (
     cache_path,
     is_cached,
-    load_cached,
 )
+from tabular_polygraph.dataset.loader import load_cached
 from tabular_polygraph.dataset.registry import DATASETS
 
 
-class TestCatalogRegistry:
+class TestDatasetRegistry:
     def test_registry_completeness(self):
         """Ensure every registered dataset has mandatory metadata."""
         for _did, info in DATASETS.items():
@@ -81,7 +81,7 @@ class TestCustomGeneration:
         assert "market" in syn.columns
 
     def test_cli_list_shows_all_datasets(self):
-        """The list command should show all catalog datasets."""
+        """The list command should show all datasets."""
         from tabular_polygraph.dataset import list_datasets
 
         df = list_datasets()

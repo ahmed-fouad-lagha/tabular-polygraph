@@ -40,7 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from tabular_polygraph.dataset import load_dataset
-from tabular_polygraph.dataset.downloader import load_cached
+from tabular_polygraph.dataset.loader import load_cached
 from tabular_polygraph.fidelity import (
     correlation_distance_score,
     hif_score,

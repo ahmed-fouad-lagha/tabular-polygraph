@@ -8,7 +8,8 @@ Usage
     download("adult")
 
     # Download all
-    download("all")
+    from tabular_polygraph.dataset.downloader import download_all
+    download_all()
 
     # Check what's cached
     status()
@@ -22,9 +23,19 @@ CLI
 
 from __future__ import annotations
 
-__all__ = ["download", "status", "cache_path", "is_cached", "load_cached"]
+__all__ = [
+    "download",
+    "download_all",
+    "status",
+    "cache_path",
+    "is_cached",
+]
 
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +43,7 @@ import pandas as pd
 from .registry import DATASETS
 
 
+@lru_cache(maxsize=1)
 def _cache_dir() -> Path:
     """Get the cache directory and ensure it exists."""
     base = Path(
@@ -51,18 +63,17 @@ def is_cached(dataset_id: str) -> bool:
     return cache_path(dataset_id).exists()
 
 
-def _download_census(n_sample: int = 10000) -> pd.DataFrame:
+def _download_census(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Census ACS via API. Pulls PUMA-level demographic profiles."""
     import json
     import time
-    import urllib.parse
-    import urllib.request
 
     import numpy as np
 
     var_map = DATASETS["census_acs"]["indicators"]
     variables = ",".join(var_map.keys())
 
+    # FIPS state codes 01-56: 50 states + DC (11). Territories (PR=72, etc.) excluded.
     states = [f"{i:02d}" for i in range(1, 57)]
     all_rows = []
 
@@ -83,7 +94,12 @@ def _download_census(n_sample: int = 10000) -> pd.DataFrame:
                 all_rows.append(dict(zip(headers, row, strict=True)))
             if int(state) % 10 == 0:
                 print(f"    Progress: {state}/56 states...", flush=True)
-        except Exception as exc:
+        except (
+            urllib.error.URLError,
+            json.JSONDecodeError,
+            TimeoutError,
+            OSError,
+        ) as exc:
             import warnings
 
             warnings.warn(
@@ -106,8 +122,6 @@ def _download_census(n_sample: int = 10000) -> pd.DataFrame:
         if col not in ["state", "public use microdata area"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Feature Engineering (Ratios)
-    # We remove .fillna() to ensure missing data is handled explicitly by dropna()
     df["poverty_status"] = df["poverty_count"] / df["poverty_total"]
     df["employment_status"] = 1 - (df["unemployed_count"] / df["labor_force_total"])
     df["tenure"] = df["owner_occupied_count"] / df["tenure_total"]
@@ -135,7 +149,7 @@ def _download_census(n_sample: int = 10000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_adult(n_sample: int = 50000) -> pd.DataFrame:
+def _download_adult(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Adult dataset from UCI repository."""
     url = DATASETS["adult"]["url"]
     cols = [
@@ -162,13 +176,13 @@ def _download_adult(n_sample: int = 50000) -> pd.DataFrame:
     # Drop fnlwgt and education-num as they are redundant or administrative
     df = df.drop(columns=["fnlwgt", "education-num"])
 
-    # Clean up column names to match indicators
+    # Normalize column names (hyphens -> underscores)
     df.columns = [c.replace("-", "_") for c in df.columns]
 
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_credit(n_sample: int = 50000) -> pd.DataFrame:
+def _download_credit(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Credit Card Default dataset from UCI repository."""
     url = DATASETS["credit"]["url"]
     print("    Fetching Credit Card Default dataset from UCI...")
@@ -200,7 +214,7 @@ def _download_credit(n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_supermarket_sales(n_sample: int = 50000) -> pd.DataFrame:
+def _download_supermarket_sales(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Supermarket Sales dataset from Plotly datasets."""
     url = DATASETS["supermarket_sales"]["url"]
     print("    Fetching Supermarket Sales dataset from Plotly...")
@@ -213,7 +227,6 @@ def _download_supermarket_sales(n_sample: int = 50000) -> pd.DataFrame:
 
     # Cast categorical columns to string
     cat_cols = [
-        "invoice_id",
         "branch",
         "city",
         "customer_type",
@@ -237,7 +250,7 @@ def _download_supermarket_sales(n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_online_purchases(n_sample: int = 50000) -> pd.DataFrame:
+def _download_online_purchases(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Online Purchases dataset from GitHub."""
     url = DATASETS["online_purchases"]["url"]
     print("    Fetching Online Purchases dataset from GitHub...")
@@ -288,41 +301,27 @@ def download(
     dataset_id: str,
     force: bool = False,
     n_sample: int = 50_000,
-) -> pd.DataFrame | dict[str, pd.DataFrame]:
+) -> pd.DataFrame:
     """
-    Download dataset(s) and cache them locally.
+    Download a single dataset and cache it locally.
 
     Parameters
     ----------
-    dataset_id : dataset ID, or "all" to download everything
+    dataset_id : dataset ID (use ``download_all()`` for everything)
     force      : re-download even if cached
     n_sample   : max rows to cache (default 50,000)
 
     Returns
     -------
-    pd.DataFrame | dict[str, pd.DataFrame]
-        A single DataFrame if a specific ID was requested,
-        or a dictionary of {id: DataFrame} if 'all' was requested.
+    pd.DataFrame
 
     Example
     -------
         from tabular_polygraph.dataset.downloader import download
         df = download("adult")
-        all_data = download("all")  # yields a dictionary
     """
     if dataset_id == "all":
-        results = {}
-        for ds_id in DATASETS:
-            try:
-                results[ds_id] = download(ds_id, force=force, n_sample=n_sample)
-            except Exception as e:
-                print(f"  ✗ {ds_id}: {e}")
-
-        failed = [ds_id for ds_id in DATASETS if ds_id not in results]
-        if failed:
-            print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
-
-        return results
+        return download_all(force=force, n_sample=n_sample)
 
     if dataset_id not in DATASETS:
         available = ", ".join(DATASETS)
@@ -333,9 +332,11 @@ def download(
 
     cached = cache_path(dataset_id)
     if not force:
+        from .loader import load_cached
+
         df_cached = load_cached(dataset_id)
         if df_cached is not None:
-            print(f"  ✓ {dataset_id} — loaded from cache ({cached})")
+            print(f"  [ok] {dataset_id} -- loaded from cache ({cached})")
             return df_cached
 
     info = DATASETS[dataset_id]
@@ -346,22 +347,44 @@ def download(
     df = _DOWNLOADERS[dataset_id](n_sample)
 
     df.to_parquet(cached, index=False)
-    print(f"  ✓ Cached {len(df):,} rows → {cached}")
+    print(f"  [ok] Cached {len(df):,} rows -> {cached}")
     return df
 
 
-def load_cached(dataset_id: str) -> pd.DataFrame | None:
-    """Load cached real data if available, else return None."""
-    p = cache_path(dataset_id)
-    if p.exists():
-        df = pd.read_parquet(p)
-        drop_cols = DATASETS.get(dataset_id, {}).get("drop_cols", [])
-        if drop_cols:
-            existing = [c for c in drop_cols if c in df.columns]
-            if existing:
-                df = df.drop(columns=existing)
-        return df
-    return None
+def download_all(
+    force: bool = False,
+    n_sample: int = 50_000,
+) -> dict[str, pd.DataFrame]:
+    """
+    Download every registered dataset and cache locally.
+
+    Parameters
+    ----------
+    force    : re-download even if cached
+    n_sample : max rows to cache per dataset (default 50,000)
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Mapping of dataset ID to its DataFrame.
+
+    Example
+    -------
+        from tabular_polygraph.dataset.downloader import download_all
+        all_data = download_all()
+    """
+    results: dict[str, pd.DataFrame] = {}
+    for ds_id in DATASETS:
+        try:
+            results[ds_id] = download(ds_id, force=force, n_sample=n_sample)
+        except Exception as e:
+            print(f"  [fail] {ds_id}: {e}")
+
+    failed = [ds_id for ds_id in DATASETS if ds_id not in results]
+    if failed:
+        print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
+
+    return results
 
 
 def status() -> pd.DataFrame:
@@ -383,8 +406,8 @@ def status() -> pd.DataFrame:
                 {
                     "dataset": dataset_id,
                     "status": "not downloaded",
-                    "size": "—",
-                    "path": "—",
+                    "size": "--",
+                    "path": "--",
                 }
             )
     return pd.DataFrame(rows)
