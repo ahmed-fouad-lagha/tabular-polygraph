@@ -94,13 +94,14 @@ def privacy_audit(
         train = real.iloc[idx[:split]].reset_index(drop=True)
         holdout = real.iloc[idx[split:]].reset_index(drop=True)
 
+    # Derive seeds so each sub-test gets an independent RNG stream
     report["membership_inference"] = membership_inference_risk(
         real_train=train,
         real_holdout=holdout,
         synthetic=synthetic,
         numeric_cols=numeric_cols,
         n_sample=n_attacks,
-        seed=seed,
+        seed=None if seed is None else seed + 1,
     )
 
     # ── Singling-out ─────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ def privacy_audit(
         synthetic=synthetic,
         quasi_id_cols=quasi_id_cols,
         n_attacks=n_attacks,
-        seed=seed,
+        seed=None if seed is None else seed + 2,
     )
 
     # ── Linkability ───────────────────────────────────────────────────────────
@@ -118,16 +119,20 @@ def privacy_audit(
         synthetic=synthetic,
         numeric_cols=numeric_cols,
         n_attacks=n_attacks,
-        seed=seed,
+        seed=None if seed is None else seed + 3,
     )
 
     # ── Overall verdict ───────────────────────────────────────────────────────
     risk_levels = [
         report["exact_copies"]["risk_level"],
-        report["membership_inference"].get("risk_level", "very_low"),
-        report["singling_out"].get("risk_level", "very_low"),
-        report["linkability"].get("risk_level", "very_low"),
     ]
+    for test in ("membership_inference", "singling_out", "linkability"):
+        result = report[test]
+        if "error" in result:
+            risk_level = "very_high"
+        else:
+            risk_level = result.get("risk_level", "very_high")
+        risk_levels.append(risk_level)
     max_risk = max(_RISK_ORDER.get(r, 0) for r in risk_levels)
 
     report["verdict"] = {

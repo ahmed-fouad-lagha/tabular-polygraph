@@ -249,10 +249,7 @@ def main():
     args = parser.parse_args()
 
     if getattr(args, "verbose", False):
-        logging.basicConfig(
-            level=logging.WARNING, format="  [%(levelname)s] %(message)s"
-        )
-        logging.getLogger("tabular_polygraph").setLevel(logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, format="  [%(levelname)s] %(message)s")
     elif getattr(args, "quiet", False):
         logging.basicConfig(level=logging.ERROR)
     else:

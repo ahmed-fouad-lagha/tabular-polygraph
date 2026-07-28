@@ -71,11 +71,13 @@ def write(
 
 
 def _write_csv(df, path, **kw):
-    df.to_csv(path, index=False, **kw)
+    kw.setdefault("index", False)
+    df.to_csv(path, **kw)
 
 
 def _write_parquet(df, path, **kw):
-    df.to_parquet(path, index=False, **kw)
+    kw.setdefault("index", False)
+    df.to_parquet(path, **kw)
 
 
 def _write_arrow(df, path, **kw):
@@ -89,7 +91,9 @@ def _write_arrow(df, path, **kw):
 
 
 def _write_json(df, path, **kw):
-    df.to_json(path, orient="records", indent=2, **kw)
+    kw.setdefault("orient", "records")
+    kw.setdefault("indent", 2)
+    df.to_json(path, **kw)
 
 
 def _write_stata(df, path, **kw):
@@ -109,12 +113,16 @@ def _write_stata(df, path, **kw):
             UserWarning,
             stacklevel=2,
         )
-    df_stata.to_stata(path, write_index=False, version=118, **kw)
+    kw.setdefault("write_index", False)
+    kw.setdefault("version", 118)
+    df_stata.to_stata(path, **kw)
 
 
 def _write_excel(df, path, **kw):
     try:
-        df.to_excel(path, index=False, engine="openpyxl", **kw)
+        kw.setdefault("index", False)
+        kw.setdefault("engine", "openpyxl")
+        df.to_excel(path, **kw)
     except ImportError:
         raise ImportError("Excel format requires: pip install openpyxl") from None
 

@@ -93,10 +93,10 @@ class AlphaBeta(Metric):
         Radii = np.quantile(np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas)
         synth_to_center = np.sqrt(np.sum((X_syn - emb_center) ** 2, axis=1))
 
-        nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(X)
+        nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=None, p=2).fit(X)
         real_to_real = nbrs_real.kneighbors(X)[0][:, 1].reshape(-1)
 
-        nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(X_syn)
+        nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=None, p=2).fit(X_syn)
         real_synth_idx = nbrs_synth.kneighbors(X, return_distance=False).reshape(-1)
         real_synth_closest = X_syn[real_synth_idx]
         real_synth_closest_d = np.sqrt(

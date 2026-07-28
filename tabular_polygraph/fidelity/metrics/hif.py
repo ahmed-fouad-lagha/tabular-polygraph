@@ -14,14 +14,12 @@ class HIFMetric(Metric):
 
     def __init__(self, config: HIFConfig | None = None):
         self._config = config or HIFConfig()
-        self._result: dict | None = None
 
     def required_column_types(self) -> set[str]:
         return {"all"}
 
     def fit(self, real: pd.DataFrame, columns: list[str]) -> None:
-        self._real = real
-        self._columns = columns
+        pass
 
     def compute(
         self, real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str]

@@ -72,7 +72,7 @@ def mine_implication_rules(
                     col_data, RULE_QUANTIZATION_BINS, labels=None, duplicates="drop"
                 )
                 cat[col] = quantized.astype(str)
-            except Exception:
+            except (ValueError, TypeError):
                 cat[col] = col_data.astype(str)
         else:
             cat[col] = col_data.astype(str)

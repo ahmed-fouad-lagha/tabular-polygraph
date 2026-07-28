@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def ok(msg: str) -> None:
-    print(f"  [OK] {msg}")
+    logger.info("[OK] %s", msg)
 
 
 def info(msg: str) -> None:
-    print(f"  [INFO] {msg}")
+    logger.info("%s", msg)
 
 
 def warn(msg: str) -> None:
-    print(f"  [WARN] {msg}")
+    logger.warning("%s", msg)
 
 
 def err(msg: str) -> None:
-    print(f"  [ERR] {msg}", file=sys.stderr)
+    logger.error("%s", msg)

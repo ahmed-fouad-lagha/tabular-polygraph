@@ -35,9 +35,6 @@ def hif_score(
     component_floor: float = 1e-4,
     progress_callback: Any | None = None,
 ) -> dict:
-    if verbose:
-        logger.debug("HIF score evaluation started...")
-
     config = HIFConfig(
         epochs=hif_epochs,
         hubs=hif_hubs,
@@ -52,6 +49,7 @@ def hif_score(
         ablation_mode=ablation_mode,
         aggregation=aggregation,
         component_floor=component_floor,
+        verbose=verbose,
     )
 
     auditor = HIFAuditor(config)

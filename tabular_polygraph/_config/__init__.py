@@ -120,6 +120,7 @@ class HIFConfig:
     random_state: int = DEFAULT_FIDELITY_RANDOM_STATE
     ablation_mode: str = DEFAULT_HIF_ABLATION_MODE
     aggregation: str = DEFAULT_HIF_AGGREGATION
+    verbose: bool = False
     progress_callback: Any | None = None
 
     nic_latent_dim_cap: int = DEFAULT_NIC_LATENT_DIM_CAP

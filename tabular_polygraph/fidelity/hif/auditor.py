@@ -67,13 +67,13 @@ class HIFAuditor:
         self.oracle = LogicalSentinelEnsemble(
             top_n_hubs=cfg.hubs,
             max_depth=cfg.depth,
-            random_state=42,
+            random_state=cfg.random_state,
             confidence_percentile=cfg.confidence_percentile,
         )
         self.oracle.fit(
             real_f,
             hif_epochs=cfg.epochs,
-            verbose=False,
+            verbose=cfg.verbose,
             x_precomputed=x_real_cat,
             potential_hubs=columns,
         )
@@ -90,7 +90,7 @@ class HIFAuditor:
                 cat_context_real,
                 real[nic_targets],
                 x_precomputed=None,
-                verbose=False,
+                verbose=cfg.verbose,
             )
 
         self._is_fitted = True
@@ -148,7 +148,7 @@ class HIFAuditor:
             max_rules=cfg.rule_max_rules,
             min_lift=cfg.rule_min_lift,
             max_antecedents=cfg.rule_max_antecedents,
-            random_state=42,
+            random_state=cfg.random_state,
             pre_binned=True,
         )
         rule_penalties = np.zeros(len(synthetic))
