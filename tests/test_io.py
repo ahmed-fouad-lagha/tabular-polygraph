@@ -134,6 +134,12 @@ def test_validate_dtypes():
     assert any("Column 'b' expected categorical" in w for w in res.warnings)
 
 
+def test_validate_unrecognized_dtype_silent():
+    df = pd.DataFrame({"a": [1, 2] * 30})
+    res = validate(df, expected_dtypes={"a": "boolean"})
+    assert res.passed
+
+
 def test_validate_nulls():
     df = pd.DataFrame({"a": [None] * 50 + [1] * 10})
     res = validate(df, null_threshold=0.3)
