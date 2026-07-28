@@ -18,8 +18,6 @@ class CTGANGenerator(BaseGenerator):
     CTGAN deep tabular generator (wraps SDV's CTGANSynthesizer).
     """
 
-    supported_types = ["cross_sectional"]
-
     def _init(
         self,
         epochs: int = 50,
@@ -46,7 +44,10 @@ class CTGANGenerator(BaseGenerator):
         self._record_schema(data)
 
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            warnings.filterwarnings("ignore", message=".*SingleTableMetadata.*")
+            warnings.filterwarnings("ignore", message=".*save_to_json.*")
+
             metadata = SingleTableMetadata()
             metadata.detect_from_dataframe(data[self._columns])
 
@@ -56,7 +57,8 @@ class CTGANGenerator(BaseGenerator):
                 batch_size=self._batch_size,
                 verbose=self._verbose,
             )
-            assert self._model is not None
+            if self._model is None:
+                raise RuntimeError("CTGAN model failed to initialise.")
             self._model.fit(data[self._columns])
 
         self._fitted = True
@@ -86,19 +88,10 @@ class CTGANGenerator(BaseGenerator):
                 np.random.seed(seed)
                 torch.manual_seed(seed)
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
-            df = self._model.sample(n * (10 if filters else 1))
+        def _sample(count: int) -> pd.DataFrame:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning)
+                df = self._model.sample(count)
+            return self._cast_types(df)
 
-        if filters:
-            df = self._apply_filters(df, filters)
-            attempts = 0
-            while len(df) < n and attempts < 5:
-                attempts += 1
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore")
-                    df_more = self._model.sample(n * 10)
-                df_more = self._apply_filters(df_more, filters)
-                df = pd.concat([df, df_more], ignore_index=True)
-
-        return self._add_syn_id(df.head(n))
+        return self._generate_with_retry(n, filters, _sample)

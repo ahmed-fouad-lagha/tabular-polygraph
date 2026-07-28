@@ -30,8 +30,6 @@ class TVAEGenerator(BaseGenerator):
         syn = gen.generate(1000)
     """
 
-    supported_types = ["cross_sectional"]
-
     def _init(
         self,
         epochs: int = 300,
@@ -92,7 +90,8 @@ class TVAEGenerator(BaseGenerator):
                 loss_factor=self._loss_factor,
                 verbose=self._verbose,
             )
-            assert self._model is not None
+            if self._model is None:
+                raise RuntimeError("TVAE model failed to initialise.")
             self._model.fit(data[self._columns])
 
         self._fitted = True
@@ -113,21 +112,10 @@ class TVAEGenerator(BaseGenerator):
             if hasattr(self._model, "set_random_state"):
                 self._model.set_random_state(seed)
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-            df = self._model.sample(n * (10 if filters else 1))
+        def _sample(count: int) -> pd.DataFrame:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning)
+                df = self._model.sample(count)
+            return self._cast_types(df)
 
-        df = self._cast_types(df)
-        if filters:
-            df = self._apply_filters(df, filters)
-            attempts = 0
-            while len(df) < n and attempts < 5:
-                attempts += 1
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=FutureWarning)
-                    df_more = self._model.sample(n * 10)
-                df_more = self._cast_types(df_more)
-                df_more = self._apply_filters(df_more, filters)
-                df = pd.concat([df, df_more], ignore_index=True)
-
-        return self._add_syn_id(df.head(n))
+        return self._generate_with_retry(n, filters, _sample)

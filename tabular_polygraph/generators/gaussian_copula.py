@@ -123,20 +123,8 @@ class GaussianCopulaGenerator(BaseGenerator):
         gen = GaussianCopulaGenerator()
         gen.fit(real_df)
         syn = gen.generate(1000)
-        syn = gen.generate(500, filters={"state": ["CA", "TX"], "dti_min": 45})
+        syn = gen.generate(500, filters={"state": ["CA", "TX"], "income_min": 45})
     """
-
-    supported_types = ["cross_sectional"]
-
-    # Shorthand aliases: 'dti' → 'debt_to_income', etc.
-    _ALIASES: dict[str, str] = {
-        "dti": "debt_to_income",
-        "income": "applicant_income",
-        "loan": "loan_amount",
-        "gdp": "gdp_growth_yoy",
-        "ffr": "fed_funds_rate",
-        "assets": "total_assets",
-    }
 
     def _init(self, priors: Any | None = None, **kwargs: Any) -> None:
         self._marginals: dict[str, _NumericMarginal | _CategoricalMarginal] = {}
@@ -211,12 +199,9 @@ class GaussianCopulaGenerator(BaseGenerator):
             # Use SVD for more robust eigenvalue estimation on ill-conditioned matrices
             _, s, _ = np.linalg.svd(corr)
             min_eig = s.min()
-            # If SVD is successful but min singular value is effectively 0 or negative
-            # (singular values are non-negative, but numerical noise might happen)
             if min_eig < 1e-8:
                 corr += (1e-8 - min_eig) * np.eye(len(self._columns))
         except np.linalg.LinAlgError:
-            # Absolute fallback
             corr += 1e-6 * np.eye(len(self._columns))
 
         self._corr = corr
@@ -227,49 +212,25 @@ class GaussianCopulaGenerator(BaseGenerator):
         filters: dict | None = None,
         seed: int | None = None,
     ) -> pd.DataFrame:
-        n_gen = n * (10 if filters else 1)
-
-        # Correlated normal samples via modern Generator
         rng = np.random.default_rng(seed)
-        assert self._corr is not None
-        try:
-            L = np.linalg.cholesky(self._corr)
-            z = rng.standard_normal((n_gen, len(self._columns))) @ L.T
-        except np.linalg.LinAlgError:
-            z = rng.standard_normal((n_gen, len(self._columns)))
 
-        u = stats.norm.cdf(z)
+        def _sample(count: int) -> pd.DataFrame:
+            try:
+                if self._corr is None:
+                    raise ValueError("Correlation matrix not fitted")
+                L = np.linalg.cholesky(self._corr)
+                z = rng.standard_normal((count, len(self._columns))) @ L.T
+            except np.linalg.LinAlgError:
+                z = rng.standard_normal((count, len(self._columns)))
 
-        records = {
-            col: self._marginals[col].from_uniform(u[:, i])
-            for i, col in enumerate(self._columns)
-        }
-        df = pd.DataFrame(records)
-        df = self._cast_types(df)
+            u = stats.norm.cdf(z)
+            records = {
+                col: self._marginals[col].from_uniform(u[:, i])
+                for i, col in enumerate(self._columns)
+            }
+            return self._cast_types(pd.DataFrame(records))
 
-        if filters:
-            df = self._apply_filters(df, filters)
-            attempts = 0
-            while len(df) < n and attempts < 5:
-                attempts += 1
-                n_more = n * 10
-                z_more = rng.standard_normal((n_more, len(self._columns)))
-                try:
-                    assert self._corr is not None
-                    L = np.linalg.cholesky(self._corr)
-                    z_more = z_more @ L.T
-                except np.linalg.LinAlgError:
-                    pass
-                u_more = stats.norm.cdf(z_more)
-                rec_more = {
-                    col: self._marginals[col].from_uniform(u_more[:, i])
-                    for i, col in enumerate(self._columns)
-                }
-                df_more = self._cast_types(pd.DataFrame(rec_more))
-                df_more = self._apply_filters(df_more, filters)
-                df = pd.concat([df, df_more], ignore_index=True)
-
-        return self._add_syn_id(df.head(n))
+        return self._generate_with_retry(n, filters, _sample)
 
     # ── introspection ─────────────────────────────────────────────────────────
 

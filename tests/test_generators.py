@@ -17,7 +17,7 @@ class TestBaseGenerator:
         with pytest.raises(RuntimeError, match="not been fitted"):
             gen.generate(10)
 
-    def test_fit_sample_fluent(self):
+    def test_fit_generate_fluent(self):
         from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame(
@@ -27,17 +27,17 @@ class TestBaseGenerator:
                 "grp": (["A", "B", "C"] * 40),
             }
         )
-        out = GaussianCopulaGenerator().fit_sample(df, 50, seed=1)
+        out = GaussianCopulaGenerator().fit_generate(df, 50, seed=1)
         assert len(out) == 50
 
-    def test_base_aliases(self):
+    def test_base_methods(self):
         from tabular_polygraph.generators import GaussianCopulaGenerator
 
         df = pd.DataFrame({"a": [1, 2, 3] * 50})
         gen = GaussianCopulaGenerator()
         gen.fit(df)
-        assert len(gen.sample(10)) == 10
-        assert len(gen.fit_sample(df, 10)) == 10
+        assert len(gen.generate(10)) == 10
+        assert len(gen.fit_generate(df, 10)) == 10
 
     def test_repr_before_after_fit(self):
         from tabular_polygraph.generators import GaussianCopulaGenerator

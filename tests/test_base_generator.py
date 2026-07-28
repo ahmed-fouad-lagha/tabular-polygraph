@@ -48,10 +48,10 @@ def test_base_generator_methods():
     syn1 = gen.generate(3)
     assert "syn_id" in syn1.columns
     assert len(syn1) == 3
-    assert syn1["syn_id"].iloc[0] == "SYN-100000"
+    assert syn1["syn_id"].iloc[0] == "SYN-0"
 
     syn2 = gen.generate(2)
-    assert syn2["syn_id"].iloc[0] == "SYN-100003"
+    assert syn2["syn_id"].iloc[0] == "SYN-3"
 
 
 def test_base_generator_filters_and_aliases():
@@ -66,6 +66,6 @@ def test_base_generator_filters_and_aliases():
     gen.fit(df)
     gen._columns = ["debt_to_income", "state"]
 
-    filtered = gen._apply_filters(df, {"dti_min": 25.0})
+    filtered = gen._apply_filters(df, {"debt_to_income_min": 25.0})
     assert len(filtered) == 2
     assert (filtered["debt_to_income"] >= 25.0).all()

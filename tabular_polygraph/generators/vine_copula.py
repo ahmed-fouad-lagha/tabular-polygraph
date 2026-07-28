@@ -151,8 +151,6 @@ class VineCopulaGenerator(BaseGenerator):
         Truncation level for the vine (0 = full vine, 1 = fast approximation)
     """
 
-    supported_types = ["cross_sectional"]
-
     def _init(self, family_set: str = "parametric", trunc_lvl: int = 0, **kwargs):
         self._family_set = family_set
         self._trunc_lvl = trunc_lvl
@@ -222,27 +220,16 @@ class VineCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def _generate(
-        self,
-        n: int,
-        filters: dict | None = None,
-        seed: int | None = None,
-    ) -> pd.DataFrame:
-        _require_pyvine()
-
-        n_gen = n * (6 if filters else 1)
-
-        # Simulate from vine (seed the vine's internal RNG for reproducibility)
-        seeds_arg = [seed] if seed is not None else []
-        U_syn = self._vine.simulate(n_gen, seeds=seeds_arg)
+    def _sample_from_vine(self, count: int, rng: np.random.Generator) -> pd.DataFrame:
+        """Simulate from the vine and invert through empirical marginals."""
+        U_syn = self._vine.simulate(count)
         U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
-        # Invert through empirical marginals (quantile function)
         records = {}
         for i, col in enumerate(self._numeric_cols):
             m = self._marginals[col]
             if m["n"] == 0:
-                records[col] = np.full(n_gen, 0.0)
+                records[col] = np.full(count, 0.0)
                 continue
             quantile_idx = U_syn[:, i] * (m["n"] - 1)
             lower = np.floor(quantile_idx).astype(int)
@@ -251,50 +238,29 @@ class VineCopulaGenerator(BaseGenerator):
             values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
             records[col] = np.clip(values, m["min"], m["max"])
 
-        # Sample categorical columns independently from their marginals.
-        rng = np.random.default_rng(seed)
         for col in self._cat_cols:
             m = self._cat_marginals[col]
             if not m["cats"]:
-                records[col] = np.full(n_gen, "unknown", dtype=object)
+                records[col] = np.full(count, "unknown", dtype=object)
                 continue
-            records[col] = rng.choice(m["cats"], size=n_gen, p=m["probs"])
+            records[col] = rng.choice(m["cats"], size=count, p=m["probs"])
 
-        df = pd.DataFrame(records)[self._columns]
-        df = self._cast_types(df)
+        return self._cast_types(pd.DataFrame(records)[self._columns])
 
-        if filters:
-            df = self._apply_filters(df, filters)
-            attempts = 0
-            while len(df) < n and attempts < 5:
-                attempts += 1
-                n_more = n * 10
-                U_syn_more = self._vine.simulate(n_more)
-                U_syn_more = np.clip(U_syn_more, 1e-4, 1 - 1e-4)
-                rec_more = {}
-                for i, col in enumerate(self._numeric_cols):
-                    m = self._marginals[col]
-                    if m["n"] == 0:
-                        rec_more[col] = np.full(n_more, 0.0)
-                        continue
-                    quantile_idx = U_syn_more[:, i] * (m["n"] - 1)
-                    lower = np.floor(quantile_idx).astype(int)
-                    upper = np.minimum(lower + 1, m["n"] - 1)
-                    frac = quantile_idx - lower
-                    values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
-                    rec_more[col] = np.clip(values, m["min"], m["max"])
-                for col in self._cat_cols:
-                    m = self._cat_marginals[col]
-                    if not m["cats"]:
-                        rec_more[col] = np.full(n_more, "unknown", dtype=object)
-                        continue
-                    rec_more[col] = rng.choice(m["cats"], size=n_more, p=m["probs"])
-                df_more = pd.DataFrame(rec_more)[self._columns]
-                df_more = self._cast_types(df_more)
-                df_more = self._apply_filters(df_more, filters)
-                df = pd.concat([df, df_more], ignore_index=True)
+    def _generate(
+        self,
+        n: int,
+        filters: dict | None = None,
+        seed: int | None = None,
+    ) -> pd.DataFrame:
+        _require_pyvine()
 
-        return self._add_syn_id(df.head(n))
+        rng = np.random.default_rng(seed)
+
+        def _sample(count: int) -> pd.DataFrame:
+            return self._sample_from_vine(count, rng)
+
+        return self._generate_with_retry(n, filters, _sample)
 
     def tail_dependence_report(self) -> dict:
         """Return upper and lower tail dependence coefficients for each pair.
