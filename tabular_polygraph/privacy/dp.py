@@ -22,6 +22,8 @@ class PrivacyBudget:
     def __init__(self, epsilon: float, delta: float = 0.0):
         if epsilon <= 0:
             raise ValueError("epsilon must be positive")
+        if delta < 0:
+            raise ValueError("delta must be non-negative")
         self.epsilon = epsilon
         self.delta = delta
         self._used_epsilon = 0.0
@@ -71,6 +73,8 @@ def laplace_mechanism(
     epsilon     : privacy parameter for this release
     budget      : if provided, consume epsilon from budget
     """
+    if epsilon <= 0:
+        raise ValueError("epsilon must be positive")
     rng = np.random.default_rng(seed)
     scale = sensitivity / epsilon
     noise = rng.laplace(0, scale, size=np.asarray(value).shape or None)
@@ -92,6 +96,10 @@ def gaussian_mechanism(
     Add Gaussian noise for (ε, δ)-DP.
     σ = sensitivity * sqrt(2 ln(1.25/δ)) / ε
     """
+    if epsilon <= 0:
+        raise ValueError("epsilon must be positive")
+    if delta <= 0:
+        raise ValueError("delta must be positive")
     rng = np.random.default_rng(seed)
     sigma = sensitivity * np.sqrt(2 * np.log(1.25 / delta)) / epsilon
     noise = rng.normal(0, sigma, size=np.asarray(value).shape or None)

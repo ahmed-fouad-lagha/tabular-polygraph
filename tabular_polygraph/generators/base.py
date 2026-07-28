@@ -137,7 +137,10 @@ class BaseGenerator(ABC):
         seed: int | None = None,
     ) -> pd.DataFrame:
         """Shared generate logic for SDV-based generators (CTGAN, TVAE)."""
-        from sdv.sampling import Condition
+        try:
+            from sdv.sampling.tabular import Condition
+        except ImportError:
+            from sdv.sampling import Condition
 
         if seed is not None:
             self._model.set_random_state(seed)

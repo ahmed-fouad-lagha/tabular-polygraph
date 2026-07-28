@@ -203,7 +203,10 @@ class VineCopulaGenerator(BaseGenerator):
         n = len(data)
         U = np.zeros((n, len(self._numeric_cols)))
         for i, col in enumerate(self._numeric_cols):
-            arr = data[col].fillna(data[col].median()).astype(float).values
+            col_med = data[col].median()
+            if pd.isna(col_med):
+                col_med = 0.0
+            arr = data[col].fillna(col_med).astype(float).values
             ranks = stats.rankdata(arr)
             U[:, i] = ranks / (n + 1)
 
@@ -252,7 +255,7 @@ class VineCopulaGenerator(BaseGenerator):
                     f"Generation terminated after {_max_iter} iterations: "
                     f"filters are too strict. Collected {collected}/{n} rows."
                 )
-            U_syn = self._vine.simulate(batch_size)
+            U_syn = self._vine.simulate(batch_size, seeds=seed)
             U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
             records = {}
@@ -273,7 +276,9 @@ class VineCopulaGenerator(BaseGenerator):
                 if not m["cats"]:
                     records[col] = np.full(batch_size, "unknown", dtype=object)
                     continue
-                records[col] = rng.choice(m["cats"], size=batch_size, p=m["probs"])
+                probs = np.asarray(m["probs"], dtype=float)
+                probs /= probs.sum()
+                records[col] = rng.choice(m["cats"], size=batch_size, p=probs)
 
             if resolved_filters:
                 mask = np.ones(batch_size, dtype=bool)
