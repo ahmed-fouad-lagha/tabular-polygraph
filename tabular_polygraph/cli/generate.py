@@ -162,7 +162,7 @@ def _compute_generate_report(
 def _print_generate_bars(report):
     section("Marginal Fidelity")
 
-    mm_cols = report.get("moment_matching", {}).get("column_scores", {})
+    mm_cols = report.get("moment_matching", {}).get("columns", {})
     if mm_cols:
         print(f"    {_c('Continuous (Moment matching)', C.GRAY)}")
         for col, score in mm_cols.items():
@@ -171,7 +171,7 @@ def _print_generate_bars(report):
             )
         print()
 
-    ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
+    ks_cols = report.get("distribution_fit", {}).get("columns", {})
     if ks_cols:
         print(f"    {_c('Continuous (KS distribution)', C.GRAY)}")
         for col, score in ks_cols.items():
@@ -180,7 +180,7 @@ def _print_generate_bars(report):
             )
         print()
 
-    tvd_cols = report.get("categorical_tvd", {}).get("column_scores", {})
+    tvd_cols = report.get("categorical_tvd", {}).get("columns", {})
     if tvd_cols:
         print(f"    {_c('Categorical (TVD)', C.GRAY)}")
         for col, score in tvd_cols.items():
@@ -189,9 +189,9 @@ def _print_generate_bars(report):
             )
         print()
 
-    ap = report.get("coverage", {}).get("alpha_precision")
-    br = report.get("coverage", {}).get("beta_recall")
-    au = report.get("coverage", {}).get("authenticity")
+    ap = (report.get("coverage") or {}).get("alpha_precision")
+    br = (report.get("coverage") or {}).get("beta_recall")
+    au = (report.get("coverage") or {}).get("authenticity")
     if ap is not None and br is not None and au is not None:
         section("Multidimensional Coverage")
         print(f"    {_c('Alpha-precision', C.GRAY):<34}{ap:.3f}")
@@ -205,16 +205,19 @@ def _print_generate_stylized(report):
     print()
     section("Stylized facts")
     if sf_summary.get("applicable", True):
+        mean_score = sf_summary.get("mean_score")
         print(
-            f"    {_c('Mean score:', C.GRAY):<34}{_c(str(sf_summary.get('mean_score')) + '%', C.GREEN)}"
+            f"    {_c('Mean score:', C.GRAY):<34}{_c(str(mean_score) + '%', C.GREEN) if mean_score else 'N/A'}"
         )
         print(
             f"    {_c('Columns tested:', C.GRAY):<34}{sf_summary.get('columns_tested', 0)}"
         )
-        for col, item in report.get("stylized_facts", {}).items():
-            if col == "_summary":
-                continue
-            print(f"    {col:<26}{item.get('score', '—')}%")
+        per_col = report.get("stylized_facts", {}).get("per_column", {})
+        for col, item in per_col.items():
+            tail = item.get("tail_integrity", "—")
+            conc = item.get("concentration_match", "—")
+            parity = item.get("predictive_parity", "—")
+            print(f"    {col:<26} tail={tail}%  conc={conc}%  parity={parity}%")
     else:
         print(f"    {sf_summary.get('note', 'Not evaluated.')}")
 
@@ -225,7 +228,7 @@ def _print_generate_logical(report):
 
     lg = report["logical"]
     section("Logical")
-    if "error" in lg:
+    if lg.get("error"):
         print(f"    {_c('Error:', C.RED)} {lg['error']}")
         return
 
@@ -297,7 +300,7 @@ def _save_generated_output(syn, output_path: str):
     final_path = write(syn, output_path)
     print()
     ok(
-        f"Saved → {_c(str(final_path), C.CYAN)}  ({final_path.stat().st_size // 1024} KB)"
+        f"Saved -> {_c(str(final_path), C.CYAN)}  ({final_path.stat().st_size // 1024} KB)"
     )
     print()
 

@@ -81,7 +81,9 @@ class HIFAuditor:
         hubs = self.oracle.hubs if self.oracle is not None else []
         nic_targets = [c for c in self._skipped_cols if c not in hubs]
         if nic_targets:
-            cat_context_real = real_f[hubs] if hubs else real_f
+            # Use ALL valid (categorical) columns for NIC context, not just hubs
+            # Hubs are selected for categorical logic (LSE), not continuous prediction (NIC)
+            cat_context_real = real_f[self._valid_cols] if self._valid_cols else real_f
             self.nic_auditor = NeighborInvariantContinuity(
                 config=cfg,
                 random_state=cfg.random_state,
@@ -126,7 +128,10 @@ class HIFAuditor:
             progress_callback(2, 3, "Auditing Continuity (NIC)...")
 
         if nic_targets and self.nic_auditor is not None and self.oracle is not None:
-            cat_context_syn = synthetic_f[hubs] if hubs else synthetic_f
+            # Use same categorical context as fit (all valid cols, not just hubs)
+            cat_context_syn = (
+                synthetic_f[self._valid_cols] if self._valid_cols else synthetic_f
+            )
             _, nic_penalties_raw = self.nic_auditor.score(
                 cat_context_syn, synthetic[nic_targets], x_precomputed=None
             )

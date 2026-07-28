@@ -32,19 +32,19 @@ def _c(t, c):
 
 
 def ok(m):
-    print(_c("  ✓ ", C.GREEN) + m)
+    print(_c("  [OK] ", C.GREEN) + m)
 
 
 def info(m):
-    print(_c("  → ", C.CYAN) + m)
+    print(_c("  -> ", C.CYAN) + m)
 
 
 def warn(m):
-    print(_c("  ! ", C.YELLOW) + m)
+    print(_c("  [!] ", C.YELLOW) + m)
 
 
 def err(m):
-    print(_c("  ✗ ", C.RED) + m, file=sys.stderr)
+    print(_c("  [ERR] ", C.RED) + m, file=sys.stderr)
 
 
 def dim(m):
@@ -56,12 +56,12 @@ def header(title, sub=""):
     print(_c("  " + title, C.BOLD))
     if sub:
         print(_c("  " + sub, C.GRAY))
-    print(_c("  " + "─" * max(len(title), len(sub)), C.GRAY))
+    print(_c("  " + "-" * max(len(title), len(sub)), C.GRAY))
 
 
 def section(title):
     print()
-    print(_c("  ┌─ " + title, C.CYAN))
+    print(_c("  +-- " + title, C.CYAN))
 
 
 def bar(score, width=22):
@@ -76,7 +76,7 @@ def bar(score, width=22):
         col = C.YELLOW
     else:
         col = C.RED
-    return _c("█" * filled, col) + _c("░" * (width - filled), C.GRAY)
+    return _c("#" * filled, col) + _c("-" * (width - filled), C.GRAY)
 
 
 def _json_clean(obj):
