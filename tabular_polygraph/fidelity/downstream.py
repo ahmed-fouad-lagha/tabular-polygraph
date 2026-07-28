@@ -159,7 +159,7 @@ def tstr_score(
         )
         model_trr = Pipeline(
             [
-                ("preprocessor", preprocessor),
+                ("preprocessor", clone(preprocessor)),
                 ("rf", RandomForestRegressor(n_estimators=100, random_state=seed)),
             ]
         )

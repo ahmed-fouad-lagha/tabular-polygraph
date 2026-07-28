@@ -23,9 +23,11 @@ from .binning import (
     fit_binning,
 )
 
+from tabular_polygraph._config import DEFAULT_RULE_MAX_CANDIDATES
+
 logger = logging.getLogger(__name__)
 
-MAX_RULE_CANDIDATES = 10000
+MAX_RULE_CANDIDATES = DEFAULT_RULE_MAX_CANDIDATES
 ANTE_JOIN = " & "
 
 __all__ = [

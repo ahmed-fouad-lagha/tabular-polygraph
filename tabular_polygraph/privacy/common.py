@@ -11,7 +11,6 @@ from __future__ import annotations
 
 
 def risk_level_membership(auc: float) -> str:
-    """Risk level for membership inference AUC scores."""
     if auc < 0.52:
         return "very_low"
     if auc < 0.60:
@@ -24,7 +23,6 @@ def risk_level_membership(auc: float) -> str:
 
 
 def risk_level_singling_out(rate: float) -> str:
-    """Risk level for singling-out attack rates."""
     if rate < 0.001:
         return "very_low"
     if rate < 0.01:
@@ -37,7 +35,6 @@ def risk_level_singling_out(rate: float) -> str:
 
 
 def risk_level_linkability(rate: float) -> str:
-    """Risk level for linkability attack rates."""
     if rate < 0.52:
         return "very_low"
     if rate < 0.60:

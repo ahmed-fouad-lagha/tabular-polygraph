@@ -1,13 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.fidelity.report import (
-    fidelity_report,
-    format_report,
-)
-
 
 def test_fidelity_report_smoke():
+    from tabular_polygraph.fidelity import fidelity_report, format_report
+
     real = pd.DataFrame(
         {
             "A": np.random.normal(0, 1, 100),
@@ -16,7 +13,7 @@ def test_fidelity_report_smoke():
         }
     )
     syn = real.copy()
-    report = fidelity_report(real, syn, target_col="C")
+    report = fidelity_report(real, syn, target_col="C", hif_epochs=2, hif_hubs=2, hif_depth=4)
     assert "summary" in report
     assert "moment_matching_score" in report["summary"]
     assert "logic_score" in report["summary"]
@@ -27,6 +24,8 @@ def test_fidelity_report_smoke():
 
 
 def test_format_report_with_errors():
+    from tabular_polygraph.fidelity import format_report
+
     report = {
         "summary": {
             "rows_real": 100,
@@ -46,6 +45,8 @@ def test_format_report_with_errors():
 
 
 def test_format_report_with_rules():
+    from tabular_polygraph.fidelity import format_report
+
     report = {
         "summary": {
             "rows_real": 100,

@@ -19,14 +19,21 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 
+from tabular_polygraph._config import (
+    DEFAULT_NIC_COLLAPSE_PENALTY,
+    DEFAULT_NIC_COLLAPSE_THRESHOLD,
+    DEFAULT_NIC_GAMMA_PERCENTILE,
+    DEFAULT_NIC_Z_PERCENTILE,
+)
+
 from .sentinel import ManifoldEncoder
 
 logger = logging.getLogger(__name__)
 
-NIC_COLLAPSE_THRESHOLD = 0.5
-NIC_COLLAPSE_PENALTY = 0.6
-NIC_Z_PERCENTILE = 95
-NIC_GAMMA_PERCENTILE = 98
+NIC_COLLAPSE_THRESHOLD = DEFAULT_NIC_COLLAPSE_THRESHOLD
+NIC_COLLAPSE_PENALTY = DEFAULT_NIC_COLLAPSE_PENALTY
+NIC_Z_PERCENTILE = DEFAULT_NIC_Z_PERCENTILE
+NIC_GAMMA_PERCENTILE = DEFAULT_NIC_GAMMA_PERCENTILE
 
 __all__ = [
     "NIC_COLLAPSE_THRESHOLD",

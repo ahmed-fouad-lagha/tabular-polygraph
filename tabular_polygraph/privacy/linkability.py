@@ -18,6 +18,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from tabular_polygraph._config import (
+    DEFAULT_PRIVACY_LINKABILITY_BASELINE,
+    DEFAULT_PRIVACY_MIN_DATA,
+    DEFAULT_PRIVACY_N_ATTACKS,
+    DEFAULT_PRIVACY_SEED,
+)
 from tabular_polygraph.utils import normalize, numeric_columns
 
 from .common import risk_level_linkability
@@ -39,8 +45,8 @@ def linkability_risk(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     numeric_cols: list[str] | None = None,
-    n_attacks: int = 300,
-    seed: int = 42,
+    n_attacks: int = DEFAULT_PRIVACY_N_ATTACKS,
+    seed: int = DEFAULT_PRIVACY_SEED,
 ) -> dict:
     """
     Estimate linkability risk via nearest-neighbour attack.
@@ -59,7 +65,7 @@ def linkability_risk(
     else:
         cols = numeric_cols
 
-    if len(cols) < 2 or len(real) < 20:
+    if len(cols) < 2 or len(real) < DEFAULT_PRIVACY_MIN_DATA:
         return {
             "error": "Insufficient data for linkability test",
             "linkability_rate": 0.0,
@@ -100,7 +106,7 @@ def linkability_risk(
             linked += 1
 
     rate = round(linked / max(n_test, 1), 4)
-    baseline = 0.5  # expected by chance
+    baseline = DEFAULT_PRIVACY_LINKABILITY_BASELINE  # expected by chance
     lift = round((rate - baseline) / baseline * 100, 1)
 
     return {

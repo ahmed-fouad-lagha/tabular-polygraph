@@ -21,9 +21,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder
 
+from tabular_polygraph._config import DEFAULT_LSE_MIN_SAMPLES_LEAF
+
 logger = logging.getLogger(__name__)
 
-LSE_MIN_SAMPLES_LEAF = 5
+LSE_MIN_SAMPLES_LEAF = DEFAULT_LSE_MIN_SAMPLES_LEAF
 
 __all__ = [
     "LSE_MIN_SAMPLES_LEAF",

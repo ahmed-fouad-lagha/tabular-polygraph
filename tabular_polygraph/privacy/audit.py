@@ -22,6 +22,12 @@ import time
 import numpy as np
 import pandas as pd
 
+from tabular_polygraph._config import (
+    DEFAULT_PRIVACY_HOLDOUT_FRAC,
+    DEFAULT_PRIVACY_N_ATTACKS,
+    DEFAULT_PRIVACY_SEED,
+)
+
 from .disclosure import membership_inference_risk
 from .linkability import linkability_risk
 from .singling_out import singling_out_risk
@@ -34,11 +40,11 @@ def privacy_audit(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     real_holdout: pd.DataFrame | None = None,
-    holdout_frac: float = 0.2,
+    holdout_frac: float = DEFAULT_PRIVACY_HOLDOUT_FRAC,
     quasi_id_cols: list[str] | None = None,
     numeric_cols: list[str] | None = None,
-    n_attacks: int = 300,
-    seed: int = 42,
+    n_attacks: int = DEFAULT_PRIVACY_N_ATTACKS,
+    seed: int = DEFAULT_PRIVACY_SEED,
 ) -> dict:
     """
     Run all privacy tests against a synthetic dataset.

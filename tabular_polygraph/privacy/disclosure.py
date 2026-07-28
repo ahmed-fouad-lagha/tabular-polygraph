@@ -17,6 +17,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from tabular_polygraph._config import (
+    DEFAULT_PRIVACY_BATCH,
+    DEFAULT_PRIVACY_N_SAMPLE,
+    DEFAULT_PRIVACY_SEED,
+    DEFAULT_PRIVACY_SYN_MULTIPLIER,
+)
 from tabular_polygraph.utils import normalize, numeric_columns
 
 from .common import risk_level_membership
@@ -25,7 +31,7 @@ from .common import risk_level_membership
 def _min_dist_to_synthetic(
     records: np.ndarray,
     synthetic: np.ndarray,
-    batch: int = 100,
+    batch: int = DEFAULT_PRIVACY_BATCH,
 ) -> np.ndarray:
     """Return minimum L2 distance from each record to the synthetic set."""
     min_dists = np.full(len(records), np.inf)
@@ -52,8 +58,8 @@ def membership_inference_risk(
     real_holdout: pd.DataFrame,
     synthetic: pd.DataFrame,
     numeric_cols: list[str] | None = None,
-    n_sample: int = 200,
-    seed: int = 42,
+    n_sample: int = DEFAULT_PRIVACY_N_SAMPLE,
+    seed: int = DEFAULT_PRIVACY_SEED,
 ) -> dict:
     """
     Estimate membership inference risk.
@@ -85,7 +91,8 @@ def membership_inference_risk(
         n=min(n_sample, len(real_holdout)), random_state=int(seed)
     )
     sample_syn = synthetic.sample(
-        n=min(n_sample * 5, len(synthetic)), random_state=int(seed)
+        n=min(n_sample * DEFAULT_PRIVACY_SYN_MULTIPLIER, len(synthetic)),
+        random_state=int(seed),
     )
 
     arr_tr = sample_train[cols].fillna(0).values.astype(float)

@@ -12,7 +12,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-RULE_QUANTIZATION_BINS = 10
+from tabular_polygraph._config import DEFAULT_RULE_QUANTIZATION_BINS
+
+RULE_QUANTIZATION_BINS = DEFAULT_RULE_QUANTIZATION_BINS
 
 __all__ = [
     "RULE_QUANTIZATION_BINS",

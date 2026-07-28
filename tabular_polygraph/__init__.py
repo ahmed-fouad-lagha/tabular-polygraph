@@ -11,7 +11,7 @@ from .generators.base import BaseGenerator
 from .generators.gaussian_copula import GaussianCopulaGenerator
 from .io import read, validate, write
 
-__version__ = "0.1.0"
+from ._version import __version__
 __all__ = [
     "BaseGenerator",
     "GaussianCopulaGenerator",

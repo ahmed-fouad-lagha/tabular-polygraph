@@ -235,8 +235,16 @@ class GaussianCopulaGenerator(BaseGenerator):
         valid_u_list = []
         collected = 0
         batch_size = max(n * 10, 1000)
+        _max_iter = 1000
+        _iter = 0
 
         while collected < n:
+            _iter += 1
+            if _iter > _max_iter:
+                raise RuntimeError(
+                    f"Generation terminated after {_max_iter} iterations: "
+                    f"filters are too strict. Collected {collected}/{n} rows."
+                )
             z = rng.standard_normal((batch_size, len(self._columns))) @ L.T
             u = stats.norm.cdf(z)
 

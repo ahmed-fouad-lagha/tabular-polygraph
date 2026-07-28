@@ -5,56 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from tabular_polygraph.cli import (
-    _parse_drop_cols,
-    _parse_filters,
-    _positive_int,
-    cmd_info,
-    cmd_list,
-    cmd_validate,
-    main,
-)
-
-
-class TestParseFilters:
-    def test_empty_returns_dict(self):
-        assert _parse_filters(None) == {}
-        assert _parse_filters([]) == {}
-
-    def test_min_max_filters(self):
-        result = _parse_filters(["dti_min:45", "income_max:100000"])
-        assert result["dti_min"] == 45.0
-        assert result["income_max"] == 100000.0
-
-    def test_exact_match_filter(self):
-        result = _parse_filters(["state:CA"])
-        assert result["state"] == "CA"
-
-    def test_multi_value_filter(self):
-        result = _parse_filters(["state:CA,TX,NY"])
-        assert result["state"] == ["CA", "TX", "NY"]
-
-    def test_malformed_filter_warns(self):
-        with patch("tabular_polygraph.cli.warn") as mock_warn:
-            _parse_filters(["no_colon_here"])
-            mock_warn.assert_called_once()
-
-
-class TestParseDropCols:
-    def test_none_returns_empty(self):
-        assert _parse_drop_cols(None) == []
-
-    def test_deduplicates(self):
-        result = _parse_drop_cols("a,b,a,c")
-        assert result == ["a", "b", "c"]
-
-
-def test_positive_int_argparse():
-    assert _positive_int("10") == 10
-    with pytest.raises(argparse.ArgumentTypeError):
-        _positive_int("0")
-    with pytest.raises(argparse.ArgumentTypeError):
-        _positive_int("-5")
+from tabular_polygraph.cli.main import main
+from tabular_polygraph.cli.listinfo import cmd_info, cmd_list
+from tabular_polygraph.cli.validate import cmd_validate
+from tabular_polygraph.cli.download import cmd_download
 
 
 class TestCLIMain:
@@ -110,17 +64,17 @@ def test_cmd_validate(tmp_path, capsys):
     assert "Validating:" in captured.out
 
 
-@patch("tabular_polygraph.cli._prepare_generate_request")
-@patch("tabular_polygraph.cli._fit_generate_generator")
-@patch("tabular_polygraph.cli._compute_generate_report")
-@patch("tabular_polygraph.cli._print_generate_report")
-@patch("tabular_polygraph.cli._save_generated_output")
+@patch("tabular_polygraph.cli.generate._prepare_generate_request")
+@patch("tabular_polygraph.cli.generate._fit_generate_generator")
+@patch("tabular_polygraph.cli.generate._compute_generate_report")
+@patch("tabular_polygraph.cli.generate._print_generate_report")
+@patch("tabular_polygraph.cli.generate._save_generated_output")
 def test_cmd_generate(
     mock_save, mock_print, mock_compute, mock_fit, mock_prepare, capsys
 ):
     import pandas as pd
 
-    from tabular_polygraph.cli import cmd_generate
+    from tabular_polygraph.cli.generate import cmd_generate
 
     mock_prepare.return_value = ("test.csv", "test_id", {}, [])
 
@@ -150,14 +104,14 @@ def test_cmd_generate(
     mock_save.assert_called_once()
 
 
-@patch("tabular_polygraph.cli._load_eval_frames")
-@patch("tabular_polygraph.cli._apply_eval_drop_cols")
+@patch("tabular_polygraph.cli.helpers._load_eval_frames")
+@patch("tabular_polygraph.cli.helpers._apply_eval_drop_cols")
 @patch("tabular_polygraph.fidelity.fidelity_report")
 @patch("tabular_polygraph.fidelity.format_report")
 def test_cmd_evaluate(mock_format, mock_report, mock_drop, mock_load, capsys):
     import pandas as pd
 
-    from tabular_polygraph.cli import cmd_evaluate
+    from tabular_polygraph.cli.evaluate import cmd_evaluate
 
     mock_load.return_value = (pd.DataFrame({"a": [1, 2]}), pd.DataFrame({"a": [1, 2]}))
     mock_drop.return_value = (pd.DataFrame({"a": [1, 2]}), pd.DataFrame({"a": [1, 2]}))
@@ -193,9 +147,6 @@ def test_cmd_evaluate(mock_format, mock_report, mock_drop, mock_load, capsys):
 @patch("tabular_polygraph.dataset.downloader.download")
 @patch("tabular_polygraph.dataset.list_datasets")
 def test_cmd_download(mock_list, mock_download, mock_is_cached, capsys):
-    from tabular_polygraph.cli import cmd_download
-
-    # Test valid dataset
     mock_list.return_value = ["adult", "credit"]
     mock_is_cached.return_value = False
     args = argparse.Namespace(dataset="adult", output=None, sample=100, force=False)

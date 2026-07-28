@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tabular-polygraph"
-version = "0.1.0"
+dynamic = ["version"]
 description = "HIF: Hybrid Integrity Framework for Synthetic Tabular Data"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -58,6 +58,9 @@ tabular-polygraph = "tabular_polygraph.cli:main"
 where = ["."]
 include = ["tabular_polygraph*"]
 
+[tool.setuptools.dynamic]
+version = {attr = "tabular_polygraph._version.__version__"}
+
 [tool.ruff]
 line-length = 88
 target-version = "py310"
@@ -82,7 +85,7 @@ known-first-party = ["tabular_polygraph"]
 [tool.coverage.run]
 source = ["tabular_polygraph"]
 omit = [
-    "tabular_polygraph/cli.py",
+    "tabular_polygraph/cli/*",
     "tabular_polygraph/generators/vine_copula.py",
     "tabular_polygraph/generators/ctgan.py"
 ]

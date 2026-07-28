@@ -15,6 +15,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from tabular_polygraph._config import (
+    DEFAULT_PRIVACY_N_ATTACKS,
+    DEFAULT_PRIVACY_QUASI_ID_MAX,
+    DEFAULT_PRIVACY_SEED,
+    DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS,
+)
 from tabular_polygraph.utils import categorical_columns
 
 from .common import risk_level_singling_out
@@ -24,8 +30,8 @@ def singling_out_risk(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     quasi_id_cols: list[str] | None = None,
-    n_attacks: int = 500,
-    seed: int = 42,
+    n_attacks: int = DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS,
+    seed: int = DEFAULT_PRIVACY_SEED,
 ) -> dict:
     """
     Estimate singling-out risk via random quasi-identifier subset attacks.
@@ -38,7 +44,7 @@ def singling_out_risk(
 
     shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
     if quasi_id_cols is None:
-        qi_cols = [c for c in categorical_columns(real) if c in shared][:8]
+        qi_cols = [c for c in categorical_columns(real) if c in shared][:DEFAULT_PRIVACY_QUASI_ID_MAX]
     else:
         qi_cols = quasi_id_cols
 

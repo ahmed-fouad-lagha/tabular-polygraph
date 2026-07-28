@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+__all__ = [
+    "HIFConfig",
+    "FidelityConfig",
+    "GeneratorConfig",
+    "DEFAULT_MOMENT_WEIGHTS",
+    "DEFAULT_MOMENT_EPS",
+    "DEFAULT_MOMENT_MIN_SAMPLES",
+    "DEFAULT_KS_MIN_SAMPLES",
+    "DEFAULT_TVD_MIN_SAMPLES",
+    "DEFAULT_JOINT_MIN_COLS",
+    "DEFAULT_ALPHA_BETA_N_STEPS",
+    "DEFAULT_ALPHA_BETA_MAX_ROWS",
+    "DEFAULT_ALPHA_BETA_MIN_ROWS",
+    "DEFAULT_STYLIZED_MIN_SAMPLES",
+    "DEFAULT_STYLIZED_TAIL_PERCENTILES",
+    "DEFAULT_STYLIZED_CONCENTRATION_TOP",
+    "DEFAULT_DOWNSTREAM_TEST_FRAC",
+    "DEFAULT_DOWNSTREAM_N_ESTIMATORS",
+    "DEFAULT_DOWNSTREAM_CLASS_THRESHOLD",
+    "DEFAULT_NIC_LATENT_DIM_CAP",
+    "DEFAULT_NIC_Z_PERCENTILE",
+    "DEFAULT_NIC_GAMMA_PERCENTILE",
+    "DEFAULT_NIC_COLLAPSE_THRESHOLD",
+    "DEFAULT_NIC_COLLAPSE_PENALTY",
+    "DEFAULT_NIC_MAX_ITER",
+    "DEFAULT_NIC_MAX_DEPTH",
+    "DEFAULT_NIC_LEARNING_RATE",
+    "DEFAULT_NIC_L2_REGULARIZATION",
+    "DEFAULT_LSE_N_ESTIMATORS_DISCOVERY",
+    "DEFAULT_LSE_MAX_DEPTH_DISCOVERY",
+    "DEFAULT_LSE_MAX_FEATURES_DISCOVERY",
+    "DEFAULT_LSE_MAX_FEATURES_TRAIN",
+    "DEFAULT_LSE_CONFIDENCE_FLOOR",
+    "DEFAULT_LSE_MIN_SAMPLES_LEAF",
+    "DEFAULT_LSE_CV_SPLITS",
+    "DEFAULT_LSE_HIGH_CARDINALITY_CAP",
+    "DEFAULT_RULE_QUANTIZATION_BINS",
+    "DEFAULT_RULE_MAX_CANDIDATES",
+    "DEFAULT_RULE_MAX_EXAMPLES",
+    "DEFAULT_RULE_MIN_CONFIDENCE",
+    "DEFAULT_RULE_MIN_SUPPORT",
+    "DEFAULT_RULE_MAX_RULES",
+    "DEFAULT_RULE_MIN_LIFT",
+    "DEFAULT_RULE_MAX_ANTECEDENTS",
+    "DEFAULT_HIF_EPOCHS",
+    "DEFAULT_HIF_HUBS",
+    "DEFAULT_HIF_DEPTH",
+    "DEFAULT_HIF_CONFIDENCE_PERCENTILE",
+    "DEFAULT_HIF_VIOLATION_THRESHOLD",
+    "DEFAULT_HIF_COMPONENT_FLOOR",
+    "DEFAULT_HIF_ABLATION_MODE",
+    "DEFAULT_HIF_AGGREGATION",
+    "DEFAULT_FIDELITY_RANDOM_STATE",
+    "DEFAULT_FIDELITY_DATASET_TYPE",
+    "DEFAULT_FIDELITY_PARALLEL",
+    "DEFAULT_FIDELITY_MAX_WORKERS",
+    "DEFAULT_FIDELITY_INCLUDE_DOWNSTREAM",
+    "DEFAULT_FIDELITY_VERBOSE",
+    "DEFAULT_PRIVACY_HOLDOUT_FRAC",
+    "DEFAULT_PRIVACY_N_ATTACKS",
+    "DEFAULT_PRIVACY_N_SAMPLE",
+    "DEFAULT_PRIVACY_SYN_MULTIPLIER",
+    "DEFAULT_PRIVACY_BATCH",
+    "DEFAULT_PRIVACY_SEED",
+    "DEFAULT_PRIVACY_QUASI_ID_MAX",
+    "DEFAULT_PRIVACY_MIN_DATA",
+    "DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS",
+    "DEFAULT_PRIVACY_LINKABILITY_BASELINE",
+]
+
+# ── Fidelity metric defaults ─────────────────────────────────────────────────
+
+DEFAULT_MOMENT_WEIGHTS: tuple[float, float, float, float] = (0.40, 0.35, 0.15, 0.10)
+DEFAULT_MOMENT_EPS: float = 1e-8
+DEFAULT_MOMENT_MIN_SAMPLES: int = 10
+
+DEFAULT_KS_MIN_SAMPLES: int = 10
+
+DEFAULT_TVD_MIN_SAMPLES: int = 1
+
+DEFAULT_JOINT_MIN_COLS: int = 2
+
+DEFAULT_ALPHA_BETA_N_STEPS: int = 30
+DEFAULT_ALPHA_BETA_MAX_ROWS: int = 10000
+DEFAULT_ALPHA_BETA_MIN_ROWS: int = 10
+
+DEFAULT_STYLIZED_MIN_SAMPLES: int = 50
+DEFAULT_STYLIZED_TAIL_PERCENTILES: tuple[int, int] = (99, 50)
+DEFAULT_STYLIZED_CONCENTRATION_TOP: float = 0.05
+
+DEFAULT_DOWNSTREAM_TEST_FRAC: float = 0.3
+DEFAULT_DOWNSTREAM_N_ESTIMATORS: int = 100
+DEFAULT_DOWNSTREAM_CLASS_THRESHOLD: int = 10
+
+# ── NIC defaults ─────────────────────────────────────────────────────────────
+
+DEFAULT_NIC_LATENT_DIM_CAP: int = 32
+DEFAULT_NIC_Z_PERCENTILE: int = 95
+DEFAULT_NIC_GAMMA_PERCENTILE: int = 98
+DEFAULT_NIC_COLLAPSE_THRESHOLD: float = 0.5
+DEFAULT_NIC_COLLAPSE_PENALTY: float = 0.6
+DEFAULT_NIC_MAX_ITER: int = 100
+DEFAULT_NIC_MAX_DEPTH: int = 5
+DEFAULT_NIC_LEARNING_RATE: float = 0.1
+DEFAULT_NIC_L2_REGULARIZATION: float = 1.0
+
+# ── LSE defaults ─────────────────────────────────────────────────────────────
+
+DEFAULT_LSE_N_ESTIMATORS_DISCOVERY: int = 25
+DEFAULT_LSE_MAX_DEPTH_DISCOVERY: int = 8
+DEFAULT_LSE_MAX_FEATURES_DISCOVERY: str = "sqrt"
+DEFAULT_LSE_MAX_FEATURES_TRAIN: str = "log2"
+DEFAULT_LSE_CONFIDENCE_FLOOR: float = 0.01
+DEFAULT_LSE_MIN_SAMPLES_LEAF: int = 5
+DEFAULT_LSE_CV_SPLITS: int = 5
+DEFAULT_LSE_HIGH_CARDINALITY_CAP: int = 50
+
+# ── Rule-mining defaults ─────────────────────────────────────────────────────
+
+DEFAULT_RULE_QUANTIZATION_BINS: int = 10
+DEFAULT_RULE_MAX_CANDIDATES: int = 10000
+DEFAULT_RULE_MAX_EXAMPLES: int = 20
+DEFAULT_RULE_MIN_CONFIDENCE: float = 0.95
+DEFAULT_RULE_MIN_SUPPORT: float = 0.005
+DEFAULT_RULE_MAX_RULES: int = 25
+DEFAULT_RULE_MIN_LIFT: float = 1.0
+DEFAULT_RULE_MAX_ANTECEDENTS: int = 2
+
+# ── HIF runner defaults ──────────────────────────────────────────────────────
+
+DEFAULT_HIF_EPOCHS: int = 10
+DEFAULT_HIF_HUBS: int = 5
+DEFAULT_HIF_DEPTH: int = 12
+DEFAULT_HIF_CONFIDENCE_PERCENTILE: float = 5.0
+DEFAULT_HIF_VIOLATION_THRESHOLD: float = 0.5
+DEFAULT_HIF_COMPONENT_FLOOR: float = 1e-4
+DEFAULT_HIF_ABLATION_MODE: str = "full"
+DEFAULT_HIF_AGGREGATION: str = "geometric"
+
+# ── Fidelity runner defaults ─────────────────────────────────────────────────
+
+DEFAULT_FIDELITY_RANDOM_STATE: int = 42
+DEFAULT_FIDELITY_DATASET_TYPE: str = "cross_sectional"
+DEFAULT_FIDELITY_PARALLEL: bool = False
+DEFAULT_FIDELITY_MAX_WORKERS: int = 4
+DEFAULT_FIDELITY_INCLUDE_DOWNSTREAM: bool = True
+DEFAULT_FIDELITY_VERBOSE: bool = False
+
+# ── Privacy audit defaults ───────────────────────────────────────────────────
+
+DEFAULT_PRIVACY_HOLDOUT_FRAC: float = 0.2
+DEFAULT_PRIVACY_N_ATTACKS: int = 300
+DEFAULT_PRIVACY_N_SAMPLE: int = 200
+DEFAULT_PRIVACY_SYN_MULTIPLIER: int = 5
+DEFAULT_PRIVACY_BATCH: int = 100
+DEFAULT_PRIVACY_SEED: int = 42
+DEFAULT_PRIVACY_QUASI_ID_MAX: int = 8
+DEFAULT_PRIVACY_MIN_DATA: int = 20
+DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS: int = 500
+DEFAULT_PRIVACY_LINKABILITY_BASELINE: float = 0.5
+
+
+# ── Config dataclasses ───────────────────────────────────────────────────────
+
+
+@dataclass
+class HIFConfig:
+    epochs: int = DEFAULT_HIF_EPOCHS
+    hubs: int = DEFAULT_HIF_HUBS
+    depth: int = DEFAULT_HIF_DEPTH
+    confidence_percentile: float = DEFAULT_HIF_CONFIDENCE_PERCENTILE
+    violation_threshold: float = DEFAULT_HIF_VIOLATION_THRESHOLD
+    component_floor: float = DEFAULT_HIF_COMPONENT_FLOOR
+    rule_min_confidence: float = DEFAULT_RULE_MIN_CONFIDENCE
+    rule_min_support: float = DEFAULT_RULE_MIN_SUPPORT
+    rule_max_rules: int = DEFAULT_RULE_MAX_RULES
+    rule_min_lift: float = DEFAULT_RULE_MIN_LIFT
+    rule_max_antecedents: int = DEFAULT_RULE_MAX_ANTECEDENTS
+    ablation_mode: str = DEFAULT_HIF_ABLATION_MODE
+    aggregation: str = DEFAULT_HIF_AGGREGATION
+
+    nic_latent_dim_cap: int = DEFAULT_NIC_LATENT_DIM_CAP
+    nic_z_percentile: int = DEFAULT_NIC_Z_PERCENTILE
+    nic_gamma_percentile: int = DEFAULT_NIC_GAMMA_PERCENTILE
+    nic_collapse_threshold: float = DEFAULT_NIC_COLLAPSE_THRESHOLD
+    nic_collapse_penalty: float = DEFAULT_NIC_COLLAPSE_PENALTY
+    nic_max_iter: int = DEFAULT_NIC_MAX_ITER
+    nic_max_depth: int = DEFAULT_NIC_MAX_DEPTH
+    nic_learning_rate: float = DEFAULT_NIC_LEARNING_RATE
+    nic_l2_regularization: float = DEFAULT_NIC_L2_REGULARIZATION
+
+    lse_n_estimators_discovery: int = DEFAULT_LSE_N_ESTIMATORS_DISCOVERY
+    lse_max_depth_discovery: int = DEFAULT_LSE_MAX_DEPTH_DISCOVERY
+    lse_max_features_discovery: str = DEFAULT_LSE_MAX_FEATURES_DISCOVERY
+    lse_max_features_train: str = DEFAULT_LSE_MAX_FEATURES_TRAIN
+    lse_confidence_floor: float = DEFAULT_LSE_CONFIDENCE_FLOOR
+    lse_min_samples_leaf: int = DEFAULT_LSE_MIN_SAMPLES_LEAF
+    lse_cv_splits: int = DEFAULT_LSE_CV_SPLITS
+    lse_high_cardinality_cap: int = DEFAULT_LSE_HIGH_CARDINALITY_CAP
+
+    rule_quantization_bins: int = DEFAULT_RULE_QUANTIZATION_BINS
+    rule_max_candidates: int = DEFAULT_RULE_MAX_CANDIDATES
+    rule_max_examples: int = DEFAULT_RULE_MAX_EXAMPLES
+
+
+@dataclass
+class FidelityConfig:
+    columns: list[str] | None = None
+    target_col: str | None = None
+    include_downstream: bool = DEFAULT_FIDELITY_INCLUDE_DOWNSTREAM
+    random_state: int = DEFAULT_FIDELITY_RANDOM_STATE
+    dataset_type: str = DEFAULT_FIDELITY_DATASET_TYPE
+    verbose: bool = DEFAULT_FIDELITY_VERBOSE
+    progress_callback: Any | None = None
+
+    marginal_min_samples: int = DEFAULT_MOMENT_MIN_SAMPLES
+    joint_min_cols: int = DEFAULT_JOINT_MIN_COLS
+    alpha_beta_n_steps: int = DEFAULT_ALPHA_BETA_N_STEPS
+    alpha_beta_max_rows: int = DEFAULT_ALPHA_BETA_MAX_ROWS
+    alpha_beta_min_rows: int = DEFAULT_ALPHA_BETA_MIN_ROWS
+
+    parallel: bool = DEFAULT_FIDELITY_PARALLEL
+    max_workers: int = DEFAULT_FIDELITY_MAX_WORKERS
+
+    hif: HIFConfig = field(default_factory=HIFConfig)
+
+
+@dataclass
+class GeneratorConfig:
+    random_state: int = DEFAULT_FIDELITY_RANDOM_STATE
