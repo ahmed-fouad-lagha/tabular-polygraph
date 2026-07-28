@@ -343,13 +343,7 @@ def download(
     print(f"  Source: {info['source']}")
     print(f"  Size:   {info['size_hint']}")
 
-    if dataset_id in _DOWNLOADERS:
-        df = _DOWNLOADERS[dataset_id](n_sample)
-    else:
-        raise NotImplementedError(
-            f"No downloader for '{dataset_id}'.\n"
-            f"Please download the data from {info['url']} and save it as a CSV, then load it with gen.fit(your_csv)."
-        )
+    df = _DOWNLOADERS[dataset_id](n_sample)
 
     df.to_parquet(cached, index=False)
     print(f"  ✓ Cached {len(df):,} rows → {cached}")
