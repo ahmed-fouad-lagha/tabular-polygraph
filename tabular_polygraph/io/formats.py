@@ -23,8 +23,6 @@ from typing import Callable
 
 import pandas as pd
 
-# ── Write ─────────────────────────────────────────────────────────────────────
-
 
 def write(
     df: pd.DataFrame,
@@ -121,9 +119,6 @@ def _write_excel(df, path, **kw):
         raise ImportError("Excel format requires: pip install openpyxl") from None
 
 
-# ── Read ──────────────────────────────────────────────────────────────────────
-
-
 def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
     """
     Read a DataFrame from file.
@@ -168,8 +163,6 @@ def _read_sas(path, **kw) -> pd.DataFrame:
     except Exception as e:
         raise RuntimeError(f"Could not read SAS file: {e}") from e
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 _EXT_MAP = {
     ".csv": "csv",
