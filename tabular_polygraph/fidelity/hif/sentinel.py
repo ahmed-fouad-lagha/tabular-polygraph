@@ -126,10 +126,7 @@ class LogicalSentinelEnsemble:
                 random_state=self.random_state,
                 max_features="sqrt",
             )
-            n_unique = len(y.unique())
             n_splits = min(5, n_unique)
-            if n_splits < 2:
-                continue
             try:
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -172,18 +169,10 @@ class LogicalSentinelEnsemble:
         potential_hubs : list[str] or None
             Subset of columns to consider as hub candidates.
         """
+        self.encoder.fit(df)
         if x_precomputed is not None:
             x_encoded = x_precomputed
-            self.encoder.feature_names = x_encoded.columns.tolist()
-            self.encoder.is_fitted = True
-            for original_col in df.columns:
-                self.encoder.feature_map[original_col] = [
-                    name
-                    for name in self.encoder.feature_names
-                    if name.startswith(f"{original_col}_")
-                ]
         else:
-            self.encoder.fit(df)
             x_encoded = self.encoder.transform(df)
 
         if verbose:
@@ -221,10 +210,7 @@ class LogicalSentinelEnsemble:
             if verbose:
                 logger.debug(f"Training Sentinel for Hub '{hub_col}' complete.")
 
-            if hasattr(clf, "oob_decision_function_"):
-                oob_probs = clf.oob_decision_function_
-            else:
-                oob_probs = clf.predict_proba(X)
+            oob_probs = clf.oob_decision_function_
 
             classes = clf.classes_
             y_str = y.astype(str).values

@@ -57,10 +57,9 @@ class NeighborInvariantContinuity:
         categorical_df: pd.DataFrame,
         x_precomputed: pd.DataFrame | None,
     ) -> pd.DataFrame:
+        self.encoder.fit(categorical_df)
         if x_precomputed is not None:
             return x_precomputed
-
-        self.encoder.fit(categorical_df)
         return self.encoder.transform(categorical_df)
 
     def _fit_latent_projection(
