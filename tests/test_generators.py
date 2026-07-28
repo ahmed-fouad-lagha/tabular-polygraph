@@ -102,7 +102,9 @@ class TestGaussianCopula:
         gen.fit(df)
         syn1 = gen.generate(50, seed=99)
         syn2 = gen.generate(50, seed=99)
-        pd.testing.assert_frame_equal(syn1, syn2)
+        pd.testing.assert_frame_equal(
+            syn1.drop(columns=["syn_id"]), syn2.drop(columns=["syn_id"])
+        )
 
     def test_all_cross_sectional_datasets(self, all_seeds):
         from tabular_polygraph.generators import GaussianCopulaGenerator

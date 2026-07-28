@@ -47,6 +47,7 @@ def fidelity_report(
             rule_max_rules=rule_max_rules,
             rule_min_lift=rule_min_lift,
             rule_max_antecedents=rule_max_antecedents,
+            random_state=random_state,
         ),
     )
 

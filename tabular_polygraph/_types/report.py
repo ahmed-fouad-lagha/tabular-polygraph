@@ -111,12 +111,12 @@ def _json_safe(obj: Any) -> Any:
         return _json_safe(dict(obj._asdict()))
     if isinstance(obj, tuple):
         return [_json_safe(v) for v in obj]
-    if isinstance(obj, float):
-        return None if (np.isnan(obj) or np.isinf(obj)) else obj
+    if isinstance(obj, np.floating):
+        return None if (np.isnan(obj) or np.isinf(obj)) else float(obj)
     if isinstance(obj, np.integer):
         return int(obj)
-    if isinstance(obj, np.floating):
-        return _json_safe(float(obj))
+    if isinstance(obj, float):
+        return None if (np.isnan(obj) or np.isinf(obj)) else obj
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, np.bool_):

@@ -304,7 +304,7 @@ class VineCopulaGenerator(BaseGenerator):
 
         df = pd.DataFrame(final_records)[self._columns]
         df = self._cast_types(df)
-        return self._apply_filters(df, filters).head(n)
+        return df.head(n)
 
     def tail_dependence_report(self) -> dict:
         """Return upper and lower tail dependence coefficients for each pair.

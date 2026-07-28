@@ -103,42 +103,4 @@ class TVAEGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         self._require_sdv()
-        from sdv.sampling import Condition
-
-        if seed is not None:
-            self._model.set_random_state(seed)
-
-        if not filters:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning)
-                df = self._model.sample(n)
-            return self._cast_types(df)
-
-        exact_filters = {}
-        post_filters = {}
-        for k, v in filters.items():
-            if k in self._columns and not isinstance(v, list):
-                exact_filters[k] = v
-            else:
-                post_filters[k] = v
-
-        n_sample = n * 10 if post_filters else n
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-            if exact_filters:
-                conditions = [Condition(column_values=exact_filters, num_rows=n_sample)]
-                df = self._model.sample_from_conditions(conditions=conditions)
-            else:
-                df = self._model.sample(n_sample)
-
-        if post_filters:
-            df = self._apply_filters(df, post_filters)
-            if len(df) < n:
-                warnings.warn(
-                    f"Requested {n} rows but filters yielded only {len(df)}",
-                    stacklevel=3,
-                )
-
-        df = df.head(n)
-        return self._cast_types(df)
+        return self._sdv_generate(n, filters=filters, seed=seed)

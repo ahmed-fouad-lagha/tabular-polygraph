@@ -1,16 +1,16 @@
 """
 tabular_polygraph.privacy.linkability
 --------------------------------
-Linkability attack: can an adversary link a synthetic record back to
-a specific real individual by matching on shared attributes?
+Linkability (re-identification) attack via Nearest Neighbour
+Distance Ratio (NNDR).
 
 Methodology:
-  Split real data into two halves (A and B).
-  Train a nearest-neighbour matcher on half-A.
-  For each synthetic record, find its nearest neighbour in half-A.
-  Check whether that neighbour's counterpart in half-B is closer to
-  the synthetic record than a random record from half-B.
-  If yes, the synthetic record has "linked" the individual across datasets.
+  For each synthetic record, find the nearest and second-nearest
+  neighbour in the real data.  If the ratio d1/d2 < threshold, the
+  record is unusually close to a single real record (potential
+  memorisation), and the record is considered "linkable".
+  The linkability rate is the fraction of synthetic records that
+  exceed this threshold.
 """
 
 from __future__ import annotations
@@ -36,25 +36,27 @@ def _normalise(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
     return result
 
 
-def _nearest_neighbour_idx(query: np.ndarray, pool: np.ndarray) -> int:
-    dists = np.sum((pool - query) ** 2, axis=1)
-    return int(np.argmin(dists))
-
-
 def linkability_risk(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
     numeric_cols: list[str] | None = None,
     n_attacks: int = DEFAULT_PRIVACY_N_ATTACKS,
     seed: int = DEFAULT_PRIVACY_SEED,
+    nn_ratio_threshold: float = 0.5,
 ) -> dict:
     """
-    Estimate linkability risk via nearest-neighbour attack.
+    Estimate linkability risk via Nearest Neighbour Distance Ratio (NNDR).
+
+    For each synthetic record the distance to its nearest real neighbour
+    (d1) and its second-nearest real neighbour (d2) is computed.
+    If d1 / d2 < *nn_ratio_threshold* the record is considered
+    "linkable" — it is unusually close to a single real record,
+    suggesting potential memorisation.
 
     Returns
     -------
-    dict with linkability_rate (0–1), baseline (0.5 expected by chance),
-    risk_level, and lift over baseline.
+    dict with linkability_rate (0–1), baseline (expected ratio by
+    chance), risk_level, and lift over baseline.
     """
     rng = np.random.default_rng(seed)
 
@@ -71,17 +73,7 @@ def linkability_risk(
             "linkability_rate": 0.0,
         }
 
-    # Split real into A and B
-    idx = rng.permutation(len(real))
-    half = len(idx) // 2
-    real_A = real.iloc[idx[:half]].reset_index(drop=True)
-    real_B = real.iloc[idx[half:]].reset_index(drop=True)
-    min_half = min(len(real_A), len(real_B))
-    real_A = real_A.iloc[:min_half]
-    real_B = real_B.iloc[:min_half]
-
-    A_norm = _normalise(real_A, cols)
-    B_norm = _normalise(real_B, cols)
+    real_norm = _normalise(real, cols)
 
     n_test = min(n_attacks, len(synthetic))
     syn_sample = synthetic.sample(n=n_test, random_state=int(seed)).reset_index(
@@ -91,18 +83,11 @@ def linkability_risk(
     linked = 0
     for i in range(n_test):
         syn_vec = _normalise(syn_sample.iloc[[i]], cols)[0]
-
-        # Find nearest in A
-        nn_a_idx = _nearest_neighbour_idx(syn_vec, A_norm)
-
-        # Distance from syn to B[nn_a_idx] (the "linked" record)
-        d_linked = float(np.sum((B_norm[nn_a_idx] - syn_vec) ** 2))
-
-        # Distance from syn to a random record in B
-        rand_b_idx = int(rng.integers(0, len(B_norm)))
-        d_random = float(np.sum((B_norm[rand_b_idx] - syn_vec) ** 2))
-
-        if d_linked < d_random:
+        dists = np.sum((real_norm - syn_vec) ** 2, axis=1)
+        sorted_dists = np.sort(dists)
+        d1 = sorted_dists[0]
+        d2 = sorted_dists[1]
+        if d2 > 0 and (d1 / d2) < nn_ratio_threshold:
             linked += 1
 
     rate = round(linked / max(n_test, 1), 4)

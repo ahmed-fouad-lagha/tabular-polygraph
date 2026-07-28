@@ -70,16 +70,6 @@ def bar(score, width=22):
     return _c("█" * filled, col) + _c("░" * (width - filled), C.GRAY)
 
 
-def risk_colour(level):
-    return {
-        "very_low": _c(level, C.GREEN),
-        "low": _c(level, C.GREEN),
-        "medium": _c(level, C.YELLOW),
-        "high": _c(level, C.RED),
-        "very_high": _c(level, C.RED),
-    }.get(level, level)
-
-
 def _json_clean(obj):
     import numpy as _np
 
@@ -111,6 +101,5 @@ __all__ = [
     "header",
     "section",
     "bar",
-    "risk_colour",
     "_json_clean",
 ]

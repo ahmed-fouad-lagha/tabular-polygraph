@@ -35,6 +35,7 @@ class HIFAuditor:
         self._columns: list[str] = []
         self._valid_cols: list[str] = []
         self._skipped_cols: list[str] = []
+        self._real_f: pd.DataFrame | None = None
         self._is_fitted: bool = False
 
     def fit(
@@ -57,6 +58,7 @@ class HIFAuditor:
         self._bin_edges = _fit_binning(real[columns], columns)
 
         real_f = _apply_binning(real[columns], columns, self._bin_edges)
+        self._real_f = real_f
         self.encoder = ManifoldEncoder()
         self.encoder.fit(real_f)
         x_real_cat = self.encoder.transform(real_f)
@@ -78,7 +80,9 @@ class HIFAuditor:
         nic_targets = [c for c in self._skipped_cols if c not in self.oracle.hubs]
         if nic_targets:
             cat_context_real = real_f[self.oracle.hubs] if self.oracle.hubs else real_f
-            self.nic_auditor = NeighborInvariantContinuity(random_state=42)
+            self.nic_auditor = NeighborInvariantContinuity(
+                config=cfg, random_state=cfg.random_state,
+            )
             self.nic_auditor.fit(
                 cat_context_real,
                 real[nic_targets],
@@ -126,10 +130,7 @@ class HIFAuditor:
         if callable(progress_callback):
             progress_callback(3, 3, "Mining Implication Rules...")
 
-        real_f = _apply_binning(
-            synthetic[columns], columns, self._bin_edges
-        )
-        real_f, synthetic_f_norm = _canonicalize_code_columns(real_f, synthetic_f, columns)
+        real_f, synthetic_f_norm = _canonicalize_code_columns(self._real_f, synthetic_f, columns)
         rule_result = rule_violation_score(
             real_f,
             synthetic_f_norm,

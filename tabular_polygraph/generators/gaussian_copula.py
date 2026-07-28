@@ -26,6 +26,26 @@ from scipy import stats
 from .base import BaseGenerator
 
 
+class _Prior:
+    """Conjugate-prior shrinkage for Normal marginal parameters.
+
+    Shrink the MLE mean / std toward *mean_0* / *std_0* with a
+    pseudo-count of *n_0*.
+    """
+
+    def __init__(self, mean_0: float = 0.0, std_0: float = 1.0, n_0: int = 1) -> None:
+        self.mean_0 = mean_0
+        self.std_0 = std_0
+        self.n_0 = n_0
+
+    def map_mean(self, mle_mean: float, n: int) -> float:
+        return (self.n_0 * self.mean_0 + n * mle_mean) / (self.n_0 + n)
+
+    def map_std(self, mle_std: float, n: int) -> float:
+        var = (self.n_0 * self.std_0 ** 2 + n * mle_std ** 2) / (self.n_0 + n)
+        return float(np.sqrt(max(var, 1e-12)))
+
+
 class _NumericMarginal:
     """Fits and inverts a single numeric column distribution."""
 
@@ -277,8 +297,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         }
         df = self._cast_types(pd.DataFrame(records))
 
-        # Apply leftover prefix filters (if any) as a last resort
-        return self._apply_filters(df, filters).head(n)
+        return df.head(n)
 
     @property
     def marginal_kinds(self) -> dict[str, str]:

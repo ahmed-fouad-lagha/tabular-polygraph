@@ -20,22 +20,8 @@ class HIFMetric(Metric):
         return {"all"}
 
     def fit(self, real: pd.DataFrame, columns: list[str]) -> None:
-        from tabular_polygraph.fidelity.hif import hif_score
-
-        self._result = hif_score(
-            real,
-            real,
-            columns=columns,
-            hif_epochs=self._config.epochs,
-            hif_hubs=self._config.hubs,
-            hif_depth=self._config.depth,
-            rule_min_confidence=self._config.rule_min_confidence,
-            rule_min_support=self._config.rule_min_support,
-            rule_max_rules=self._config.rule_max_rules,
-            rule_min_lift=self._config.rule_min_lift,
-            rule_max_antecedents=self._config.rule_max_antecedents,
-            verbose=False,
-        )
+        self._real = real
+        self._columns = columns
 
     def compute(
         self, real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str]
@@ -54,7 +40,9 @@ class HIFMetric(Metric):
             rule_max_rules=self._config.rule_max_rules,
             rule_min_lift=self._config.rule_min_lift,
             rule_max_antecedents=self._config.rule_max_antecedents,
+            random_state=self._config.random_state,
             verbose=False,
+            progress_callback=self._config.progress_callback,
         )
 
         logical_validity = round(float(result["hif_score"] * 100.0), 2)
