@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.fidelity.tabular_facts import tabular_stylized_facts
+from tabular_polygraph.fidelity.metrics.stylized_facts import StylizedFacts
 
 
 def test_tabular_stylized_facts_basic():
@@ -22,15 +22,14 @@ def test_tabular_stylized_facts_basic():
         }
     )
 
-    res = tabular_stylized_facts(real, syn, columns=["a", "b"])
-    assert "_summary" in res
-    assert res["_summary"]["columns_tested"] >= 1
-    assert "mean_score" in res["_summary"]
-    assert 0 <= res["_summary"]["mean_score"] <= 100
+    res = StylizedFacts().compute(real, syn, ["a", "b"])
+    assert res["columns_tested"] >= 1
+    assert res["mean_score"] is not None
+    assert 0 <= res["mean_score"] <= 100
 
 
 def test_tabular_stylized_facts_no_numeric():
     real = pd.DataFrame({"cat": ["A", "B"] * 20})
     syn = pd.DataFrame({"cat": ["A", "B"] * 20})
-    res = tabular_stylized_facts(real, syn, columns=[])
-    assert res["_summary"]["applicable"] is False
+    res = StylizedFacts().compute(real, syn, [])
+    assert res["applicable"] is False

@@ -78,9 +78,10 @@ class HIFAuditor:
             potential_hubs=columns,
         )
 
-        nic_targets = [c for c in self._skipped_cols if c not in self.oracle.hubs]
+        hubs = self.oracle.hubs if self.oracle is not None else []
+        nic_targets = [c for c in self._skipped_cols if c not in hubs]
         if nic_targets:
-            cat_context_real = real_f[self.oracle.hubs] if self.oracle.hubs else real_f
+            cat_context_real = real_f[hubs] if hubs else real_f
             self.nic_auditor = NeighborInvariantContinuity(
                 config=cfg,
                 random_state=cfg.random_state,
@@ -109,21 +110,23 @@ class HIFAuditor:
         if callable(progress_callback):
             progress_callback(1, 3, "Auditing Sentinels...")
 
-        assert self.encoder is not None and self.oracle is not None
+        if self.encoder is None or self.oracle is None:
+            raise RuntimeError(
+                "HIFAuditor is not fully fitted — encoder or oracle is None"
+            )
         x_syn_cat = self.encoder.transform(synthetic_f)
         _, cat_penalties, meta = self.oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
 
         nic_violation_rate = 0.0
         nic_penalties = np.zeros(len(synthetic))
 
-        nic_targets = [c for c in self._skipped_cols if c not in self.oracle.hubs]
+        hubs = self.oracle.hubs if self.oracle is not None else []
+        nic_targets = [c for c in self._skipped_cols if c not in hubs]
         if callable(progress_callback):
             progress_callback(2, 3, "Auditing Continuity (NIC)...")
 
         if nic_targets and self.nic_auditor is not None and self.oracle is not None:
-            cat_context_syn = (
-                synthetic_f[self.oracle.hubs] if self.oracle.hubs else synthetic_f
-            )
+            cat_context_syn = synthetic_f[hubs] if hubs else synthetic_f
             _, nic_penalties_raw = self.nic_auditor.score(
                 cat_context_syn, synthetic[nic_targets], x_precomputed=None
             )

@@ -21,8 +21,6 @@ dependencies = [
     "pyreadstat>=1.2",
     "xgboost",
     "scikit-learn",
-    "seaborn",
-    "matplotlib",
     "tqdm>=4.65.0"
 ]
 

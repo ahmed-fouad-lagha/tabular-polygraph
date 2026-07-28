@@ -41,7 +41,11 @@ class Downstream(Metric):
     ) -> dict:
         feature_cols = [c for c in columns if c != self._target_col]
         real = real[[self._target_col] + feature_cols].dropna().reset_index(drop=True)
-        syn = synthetic[feature_cols].dropna().reset_index(drop=True)
+        syn_full = (
+            synthetic[[self._target_col] + feature_cols].dropna().reset_index(drop=True)
+        )
+        y_syn = syn_full[self._target_col]
+        syn = syn_full[feature_cols]
 
         if len(real) < 50 or len(syn) < 10:
             return {"error": "Too few rows for TSTR evaluation"}
@@ -102,7 +106,8 @@ class Downstream(Metric):
             X_real, y_real, test_size=test_frac, random_state=42
         )
 
-        X_syn_pre = preprocessor.fit_transform(X_real_tr)
+        preprocessor.fit(X_real_tr)
+        X_syn_pre = preprocessor.transform(syn)
         X_real_pre = preprocessor.transform(X_real_tr)
         X_test_pre = preprocessor.transform(X_test)
 
@@ -111,11 +116,13 @@ class Downstream(Metric):
             y_real_enc = le.fit_transform(y_real_tr.astype(str))
             y_test_enc = le.transform(y_test.astype(str))
 
-            mask = np.isin(y_real_enc, le.classes_)
-            if mask.sum() < 10:
+            y_syn_str = y_syn.astype(str)
+            known_mask = np.isin(y_syn_str, le.classes_)
+            if known_mask.sum() < 10:
                 return {
                     "error": "Too few valid synthetic samples after label alignment"
                 }
+            y_syn_enc = le.transform(y_syn_str[known_mask])
 
             rf_tstr = RandomForestClassifier(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
@@ -124,7 +131,7 @@ class Downstream(Metric):
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )
 
-            rf_tstr.fit(X_syn_pre[mask], y_real_enc[mask])
+            rf_tstr.fit(X_syn_pre[known_mask], y_syn_enc)
             rf_trr.fit(X_real_pre, y_real_enc)
 
             tstr = float(
@@ -140,7 +147,7 @@ class Downstream(Metric):
             rf_trr = RandomForestRegressor(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )
-            rf_tstr.fit(X_syn_pre, y_real_tr)
+            rf_tstr.fit(X_syn_pre, y_syn)
             rf_trr.fit(X_real_pre, y_real_tr)
 
             tstr = float(metric_fn(y_test, rf_tstr.predict(X_test_pre)))

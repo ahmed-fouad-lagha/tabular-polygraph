@@ -81,7 +81,7 @@ class AlphaBeta(Metric):
             return {"alpha_precision": None, "beta_recall": None, "authenticity": None}
 
         real_s = real.sample(n_min, random_state=42).reset_index(drop=True)
-        syn_s = synthetic.sample(n_min, random_state=43).reset_index(drop=True)
+        syn_s = synthetic.sample(n_min, random_state=42).reset_index(drop=True)
 
         X, X_syn = _encode(real_s, syn_s)
         n = len(X)

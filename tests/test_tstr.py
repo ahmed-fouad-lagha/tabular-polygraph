@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from tabular_polygraph.fidelity.downstream import tstr_score
+from tabular_polygraph.fidelity.metrics.downstream import Downstream
 
 
 def test_tstr_score_classification():
@@ -25,9 +24,11 @@ def test_tstr_score_classification():
         }
     )
 
-    res = tstr_score(real, syn, target_col="target", task="classification")
+    metric = Downstream(target_col="target")
+    assert metric.validate(real, syn) is None
+    res = metric.compute(real, syn, real.columns.tolist())
     assert "error" not in res
-    assert res["task"] == "classification"
+    assert res["task"] == "class"
     assert "tstr_score" in res
     assert "trr_score" in res
     assert "ratio" in res
@@ -51,9 +52,11 @@ def test_tstr_score_regression():
         }
     )
 
-    res = tstr_score(real, syn, target_col="target", task="regression")
+    metric = Downstream(target_col="target")
+    assert metric.validate(real, syn) is None
+    res = metric.compute(real, syn, real.columns.tolist())
     assert "error" not in res
-    assert res["task"] == "regression"
+    assert res["task"] == "reg"
     assert "tstr_score" in res
     assert "trr_score" in res
 
@@ -61,11 +64,12 @@ def test_tstr_score_regression():
 def test_tstr_score_missing_target():
     real = pd.DataFrame({"x": [1, 2, 3]})
     syn = pd.DataFrame({"x": [1, 2, 3]})
-    res = tstr_score(real, syn, target_col="nonexistent")
-    assert "error" in res
+    metric = Downstream(target_col="nonexistent")
+    err = metric.validate(real, syn)
+    assert err is not None
 
 
-def test_tstr_score_dropna_warning():
+def test_tstr_score_small_data_returns_error():
     np.random.seed(42)
     n = 20  # small size (< 50)
     real = pd.DataFrame(
@@ -80,5 +84,7 @@ def test_tstr_score_dropna_warning():
             "target": np.random.choice([0, 1], size=n),
         }
     )
-    with pytest.warns(UserWarning, match="is < 50"):
-        tstr_score(real, syn, target_col="target")
+    metric = Downstream(target_col="target")
+    assert metric.validate(real, syn) is None
+    res = metric.compute(real, syn, real.columns.tolist())
+    assert "error" in res

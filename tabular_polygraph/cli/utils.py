@@ -2,20 +2,29 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import numpy as np
 
 
+def _use_color() -> bool:
+    p = os.environ.get("TERM", "")
+    return sys.stdout.isatty() and "dumb" not in p.lower()
+
+
+_USE_COLOR = _use_color()
+
+
 class C:
-    GREEN = "\033[92m"
-    CYAN = "\033[96m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    GRAY = "\033[90m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RESET = "\033[0m"
+    GREEN = "\033[92m" if _USE_COLOR else ""
+    CYAN = "\033[96m" if _USE_COLOR else ""
+    YELLOW = "\033[93m" if _USE_COLOR else ""
+    RED = "\033[91m" if _USE_COLOR else ""
+    GRAY = "\033[90m" if _USE_COLOR else ""
+    BOLD = "\033[1m" if _USE_COLOR else ""
+    DIM = "\033[2m" if _USE_COLOR else ""
+    RESET = "\033[0m" if _USE_COLOR else ""
 
 
 def _c(t, c):
