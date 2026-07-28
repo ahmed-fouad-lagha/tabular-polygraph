@@ -201,25 +201,23 @@ def _print_generate_bars(report):
 
 
 def _print_generate_stylized(report):
-    sf_summary = report.get("stylized_facts", {}).get("_summary", {})
+    sf = report.get("stylized_facts", {})
     print()
     section("Stylized facts")
-    if sf_summary.get("applicable", True):
-        mean_score = sf_summary.get("mean_score")
+    if sf.get("applicable", True):
+        mean_score = sf.get("mean_score")
         print(
             f"    {_c('Mean score:', C.GRAY):<34}{_c(str(mean_score) + '%', C.GREEN) if mean_score else 'N/A'}"
         )
-        print(
-            f"    {_c('Columns tested:', C.GRAY):<34}{sf_summary.get('columns_tested', 0)}"
-        )
-        per_col = report.get("stylized_facts", {}).get("per_column", {})
+        print(f"    {_c('Columns tested:', C.GRAY):<34}{sf.get('columns_tested', 0)}")
+        per_col = sf.get("per_column", {})
         for col, item in per_col.items():
             tail = item.get("tail_integrity", "—")
             conc = item.get("concentration_match", "—")
             parity = item.get("predictive_parity", "—")
             print(f"    {col:<26} tail={tail}%  conc={conc}%  parity={parity}%")
     else:
-        print(f"    {sf_summary.get('note', 'Not evaluated.')}")
+        print(f"    {sf.get('note', 'Not evaluated.')}")
 
 
 def _print_generate_logical(report):
