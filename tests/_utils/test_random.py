@@ -21,5 +21,4 @@ def test_set_seed_reproducibility():
 
 
 def test_set_seed_none():
-    # Calling with None should not crash
     set_seed(None)

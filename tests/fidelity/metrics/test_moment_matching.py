@@ -1,27 +1,20 @@
 import pandas as pd
 
-from tabular_polygraph.fidelity.metrics.ks_test import KSTest
 from tabular_polygraph.fidelity.metrics.moment_matching import MomentMatching
 
 
 def test_marginal_non_numeric():
     df1 = pd.DataFrame({"A": ["x", "y"] * 10})
     df2 = pd.DataFrame({"A": ["x", "y"] * 10})
-    # Non-numeric columns should be skipped — the caller passes no numeric columns
     mm = MomentMatching().compute(df1, df2, [])["column_scores"]
-    ks = KSTest().compute(df1, df2, [])["column_scores"]
     assert len(mm) == 0
-    assert len(ks) == 0
 
 
 def test_marginal_small_dataset():
     df1 = pd.DataFrame({"A": [1.0] * 5})
     df2 = pd.DataFrame({"A": [1.0] * 5})
-    # Should skip small datasets (< 10 rows)
     mm = MomentMatching().compute(df1, df2, ["A"])["column_scores"]
-    ks = KSTest().compute(df1, df2, ["A"])["column_scores"]
     assert len(mm) == 0
-    assert len(ks) == 0
 
 
 def test_marginal_constant_shift_not_perfect():

@@ -71,7 +71,7 @@ def test_tstr_score_missing_target():
 
 def test_tstr_score_small_data_returns_error():
     np.random.seed(42)
-    n = 20  # small size (< 50)
+    n = 20
     real = pd.DataFrame(
         {
             "feature1": np.random.randn(n),
