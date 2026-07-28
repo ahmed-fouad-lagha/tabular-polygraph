@@ -112,8 +112,8 @@ class Downstream(Metric):
         X_test_pre = preprocessor.transform(X_test)
 
         if task == "class":
-            le = LabelEncoder()
-            y_real_enc = le.fit_transform(y_real_tr.astype(str))
+            le = LabelEncoder().fit(y_real.astype(str))
+            y_real_enc = le.transform(y_real_tr.astype(str))
             y_test_enc = le.transform(y_test.astype(str))
 
             y_syn_str = y_syn.astype(str)

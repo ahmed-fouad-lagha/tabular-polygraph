@@ -92,6 +92,7 @@ class StylizedFacts(Metric):
                 per_column[col]["predictive_parity"] = round(parity, 2)
 
         scores = [v["tail_integrity"] for v in per_column.values()]
+        scores.extend(v["concentration_match"] for v in per_column.values())
         if parity is not None:
             scores.append(parity)
 

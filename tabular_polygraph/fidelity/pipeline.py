@@ -204,6 +204,8 @@ class FidelityPipeline:
         metric_targets: dict[str, list[str]] = {}
 
         for name in _metrics.list_metrics():
+            if name == "downstream" and not self.config.include_downstream:
+                continue
             cls = _metrics.get_metric_cls(name)
             if name == "downstream":
                 inst = cls(target_col=self.config.target_col)  # type: ignore[call-arg]
@@ -270,15 +272,19 @@ class FidelityPipeline:
             fit_futures = {
                 ex.submit(inst.fit, real, targets[inst.name]): inst for inst in metrics
             }
+            failed_fit: set[str] = set()
             for fut in as_completed(fit_futures):
                 inst = fit_futures[fut]
                 try:
                     fut.result()
                 except Exception as e:
                     logger.warning("Metric '%s'.fit() failed: %s", inst.name, e)
+                    failed_fit.add(inst.name)
 
             compute_futures = {}
             for inst in metrics:
+                if inst.name in failed_fit:
+                    continue
                 fut = ex.submit(inst.compute, real, syn, targets[inst.name])  # type: ignore[arg-type]
                 compute_futures[fut] = inst
 
