@@ -181,12 +181,15 @@ class TestDownstreamFidelity:
 
         captured_means: list[np.ndarray] = []
 
-        class MockRF:
+        from sklearn.base import BaseEstimator, ClassifierMixin
+
+        class MockRF(BaseEstimator, ClassifierMixin):
             def __init__(self, **kwargs):
                 pass
 
             def fit(self, X, y):
                 captured_means.append(X.mean(axis=0))
+                self.classes_ = np.unique(y)
                 return self
 
             def predict(self, X):

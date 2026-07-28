@@ -450,7 +450,7 @@ def _print_generate_bars(report):
 
     mm_cols = report.get("moment_matching", {}).get("column_scores", {})
     if mm_cols:
-        print(f"    {_c('Moment matching', C.GRAY)}")
+        print(f"    {_c('Continuous (Moment matching)', C.GRAY)}")
         for col, score in mm_cols.items():
             print(
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
@@ -459,8 +459,17 @@ def _print_generate_bars(report):
 
     ks_cols = report.get("distribution_fit", {}).get("column_scores", {})
     if ks_cols:
-        print(f"    {_c('KS distribution', C.GRAY)}")
+        print(f"    {_c('Continuous (KS distribution)', C.GRAY)}")
         for col, score in ks_cols.items():
+            print(
+                f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
+            )
+        print()
+
+    tvd_cols = report.get("categorical_tvd", {}).get("column_scores", {})
+    if tvd_cols:
+        print(f"    {_c('Categorical (TVD)', C.GRAY)}")
+        for col, score in tvd_cols.items():
             print(
                 f"    {col:<26}{bar(score)}  {_c(str(score) + '%', C.GREEN if score >= 90 else C.YELLOW)}"
             )
@@ -470,8 +479,9 @@ def _print_generate_bars(report):
     br = report.get("coverage", {}).get("beta_recall")
     au = report.get("coverage", {}).get("authenticity")
     if ap is not None and br is not None and au is not None:
-        print(f"    {_c('Alpha-precision (coverage)', C.GRAY):<34}{ap:.3f}")
-        print(f"    {_c('Beta-recall (coverage)', C.GRAY):<34}{br:.3f}")
+        section("Multidimensional Coverage")
+        print(f"    {_c('Alpha-precision', C.GRAY):<34}{ap:.3f}")
+        print(f"    {_c('Beta-recall', C.GRAY):<34}{br:.3f}")
         print(f"    {_c('Authenticity', C.GRAY):<34}{au:.3f}")
         print()
 
@@ -506,20 +516,30 @@ def _print_generate_logical(report):
         return
 
     print(
-        f"    {_c('Unified violation rate ', C.GRAY):<28}{lg.get('hif_violation_rate_pct', '—')}%"
+        f"    {_c('Unified violation rate ', C.GRAY):<28}{lg.get('hif_violation_rate_pct', '—')}%  ({lg.get('num_hif_violations', '—')} total violations)"
+    )
+    print(
+        f"    {_c('LSE (Categorical) rate ', C.GRAY):<28}{lg.get('lse_violation_rate_pct', '—')}%"
     )
     print(
         f"    {_c('NIC (Continuous) rate  ', C.GRAY):<28}{lg.get('nic_violation_rate_pct', '—')}%"
     )
     print(
-        f"    {_c('Rule violation rate    ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%"
+        f"    {_c('Rule violation rate    ', C.GRAY):<28}{lg.get('rule_violation_rate_pct', '—')}%  ({lg.get('num_rule_violations', '—')} violations / {lg.get('num_rules_mined', '—')} rules mined)"
     )
     print(
         f"    {_c('Noise floor threshold  ', C.GRAY):<28}{lg.get('violation_threshold', '—')}"
     )
-    print(
-        f"    {_c('Violations found       ', C.GRAY):<28}{lg.get('num_hif_violations', '—')} (rules mined: {lg.get('num_rules_mined', '—')})"
-    )
+
+
+def _print_generate_joint(report):
+    jt = report.get("joint")
+    if not jt or "error" in jt:
+        return
+    section("Joint Fidelity")
+    score = jt.get("correlation_distance_score", 0.0)
+    print(f"    {_c('Correlation Distance Score ', C.GRAY):<34}{score:.2f}%")
+    print()
 
 
 def _print_generate_downstream(report):
@@ -551,6 +571,7 @@ def _print_generate_report(report):
         return
 
     _print_generate_bars(report)
+    _print_generate_joint(report)
     _print_generate_logical(report)
     _print_generate_downstream(report)
     _print_generate_stylized(report)

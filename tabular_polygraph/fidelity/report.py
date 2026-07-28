@@ -18,7 +18,9 @@ from .marginal import (
     ks_distribution_scores,
     mean_ks_score,
     mean_moment_matching_score,
+    mean_tvd_score,
     moment_matching_scores,
+    tvd_scores,
 )
 from .tabular_facts import tabular_stylized_facts
 
@@ -100,6 +102,9 @@ def _logical_section(
             "violation_threshold": hif_result.get("violation_threshold"),
             "nic_violation_rate_pct": round(
                 float(hif_result.get("nic_violation_rate", 0) * 100.0), 2
+            ),
+            "lse_violation_rate_pct": round(
+                float(hif_result.get("lse_violation_rate", 0) * 100.0), 2
             ),
             "columns_used": hif_result["columns_used"],
             "rule_violation_rate_pct": round(
@@ -232,6 +237,16 @@ def fidelity_report(
     report["distribution_fit"] = {
         "column_scores": ks_scores,
         "mean_score": mean_ks_score(ks_scores),
+    }
+
+    # ── TVD (Categorical Marginal) ────────────────────────────────────────────
+    from tabular_polygraph.utils import categorical_columns
+
+    cat_cols = [c for c in cols if c in categorical_columns(real)]
+    tvd_s = tvd_scores(real, syn, cat_cols)
+    report["categorical_tvd"] = {
+        "column_scores": tvd_s,
+        "mean_score": mean_tvd_score(tvd_s),
     }
 
     # ── Stylized facts ────────────────────────────────────────────────────────

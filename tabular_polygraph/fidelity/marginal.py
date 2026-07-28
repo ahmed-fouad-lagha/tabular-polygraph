@@ -114,3 +114,49 @@ def ks_distribution_scores(
 def mean_ks_score(scores: dict[str, float]) -> float:
     """Mean KS score across numeric columns."""
     return round(float(np.mean(list(scores.values()))), 2) if scores else 0.0
+
+
+def tvd_scores(
+    real: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    columns: list[str] | None = None,
+) -> dict[str, float]:
+    """Per-column Total Variation Distance (TVD) scores for categorical columns.
+
+    Returns a score 0-100 where 100 means the distributions are identical.
+    """
+    from tabular_polygraph.utils import categorical_columns
+
+    if columns is None:
+        cols = [c for c in categorical_columns(real) if c in synthetic.columns]
+    else:
+        cols = columns
+    scores: dict[str, float] = {}
+
+    for col in cols:
+        if col not in real.columns or col not in synthetic.columns:
+            continue
+
+        r = real[col].dropna()
+        s = synthetic[col].dropna()
+
+        if len(r) == 0 or len(s) == 0:
+            continue
+
+        r_freq = r.value_counts(normalize=True)
+        s_freq = s.value_counts(normalize=True)
+
+        all_categories = set(r_freq.index).union(set(s_freq.index))
+        tvd = 0.5 * sum(
+            abs(r_freq.get(c, 0.0) - s_freq.get(c, 0.0)) for c in all_categories
+        )
+
+        score = max(0.0, min(100.0, (1.0 - tvd) * 100.0))
+        scores[col] = round(float(score), 2)
+
+    return scores
+
+
+def mean_tvd_score(scores: dict[str, float]) -> float:
+    """Mean TVD score across categorical columns."""
+    return round(float(np.mean(list(scores.values()))), 2) if scores else 0.0

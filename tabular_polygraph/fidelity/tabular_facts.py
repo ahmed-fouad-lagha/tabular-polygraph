@@ -77,15 +77,20 @@ def tabular_stylized_facts(
 
         # Rank correlation of the correlations (Spearman on correlation vectors)
         common_idx = r_corr.index.intersection(s_corr.index)
-        if len(common_idx) < 2:
-            rank_match = 0.0
-        else:
+        if len(common_idx) > 1:
             rank_match = float(
                 stats.spearmanr(
                     s_corr.loc[common_idx].values, r_corr.loc[common_idx].values
                 )[0]
             )
-        rank_match = max(0, rank_match)  # Clamp negative correlations
+            rank_match = max(0.0, rank_match)  # Clamp negative correlations
+        elif len(common_idx) == 1:
+            # Only 1 predictor. Order doesn't make sense, just use absolute similarity.
+            r_val = float(r_corr.loc[common_idx].values[0])
+            s_val = float(s_corr.loc[common_idx].values[0])
+            rank_match = max(0.0, 1.0 - abs(r_val - s_val))
+        else:
+            rank_match = None
 
         # 3. Concentration (Lorenz-style: top 5% share of absolute values)
         # Use absolute values so the metric works for columns with negative values
@@ -105,12 +110,17 @@ def tabular_stylized_facts(
             abs(r_top5_share - s_top5_share) / (r_top5_share + 1e-9), 1.0
         )
 
-        col_score = round((tail_match + rank_match + conc_match) / 3 * 100, 1)
+        components = [tail_match, conc_match]
+        if rank_match is not None:
+            components.append(rank_match)
+        col_score = round(sum(components) / len(components) * 100, 1)
         scores.append(col_score)
 
         results[col] = {
             "tail_integrity": round(tail_match, 3),
-            "predictive_parity": round(rank_match, 3),
+            "predictive_parity": round(rank_match, 3)
+            if rank_match is not None
+            else None,
             "concentration_match": round(conc_match, 3),
             "score": col_score,
         }

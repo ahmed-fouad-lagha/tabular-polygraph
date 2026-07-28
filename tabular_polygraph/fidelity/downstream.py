@@ -11,28 +11,17 @@ Supports: classification (default_12m, action_taken) and regression tasks.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import f1_score, r2_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-
-from tabular_polygraph.utils import numeric_columns
-
-
-def _standardize_with_train_stats(
-    train_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    feature_cols: list[str],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Standardize train and test features with train-set statistics."""
-    X_train = train_df[feature_cols].values.astype(float)
-    mu = X_train.mean(axis=0)
-    sd = X_train.std(axis=0)
-    sd[sd < 1e-9] = 1.0
-    X_test = test_df[feature_cols].values.astype(float)
-    return (X_train - mu) / sd, (X_test - mu) / sd
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
 
 def tstr_score(
@@ -47,14 +36,12 @@ def tstr_score(
     """
     Compute TSTR score: train on synthetic, evaluate on real using Random Forest.
     """
-    all_cols = [c for c in real.columns if c in synthetic.columns]
+    all_cols = [c for c in real.columns if c in synthetic.columns and c != target_col]
     if feature_cols is None:
-        feature_cols = [
-            c for c in numeric_columns(real) if c in all_cols and c != target_col
-        ]
+        feature_cols = all_cols
 
     if not feature_cols or target_col not in real.columns:
-        return {"error": f"target '{target_col}' not found or no numeric features"}
+        return {"error": f"target '{target_col}' not found or no features available"}
 
     # Infer task
     if task == "auto":
@@ -66,16 +53,12 @@ def tstr_score(
     syn_clean = synthetic[feature_cols + [target_col]].dropna()
 
     if len(real_clean) < 50:
-        import warnings
-
         warnings.warn(
             f"Real evaluation dataset clean sample size ({len(real_clean)} rows) is < 50 after dropna().",
             UserWarning,
             stacklevel=2,
         )
     if len(syn_clean) < 50:
-        import warnings
-
         warnings.warn(
             f"Synthetic evaluation dataset clean sample size ({len(syn_clean)} rows) is < 50 after dropna().",
             UserWarning,
@@ -86,59 +69,115 @@ def tstr_score(
         real_clean, test_size=test_frac, random_state=seed
     )
 
-    X_real_tr, X_test = _standardize_with_train_stats(
-        real_train, real_test, feature_cols
-    )
+    X_real_tr = real_train[feature_cols]
     y_real_tr = real_train[target_col].values
+    X_test = real_test[feature_cols]
     y_test = real_test[target_col].values
 
-    # Scale synthetic using its own training stats (as it would be in a real TSTR scenario)
-    # We treat syn as the "training" set, so we must scale the real test set using syn's stats
-    X_syn, X_test_syn = _standardize_with_train_stats(
-        syn_clean, real_test, feature_cols
-    )
+    X_syn = syn_clean[feature_cols]
     y_syn = syn_clean[target_col].values
 
+    num_cols = X_real_tr.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = X_real_tr.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    transformers = []
+    if num_cols:
+        transformers.append(
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                num_cols,
+            )
+        )
+    if cat_cols:
+        transformers.append(
+            (
+                "cat",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="most_frequent")),
+                        (
+                            "ohe",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                        ),
+                    ]
+                ),
+                cat_cols,
+            )
+        )
+
+    if not transformers:
+        return {"error": "No valid numerical or categorical columns found for TSTR."}
+
+    from sklearn.base import clone
+
+    preprocessor = ColumnTransformer(transformers)
+
     if task == "classification":
-        model_tstr = RandomForestClassifier(n_estimators=100, random_state=seed)
-        model_trr = RandomForestClassifier(n_estimators=100, random_state=seed)
+        model_tstr = Pipeline(
+            [
+                ("preprocessor", clone(preprocessor)),
+                ("rf", RandomForestClassifier(n_estimators=100, random_state=seed)),
+            ]
+        )
+        model_trr = Pipeline(
+            [
+                ("preprocessor", clone(preprocessor)),
+                ("rf", RandomForestClassifier(n_estimators=100, random_state=seed)),
+            ]
+        )
 
         le = LabelEncoder()
         y_real_tr = le.fit_transform(y_real_tr.astype(str))
         y_test = le.transform(y_test.astype(str))
-        # Handle potential missing classes in synthetic
+
         y_syn_str = y_syn.astype(str)
-        # Filter syn to only classes present in real
         mask = np.isin(y_syn_str, le.classes_)
         if not mask.any():
             return {"error": "Synthetic target has no overlap with real classes"}
-        X_syn = X_syn[mask]
+
+        X_syn = X_syn.iloc[mask]
         y_syn = le.transform(y_syn_str[mask])
 
         model_tstr.fit(X_syn, y_syn)
         model_trr.fit(X_real_tr, y_real_tr)
 
-        tstr = f1_score(y_test, model_tstr.predict(X_test_syn), average="macro")
+        tstr = f1_score(y_test, model_tstr.predict(X_test), average="macro")
         trr = f1_score(y_test, model_trr.predict(X_test), average="macro")
         metric = "f1_macro"
     else:
-        model_tstr = RandomForestRegressor(n_estimators=100, random_state=seed)
-        model_trr = RandomForestRegressor(n_estimators=100, random_state=seed)
+        model_tstr = Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                ("rf", RandomForestRegressor(n_estimators=100, random_state=seed)),
+            ]
+        )
+        model_trr = Pipeline(
+            [
+                ("preprocessor", preprocessor),
+                ("rf", RandomForestRegressor(n_estimators=100, random_state=seed)),
+            ]
+        )
 
         model_tstr.fit(X_syn, y_syn)
         model_trr.fit(X_real_tr, y_real_tr)
 
-        tstr = r2_score(y_test, model_tstr.predict(X_test_syn))
+        tstr = r2_score(y_test, model_tstr.predict(X_test))
         trr = r2_score(y_test, model_trr.predict(X_test))
         metric = "r2"
 
-    ratio = round(tstr / max(abs(trr), 1e-6), 4)
+    ratio = round(float(tstr) / max(abs(float(trr)), 1e-6), 4)
 
     return {
         "task": task,
         "metric": metric,
-        "tstr_score": round(tstr, 4),
-        "trr_score": round(trr, 4),
+        "tstr_score": round(float(tstr), 4),
+        "trr_score": round(float(trr), 4),
         "ratio": ratio,
         "target_col": target_col,
         "n_features": len(feature_cols),
