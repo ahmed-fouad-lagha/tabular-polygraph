@@ -220,33 +220,6 @@ class VineCopulaGenerator(BaseGenerator):
         self._fitted = True
         return self
 
-    def _sample_from_vine(self, count: int, rng: np.random.Generator) -> pd.DataFrame:
-        """Simulate from the vine and invert through empirical marginals."""
-        U_syn = self._vine.simulate(count)
-        U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
-
-        records = {}
-        for i, col in enumerate(self._numeric_cols):
-            m = self._marginals[col]
-            if m["n"] == 0:
-                records[col] = np.full(count, 0.0)
-                continue
-            quantile_idx = U_syn[:, i] * (m["n"] - 1)
-            lower = np.floor(quantile_idx).astype(int)
-            upper = np.minimum(lower + 1, m["n"] - 1)
-            frac = quantile_idx - lower
-            values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
-            records[col] = np.clip(values, m["min"], m["max"])
-
-        for col in self._cat_cols:
-            m = self._cat_marginals[col]
-            if not m["cats"]:
-                records[col] = np.full(count, "unknown", dtype=object)
-                continue
-            records[col] = rng.choice(m["cats"], size=count, p=m["probs"])
-
-        return self._cast_types(pd.DataFrame(records)[self._columns])
-
     def _generate(
         self,
         n: int,
@@ -254,13 +227,76 @@ class VineCopulaGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         _require_pyvine()
-
         rng = np.random.default_rng(seed)
+        filters = filters or {}
 
-        def _sample(count: int) -> pd.DataFrame:
-            return self._sample_from_vine(count, rng)
+        resolved_filters = []
+        for k, v in filters.items():
+            if k in self._columns:
+                resolved_filters.append((k, "exact", v))
+            elif k.endswith("_min") and k[:-4] in self._columns:
+                resolved_filters.append((k[:-4], "min", v))
+            elif k.endswith("_max") and k[:-4] in self._columns:
+                resolved_filters.append((k[:-4], "max", v))
 
-        return self._generate_with_retry(n, filters, _sample)
+        valid_records: dict[str, list[np.ndarray]] = {col: [] for col in self._columns}
+        collected = 0
+        batch_size = max(n * 10, 1000)
+
+        while collected < n:
+            U_syn = self._vine.simulate(batch_size)
+            U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
+
+            records = {}
+            for i, col in enumerate(self._numeric_cols):
+                m = self._marginals[col]
+                if m["n"] == 0:
+                    records[col] = np.full(batch_size, 0.0)
+                    continue
+                quantile_idx = U_syn[:, i] * (m["n"] - 1)
+                lower = np.floor(quantile_idx).astype(int)
+                upper = np.minimum(lower + 1, m["n"] - 1)
+                frac = quantile_idx - lower
+                values = m["sorted"][lower] * (1 - frac) + m["sorted"][upper] * frac
+                records[col] = np.clip(values, m["min"], m["max"])
+
+            for col in self._cat_cols:
+                m = self._cat_marginals[col]
+                if not m["cats"]:
+                    records[col] = np.full(batch_size, "unknown", dtype=object)
+                    continue
+                records[col] = rng.choice(m["cats"], size=batch_size, p=m["probs"])
+
+            if resolved_filters:
+                mask = np.ones(batch_size, dtype=bool)
+                for col_name, f_type, f_val in resolved_filters:
+                    col_vals = records[col_name]
+                    if f_type == "exact":
+                        if isinstance(f_val, list):
+                            mask &= np.isin(col_vals, f_val)
+                        else:
+                            mask &= col_vals == f_val
+                    elif f_type == "min":
+                        mask &= col_vals >= f_val
+                    elif f_type == "max":
+                        mask &= col_vals <= f_val
+
+                for col in self._columns:
+                    records[col] = records[col][mask]
+
+            num_valid = len(records[self._columns[0]])
+            if num_valid > 0:
+                for col in self._columns:
+                    valid_records[col].append(records[col])
+                collected += num_valid
+
+        final_records = {}
+        for col in self._columns:
+            final_records[col] = np.concatenate(valid_records[col])[:n]
+
+        df = pd.DataFrame(final_records)[self._columns]
+        df = self._cast_types(df)
+        return self._apply_filters(df, filters).head(n)
 
     def tail_dependence_report(self) -> dict:
         """Return upper and lower tail dependence coefficients for each pair.

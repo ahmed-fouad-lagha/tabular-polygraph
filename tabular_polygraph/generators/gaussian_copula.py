@@ -186,7 +186,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         corr = np.corrcoef(normal.T)
         corr = np.atleast_2d(corr)
 
-        # HARDENING: Handle NaNs and ensure PSD
+        # Handle NaNs and ensure PSD
         if np.any(np.isnan(corr)):
             corr = np.nan_to_num(corr, nan=0.0)
             np.fill_diagonal(corr, 1.0)
@@ -213,26 +213,64 @@ class GaussianCopulaGenerator(BaseGenerator):
         seed: int | None = None,
     ) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
+        if self._corr is None:
+            raise ValueError("Correlation matrix not fitted")
 
-        def _sample(count: int) -> pd.DataFrame:
-            try:
-                if self._corr is None:
-                    raise ValueError("Correlation matrix not fitted")
-                L = np.linalg.cholesky(self._corr)
-                z = rng.standard_normal((count, len(self._columns))) @ L.T
-            except np.linalg.LinAlgError:
-                z = rng.standard_normal((count, len(self._columns)))
+        try:
+            L = np.linalg.cholesky(self._corr)
+        except np.linalg.LinAlgError:
+            L = np.eye(len(self._columns))
 
+        filters = filters or {}
+
+        resolved_filters = []
+        for k, v in filters.items():
+            if k in self._columns:
+                resolved_filters.append((self._columns.index(k), k, "exact", v))
+            elif k.endswith("_min") and k[:-4] in self._columns:
+                resolved_filters.append((self._columns.index(k[:-4]), k[:-4], "min", v))
+            elif k.endswith("_max") and k[:-4] in self._columns:
+                resolved_filters.append((self._columns.index(k[:-4]), k[:-4], "max", v))
+
+        valid_u_list = []
+        collected = 0
+        batch_size = max(n * 10, 1000)
+
+        while collected < n:
+            z = rng.standard_normal((batch_size, len(self._columns))) @ L.T
             u = stats.norm.cdf(z)
-            records = {
-                col: self._marginals[col].from_uniform(u[:, i])
-                for i, col in enumerate(self._columns)
-            }
-            return self._cast_types(pd.DataFrame(records))
 
-        return self._generate_with_retry(n, filters, _sample)
+            if resolved_filters:
+                mask = np.ones(batch_size, dtype=bool)
+                for col_idx, col_name, f_type, f_val in resolved_filters:
+                    col_vals = np.array(
+                        self._marginals[col_name].from_uniform(u[:, col_idx])
+                    )
+                    if f_type == "exact":
+                        if isinstance(f_val, list):
+                            mask &= np.isin(col_vals, f_val)
+                        else:
+                            mask &= col_vals == f_val
+                    elif f_type == "min":
+                        mask &= col_vals >= f_val
+                    elif f_type == "max":
+                        mask &= col_vals <= f_val
+                u = u[mask]
 
-    # ── introspection ─────────────────────────────────────────────────────────
+            if len(u) > 0:
+                valid_u_list.append(u)
+                collected += len(u)
+
+        u_final = np.vstack(valid_u_list)[:n]
+
+        records = {
+            col: self._marginals[col].from_uniform(u_final[:, i])
+            for i, col in enumerate(self._columns)
+        }
+        df = self._cast_types(pd.DataFrame(records))
+
+        # Apply leftover prefix filters (if any) as a last resort
+        return self._apply_filters(df, filters).head(n)
 
     @property
     def marginal_kinds(self) -> dict[str, str]:

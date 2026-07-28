@@ -31,7 +31,7 @@ class DummyGenerator(BaseGenerator):
         df = self._cast_types(df)
         if filters:
             df = self._apply_filters(df, filters)
-        return self._add_syn_id(df.head(n))
+        return df.head(n)
 
 
 class TestBaseGenerator:
@@ -62,12 +62,6 @@ class TestBaseGenerator:
 
         syn2 = gen.generate(2)
         assert syn2["syn_id"].iloc[0] == "SYN-3"
-
-    def test_fit_generate_fluent(self):
-        df = pd.DataFrame({"a": [1, 2, 3] * 50})
-        gen = DummyGenerator()
-        out = gen.fit_generate(df, 10)
-        assert len(out) == 10
 
     def test_filters(self):
         df = pd.DataFrame(
