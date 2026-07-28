@@ -1,5 +1,5 @@
 """
-tabular_polygraph.fidelity.sentinel
+tabular_polygraph.fidelity.hif.sentinel
 ------------------------------------
 Logical Sentinel Ensemble (LSE) — the categorical manifold auditor of HIF.
 

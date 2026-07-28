@@ -26,7 +26,7 @@ class TestMarginalFidelity:
 
 class TestLogicalFidelity:
     def test_hif_handles_single_category_feature(self):
-        from tabular_polygraph.fidelity.logical import hif_score
+        from tabular_polygraph.fidelity.hif import hif_score
 
         real = pd.DataFrame({"cat": ["A"] * 20})
         syn = pd.DataFrame({"cat": ["A"] * 20})
@@ -38,7 +38,7 @@ class TestLogicalFidelity:
         assert result["mean_penalty"] == 0.0
 
     def test_hif_small_dataset_train_with_verbose(self):
-        from tabular_polygraph.fidelity.logical import hif_score
+        from tabular_polygraph.fidelity.hif import hif_score
 
         real = pd.DataFrame(
             {
@@ -52,7 +52,7 @@ class TestLogicalFidelity:
         assert 0.0 <= result["hif_score"] <= 1.0
 
     def test_lse_oracle_trains_and_audits(self):
-        from tabular_polygraph.fidelity.logical import LogicalSentinelEnsemble
+        from tabular_polygraph.fidelity.hif import LogicalSentinelEnsemble
 
         # Increase data diversity for better Sentinel training
         real = pd.DataFrame(
@@ -74,7 +74,7 @@ class TestLogicalFidelity:
         assert penalties[1] == 0.0
 
     def test_nic_scorer_manifold_continuity(self):
-        from tabular_polygraph.fidelity.logical import NeighborInvariantContinuity
+        from tabular_polygraph.fidelity.hif import NeighborInvariantContinuity
 
         # Create data where the categorical manifold has real structure
         # that correlates with the continuous variable
@@ -107,7 +107,7 @@ class TestLogicalFidelity:
         assert penalties2[0] > 0.5
 
     def test_rule_violation_score_penalizes_corruption(self):
-        from tabular_polygraph.fidelity.logical import rule_violation_score
+        from tabular_polygraph.fidelity.hif import rule_violation_score
 
         real = pd.DataFrame(
             {

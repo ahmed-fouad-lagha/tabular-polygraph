@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.fidelity.logical import (
+from tabular_polygraph.fidelity.hif import (
     LogicalSentinelEnsemble,
     NeighborInvariantContinuity,
-    _apply_binning,
-    _fit_binning,
+    apply_binning,
+    fit_binning,
     hif_score,
     mine_implication_rules,
 )
@@ -19,16 +19,16 @@ def test_adaptive_binning():
             "c": ["x", "y"] * 5,
         }
     )
-    edges = _fit_binning(df, ["a", "b"])
-    binned = _apply_binning(df, ["a", "b"], edges)
+    edges = fit_binning(df, ["a", "b"])
+    binned = apply_binning(df, ["a", "b"], edges)
     assert binned["a"].iloc[0] == "bin_0"
     assert "bin_" in str(binned["b"].iloc[0])
 
 
 def test_adaptive_binning_constant():
     df = pd.DataFrame({"a": [1, 1, 1, 1, 1]})
-    edges = _fit_binning(df, ["a"])
-    binned = _apply_binning(df, ["a"], edges)
+    edges = fit_binning(df, ["a"])
+    binned = apply_binning(df, ["a"], edges)
     assert (binned["a"] == "bin_0").all()
 
 
@@ -38,9 +38,9 @@ def test_binning_consistency():
     real = pd.DataFrame({"x": np.random.normal(0, 1, 500)})
     syn = pd.DataFrame({"x": np.random.normal(0.5, 1.2, 500)})
 
-    edges = _fit_binning(real, ["x"])
-    real_binned = _apply_binning(real, ["x"], edges)
-    syn_binned = _apply_binning(syn, ["x"], edges)
+    edges = fit_binning(real, ["x"])
+    real_binned = apply_binning(real, ["x"], edges)
+    syn_binned = apply_binning(syn, ["x"], edges)
 
     real_labels = set(real_binned["x"].unique())
     syn_labels = set(syn_binned["x"].unique())
@@ -131,9 +131,9 @@ def test_binning_cross_distribution():
     real = pd.DataFrame({"x": np.random.normal(0, 1, 1000)})
     syn = pd.DataFrame({"x": np.random.exponential(2, 1000)})
 
-    edges = _fit_binning(real, ["x"])
-    real_binned = _apply_binning(real, ["x"], edges)
-    syn_binned = _apply_binning(syn, ["x"], edges)
+    edges = fit_binning(real, ["x"])
+    real_binned = apply_binning(real, ["x"], edges)
+    syn_binned = apply_binning(syn, ["x"], edges)
 
     # Both should produce bin_ labels
     assert real_binned["x"].str.startswith("bin_").all()

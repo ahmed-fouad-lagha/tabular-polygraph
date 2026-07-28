@@ -72,55 +72,46 @@ def _logical_section(
 ) -> tuple[dict, float | None]:
     logical_validity: float | None = None
 
-    try:
-        from .logical import hif_score
+    from .hif import hif_score
 
-        hif_result = hif_score(
-            real,
-            synthetic,
-            columns=cols,
-            verbose=verbose,
-            hif_epochs=hif_epochs,
-            hif_hubs=hif_hubs,
-            hif_depth=hif_depth,
-            rule_min_confidence=rule_min_confidence,
-            rule_min_support=rule_min_support,
-            rule_max_rules=rule_max_rules,
-            rule_min_lift=rule_min_lift,
-            rule_max_antecedents=rule_max_antecedents,
-            random_state=random_state,
-            progress_callback=progress_callback,
-        )
-        logical_validity = round(float(hif_result["hif_score"] * 100.0), 2)
-        return {
-            "hif_score_pct": logical_validity,
-            "hif_violation_rate_pct": round(
-                float(hif_result["violation_rate"] * 100.0), 2
-            ),
-            "mean_penalty_pct": round(float(hif_result["mean_penalty"] * 100.0), 2),
-            "num_hif_violations": hif_result["num_violations"],
-            "violation_threshold": hif_result.get("violation_threshold"),
-            "nic_violation_rate_pct": round(
-                float(hif_result.get("nic_violation_rate", 0) * 100.0), 2
-            ),
-            "lse_violation_rate_pct": round(
-                float(hif_result.get("lse_violation_rate", 0) * 100.0), 2
-            ),
-            "columns_used": hif_result["columns_used"],
-            "rule_violation_rate_pct": round(
-                float(hif_result.get("rule_violation_rate", 0) * 100.0), 2
-            ),
-            "num_rule_violations": hif_result.get("num_rule_violations", 0),
-            "num_rules_mined": hif_result.get("num_rules_mined", 0),
-            "top_violated_rules": hif_result.get("top_violated_rules", []),
-            "violation_examples": hif_result.get("violation_examples", []),
-        }, logical_validity
-    except Exception as e:
-        if "torch" in str(e).lower():
-            return {
-                "error": "PyTorch not installed. Install with: pip install torch"
-            }, None
-        return {"error": str(e)}, None
+    hif_result = hif_score(
+        real,
+        synthetic,
+        columns=cols,
+        verbose=verbose,
+        hif_epochs=hif_epochs,
+        hif_hubs=hif_hubs,
+        hif_depth=hif_depth,
+        rule_min_confidence=rule_min_confidence,
+        rule_min_support=rule_min_support,
+        rule_max_rules=rule_max_rules,
+        rule_min_lift=rule_min_lift,
+        rule_max_antecedents=rule_max_antecedents,
+        random_state=random_state,
+        progress_callback=progress_callback,
+    )
+    logical_validity = round(float(hif_result["hif_score"] * 100.0), 2)
+    return {
+        "hif_score_pct": logical_validity,
+        "hif_violation_rate_pct": round(float(hif_result["violation_rate"] * 100.0), 2),
+        "mean_penalty_pct": round(float(hif_result["mean_penalty"] * 100.0), 2),
+        "num_hif_violations": hif_result["num_violations"],
+        "violation_threshold": hif_result.get("violation_threshold"),
+        "nic_violation_rate_pct": round(
+            float(hif_result.get("nic_violation_rate", 0) * 100.0), 2
+        ),
+        "lse_violation_rate_pct": round(
+            float(hif_result.get("lse_violation_rate", 0) * 100.0), 2
+        ),
+        "columns_used": hif_result["columns_used"],
+        "rule_violation_rate_pct": round(
+            float(hif_result.get("rule_violation_rate", 0) * 100.0), 2
+        ),
+        "num_rule_violations": hif_result.get("num_rule_violations", 0),
+        "num_rules_mined": hif_result.get("num_rules_mined", 0),
+        "top_violated_rules": hif_result.get("top_violated_rules", []),
+        "violation_examples": hif_result.get("violation_examples", []),
+    }, logical_validity
 
 
 def _summary_section(

@@ -1,20 +1,4 @@
-"""
-HIF: Hybrid Integrity Framework (The Tabular Polygraph).
-
-A neurosymbolic logical constraint validator for synthetic tabular data.
-Trains a Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC)
-auditors on ground-truth manifolds to detect semantic hallucinations via
-multiplicative manifold integrity penalties.
-
-This module is split into focused sub-modules:
-  - ``binning``  – adaptive binning and code canonicalisation
-  - ``sentinel`` – ManifoldEncoder, LogicalSentinelEnsemble
-  - ``nic``      – NeighborInvariantContinuity
-  - ``rules``    – rule mining and violation scoring
-
-This file retains the ``hif_score`` orchestrator and re-exports all public
-symbols for backward compatibility.
-"""
+"""HIF orchestration entry point."""
 
 from __future__ import annotations
 
@@ -57,17 +41,12 @@ from .sentinel import (  # noqa: F401
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    # orchestrator
     "hif_score",
-    # sentinel
     "ManifoldEncoder",
     "LogicalSentinelEnsemble",
-    # nic
     "NeighborInvariantContinuity",
-    # rules
     "mine_implication_rules",
     "rule_violation_score",
-    # constants (backward compat)
     "MAX_RULE_CANDIDATES",
     "LSE_MIN_SAMPLES_LEAF",
     "NIC_COLLAPSE_THRESHOLD",
@@ -125,14 +104,12 @@ def hif_score(
         else:
             valid_cols.append(col)
 
-    # Pre-processing: Fit binning on REAL data only, then apply to both.
     bin_edges = _fit_binning(real[columns], columns)
     all_f_real = _apply_binning(real[columns], columns, bin_edges)
     all_f_syn = _apply_binning(synthetic[columns], columns, bin_edges)
     real_f = all_f_real
     synthetic_f = all_f_syn
 
-    # UNIFIED STATEFUL ENCODING: Project into categorical manifold
     encoder = ManifoldEncoder()
     encoder.fit(real_f)
     x_real_cat = encoder.transform(real_f)
@@ -141,7 +118,6 @@ def hif_score(
     if callable(progress_callback):
         progress_callback(1, 3, "Auditing Sentinels...")
 
-    # 1. Categorical Layer: Manifold Sentinels
     oracle = LogicalSentinelEnsemble(
         top_n_hubs=hif_hubs,
         max_depth=hif_depth,
@@ -158,7 +134,7 @@ def hif_score(
         potential_hubs=columns,
     )
     _, cat_penalties, meta = oracle.audit(synthetic_f, x_precomputed=x_syn_cat)
-    # 2. Continuous Layer: Neighbor-Invariant Continuity (NIC)
+
     nic_violation_rate = 0.0
     nic_penalties = np.zeros(len(synthetic))
 
@@ -191,7 +167,6 @@ def hif_score(
     if callable(progress_callback):
         progress_callback(3, 3, "Mining Implication Rules...")
 
-    # 3. Structural Layer: Logical Rules (Hard Constraints)
     if verbose:
         logger.debug("Mining and checking Implication Rules...")
     real_f, synthetic_f = _canonicalize_code_columns(real_f, synthetic_f, columns)
@@ -214,7 +189,6 @@ def hif_score(
     if verbose:
         logger.debug(f"Rule mining complete ({rule_result['num_rules_mined']} rules).")
 
-    # AGGREGATION: Integrative validities with ablation support
     eps = component_floor
 
     if ablation_mode == "lse_only":
@@ -230,7 +204,7 @@ def hif_score(
         active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
         if nic_targets:
             active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
-    else:  # "full" — default
+    else:
         active_components = [np.clip(1.0 - cat_penalties, eps, 1.0)]
         if nic_targets:
             active_components.append(np.clip(1.0 - nic_penalties, eps, 1.0))
@@ -238,7 +212,7 @@ def hif_score(
 
     if aggregation == "arithmetic":
         row_validity = np.asarray(sum(active_components) / len(active_components))
-    else:  # geometric mean (1/L exponent) per manuscript Algorithm 2
+    else:
         log_sum = sum(np.log(c) for c in active_components)
         row_validity = np.asarray(np.exp(log_sum / len(active_components)))
 

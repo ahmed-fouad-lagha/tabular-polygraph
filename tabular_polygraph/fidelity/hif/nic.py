@@ -1,5 +1,5 @@
 """
-tabular_polygraph.fidelity.nic
+tabular_polygraph.fidelity.hif.nic
 -------------------------------
 Neighbor-Invariant Continuity (NIC) auditor of HIF.
 
@@ -54,36 +54,29 @@ class NeighborInvariantContinuity:
         self.encoder = ManifoldEncoder()
         self.random_state = random_state
 
-    def fit(
+    def _continuous_columns(self, continuous_df: pd.DataFrame) -> list[str]:
+        return [c for c in continuous_df.columns if continuous_df[c].nunique() > 1]
+
+    def _encoded_categorical(
         self,
         categorical_df: pd.DataFrame,
-        continuous_df: pd.DataFrame,
-        x_precomputed: pd.DataFrame | None = None,
-        verbose: bool = True,
-    ):
-        """Fit non-linear regressors on the training manifold."""
-        valid_cols = [
-            c for c in continuous_df.columns if continuous_df[c].nunique() > 1
-        ]
-        if not valid_cols:
-            return
-
-        active_df = continuous_df[valid_cols]
-
+        x_precomputed: pd.DataFrame | None,
+    ) -> pd.DataFrame:
         if x_precomputed is not None:
-            x_encoded = x_precomputed
-        else:
-            self.encoder.fit(categorical_df)
-            x_encoded = self.encoder.transform(categorical_df)
+            return x_precomputed
 
+        self.encoder.fit(categorical_df)
+        return self.encoder.transform(categorical_df)
+
+    def _fit_latent_projection(
+        self, x_encoded: pd.DataFrame, verbose: bool
+    ) -> tuple[np.ndarray | None, int]:
         n_feat = x_encoded.shape[1]
         n_samples = x_encoded.shape[0]
         if n_feat < 1 or n_samples < 2:
-            return
+            return None, 0
 
-        n_comp = min(n_samples // 2, n_feat, 32)
-        if n_comp < 1:
-            n_comp = 1
+        n_comp = max(1, min(n_samples // 2, n_feat, 32))
         if verbose:
             logger.debug(f"Spectral Embedding ({n_feat} -> {n_comp} target)...")
 
@@ -95,51 +88,81 @@ class NeighborInvariantContinuity:
         x_scaled = self.latent_scaler.fit_transform(x_encoded)
         latent = self.pca.fit_transform(x_scaled)
         if verbose:
-            logger.debug(
-                f"Spectral Embedding done ({self.pca.n_components} components)."
-            )
+            logger.debug(f"Spectral Embedding done ({n_comp} components).")
+
+        return latent, n_comp
+
+    def _fit_continuous_column(
+        self,
+        column_name: str,
+        column_values: pd.Series,
+        latent: np.ndarray,
+        verbose: bool,
+    ) -> None:
+        if verbose:
+            logger.debug(f"Regressing variable '{column_name}'...")
+
+        y_raw = np.asarray(column_values, dtype=float)
+        valid_mask = ~np.isnan(y_raw)
+        if not valid_mask.any():
+            if verbose:
+                logger.debug(f"Variable '{column_name}' skipped (all NaN).")
+            return
+
+        y_valid = y_raw[valid_mask]
+        self.marginal_references[column_name] = np.sort(y_valid)
+        latent_valid = latent[valid_mask]
+
+        scaler = StandardScaler()
+        y_scaled = scaler.fit_transform(y_valid.reshape(-1, 1)).ravel()
+
+        reg = HistGradientBoostingRegressor(
+            max_iter=100,
+            max_depth=5,
+            learning_rate=0.1,
+            random_state=self.random_state,
+            l2_regularization=1.0,
+        )
+        reg.fit(latent_valid, y_scaled)
+        if verbose:
+            logger.debug(f"Regressing variable '{column_name}' complete.")
+
+        y_pred = reg.predict(latent_valid)
+        residuals = np.abs(y_scaled - y_pred)
+
+        self.regressors[column_name] = reg
+        self.scalers[column_name] = scaler
+
+        mad = float(median_abs_deviation(residuals))
+        med = float(np.median(residuals))
+        p98 = float(np.percentile(residuals, 98))
+
+        self.z_thresholds[column_name] = max(p98, med + 2.0 * mad)
+        self.gamma_scalings[column_name] = max(
+            2.0 * self.z_thresholds[column_name], 3.0 * mad, 0.1
+        )
+
+    def fit(
+        self,
+        categorical_df: pd.DataFrame,
+        continuous_df: pd.DataFrame,
+        x_precomputed: pd.DataFrame | None = None,
+        verbose: bool = True,
+    ) -> None:
+        """Fit non-linear regressors on the training manifold."""
+        valid_cols = self._continuous_columns(continuous_df)
+        if not valid_cols:
+            return
+
+        active_df = continuous_df[valid_cols]
+        x_encoded = self._encoded_categorical(categorical_df, x_precomputed)
+        latent, _ = self._fit_latent_projection(x_encoded, verbose)
+        if latent is None:
+            return
 
         self.regressors = {}
         for col in active_df.columns:
-            if verbose:
-                logger.debug(f"Regressing variable '{col}'...")
-
-            y_raw = active_df[col].values
-            valid_mask = ~np.isnan(y_raw)
-            if not valid_mask.any():
-                if verbose:
-                    logger.debug(f"Variable '{col}' skipped (all NaN).")
-                continue
-
-            y_valid = y_raw[valid_mask]
-            self.marginal_references[col] = np.sort(y_valid)
-            latent_valid = latent[valid_mask]
-
-            scaler = StandardScaler()
-            y_scaled = scaler.fit_transform(y_valid.reshape(-1, 1)).flatten()
-
-            reg = HistGradientBoostingRegressor(
-                max_iter=100,
-                max_depth=5,
-                random_state=self.random_state,
-                l2_regularization=1.0,
-            )
-            reg.fit(latent_valid, y_scaled)
-            if verbose:
-                logger.debug(f"Regressing variable '{col}' complete.")
-
-            y_pred = reg.predict(latent_valid)
-            residuals = np.abs(y_scaled - y_pred)
-
-            self.regressors[col] = reg
-            self.scalers[col] = scaler
-
-            mad = float(median_abs_deviation(residuals))
-            med = float(np.median(residuals))
-            p98 = float(np.percentile(residuals, 98))
-
-            self.z_thresholds[col] = max(p98, med + 2.0 * mad)
-            self.gamma_scalings[col] = max(2.0 * self.z_thresholds[col], 3.0 * mad, 0.1)
+            self._fit_continuous_column(col, active_df[col], latent, verbose)
 
     def score(
         self,

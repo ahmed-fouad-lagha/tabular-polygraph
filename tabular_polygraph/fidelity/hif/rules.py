@@ -1,5 +1,5 @@
 """
-tabular_polygraph.fidelity.rules
+tabular_polygraph.fidelity.hif.rules
 ---------------------------------
 FP-Growth-style implication rule mining and violation scoring for HIF.
 
