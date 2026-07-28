@@ -308,7 +308,7 @@ def _prepare_generate_request(args):
     dataset_id = getattr(args, "dataset", None)
 
     if not input_file and not dataset_id:
-        err("Provide a dataset ID (e.g. tabular-polygraph generate bls)")
+        err("Provide a dataset ID (e.g. tabular-polygraph generate adult)")
         err("or your own file (e.g. tabular-polygraph generate --input data.csv)")
         sys.exit(1)
 
@@ -761,18 +761,18 @@ def cmd_validate(args):
 
 def cmd_download(args):
     from tabular_polygraph.dataset.downloader import (
-        DOWNLOADERS,
         download,
         is_cached,
         status,
     )
+    from tabular_polygraph.dataset.registry import DATASETS
 
     if args.dataset == "status":
         header("Download status")
         df = status()
         for _, row in df.iterrows():
             icon = _c("✓", C.GREEN) if "cached" in row["status"] else _c("○", C.GRAY)
-            print(f"    {icon} {row['dataset']:<28} {row['rows']:<12} {row['size']}")
+            print(f"    {icon} {row['dataset']:<28} {row['size']}")
         print()
         dim("  Run: tabular-polygraph download <id>   to download real data")
         dim("  Run: tabular-polygraph download all    to download everything")
@@ -781,9 +781,9 @@ def cmd_download(args):
 
     dataset_id = args.dataset
 
-    if dataset_id != "all" and dataset_id not in DOWNLOADERS:
+    if dataset_id != "all" and dataset_id not in DATASETS:
         err(f"No downloader for '{dataset_id}'.")
-        info(f"Available: {', '.join(DOWNLOADERS)}")
+        info(f"Available: {', '.join(DATASETS)}")
         info("For other datasets, use gen.fit(your_csv) to bring your own data.")
         sys.exit(1)
 
@@ -841,7 +841,7 @@ def main():
         "dataset",
         nargs="?",
         default=None,
-        help="Built-in dataset ID (e.g. bls). Omit if using --input.",
+        help="Built-in dataset ID (e.g. adult). Omit if using --input.",
     )
     p.add_argument(
         "--input",
@@ -1063,7 +1063,7 @@ def main():
         print()
         dim("  Examples:")
         dim("    tabular-polygraph list --vertical 'Real Estate'")
-        dim("    tabular-polygraph generate bls --rows 500 --output syn.csv")
+        dim("    tabular-polygraph generate adult --rows 500 --output syn.csv")
         dim("    tabular-polygraph evaluate real.csv synthetic.csv")
         dim("    tabular-polygraph validate my_data.csv")
         print()

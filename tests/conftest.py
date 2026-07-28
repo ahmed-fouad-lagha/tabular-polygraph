@@ -11,18 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _fallback_seed(did: str, n: int = 2000) -> pd.DataFrame:
     rng = np.random.default_rng(42)
 
-    if did == "bls":
-        quarter = np.tile(np.array(["Q1", "Q2", "Q3", "Q4"]), int(np.ceil(n / 4)))[:n]
-        return pd.DataFrame(
-            {
-                "quarter": quarter,
-                "cpi_yoy": rng.normal(2.5, 0.7, n),
-                "unemployment_rate": rng.normal(5.0, 1.0, n).clip(2.0, 15.0),
-                "labor_force_participation": rng.normal(63.0, 1.0, n),
-                "avg_hourly_earnings_yoy": rng.normal(3.0, 0.8, n),
-            }
-        )
-
     if did == "census_acs":
         return pd.DataFrame(
             {

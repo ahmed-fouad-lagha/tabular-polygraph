@@ -5,7 +5,7 @@ Usage
 -----
     # Download one dataset
     from tabular_polygraph.dataset.downloader import download, status
-    download("bls")
+    download("adult")
 
     # Download all
     download("all")
@@ -15,29 +15,21 @@ Usage
 
 CLI
 ---
-    tabular-polygraph download bls
+    tabular-polygraph download adult
     tabular-polygraph download all
     tabular-polygraph download status
-
-Sources
--------
-All sources are public datasets.
 """
 
 from __future__ import annotations
 
 __all__ = ["download", "status", "cache_path", "is_cached", "load_cached"]
 
-import io
-import json
 import os
-import time
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+
+from .registry import DATASETS
 
 
 def _cache_dir() -> Path:
@@ -59,153 +51,16 @@ def is_cached(dataset_id: str) -> bool:
     return cache_path(dataset_id).exists()
 
 
-DOWNLOADERS: dict[str, dict] = {
-    "bls": {
-        "name": "BLS Employment & Wages",
-        "source": "Bureau of Labor Statistics QCEW",
-        "url": "https://www.bls.gov/cew/",
-        "method": "bls_api",
-        "size_hint": "~200 MB",
-        "indicators": {
-            "industry_code": "naics_sector",
-            "area_fips": "state",
-            "avg_wkly_wage": "avg_weekly_wage",
-            "month3_emplvl": "total_employment",
-            "oty_month3_emplvl_pct_chg": "yoy_employment_change",
-            "oty_avg_wkly_wage_pct_chg": "yoy_wage_change",
-            "qtrly_estabs": "establishments",
-            "qtr": "quarter",
-            "year": "year",
-        },
-    },
-    "census_acs": {
-        "name": "Census ACS Income & Housing",
-        "source": "US Census ACS 5-Year API",
-        "url": "https://api.census.gov/data/2022/acs/acs5",
-        "method": "census_api",
-        "size_hint": "~10 MB",
-        "indicators": {
-            "B19013_001E": "household_income",
-            "B25105_001E": "housing_cost",
-            "B25071_001E": "cost_burden_pct",
-            "B17001_002E": "poverty_count",
-            "B17001_001E": "poverty_total",
-            "B23025_005E": "unemployed_count",
-            "B23025_002E": "labor_force_total",
-            "B25010_001E": "household_size",
-            "B25003_002E": "owner_occupied_count",
-            "B25003_001E": "tenure_total",
-            "B01002_001E": "age_group",
-            "B15003_022E": "bachelors_count",
-            "B15003_001E": "education_total",
-        },
-    },
-    "adult": {
-        "name": "Adult Census Income",
-        "source": "UCI Machine Learning Repository",
-        "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data",
-        "method": "direct_csv",
-        "size_hint": "~4 MB — fast",
-        "indicators": {
-            "age": "age",
-            "workclass": "workclass",
-            "education": "education",
-            "marital_status": "marital_status",
-            "occupation": "occupation",
-            "relationship": "relationship",
-            "race": "race",
-            "sex": "sex",
-            "capital_gain": "capital_gain",
-            "capital_loss": "capital_loss",
-            "hours_per_week": "hours_per_week",
-            "native_country": "native_country",
-            "income": "income",
-        },
-    },
-    "credit": {
-        "name": "Credit Card Default",
-        "source": "UCI Machine Learning Repository",
-        "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls",
-        "method": "direct_excel",
-        "size_hint": "~2 MB — fast",
-        "indicators": {
-            "LIMIT_BAL": "limit_bal",
-            "SEX": "sex",
-            "EDUCATION": "education",
-            "MARRIAGE": "marriage",
-            "AGE": "age",
-            "PAY_0": "pay_0",
-            "PAY_2": "pay_2",
-            "PAY_3": "pay_3",
-            "PAY_4": "pay_4",
-            "PAY_5": "pay_5",
-            "PAY_6": "pay_6",
-            "BILL_AMT1": "bill_amt1",
-            "BILL_AMT2": "bill_amt2",
-            "BILL_AMT3": "bill_amt3",
-            "BILL_AMT4": "bill_amt4",
-            "BILL_AMT5": "bill_amt5",
-            "BILL_AMT6": "bill_amt6",
-            "PAY_AMT1": "pay_amt1",
-            "PAY_AMT2": "pay_amt2",
-            "PAY_AMT3": "pay_amt3",
-            "PAY_AMT4": "pay_amt4",
-            "PAY_AMT5": "pay_amt5",
-            "PAY_AMT6": "pay_amt6",
-            "default payment next month": "default_payment",
-        },
-    },
-    "supermarket_sales": {
-        "name": "Supermarket Sales",
-        "source": "Plotly Datasets (Open)",
-        "url": "https://raw.githubusercontent.com/plotly/datasets/master/supermarket_Sales.csv",
-        "method": "supermarket_csv",
-        "size_hint": "~100 KB — instant",
-        "indicators": {
-            "Invoice ID": "invoice_id",
-            "Branch": "branch",
-            "City": "city",
-            "Customer type": "customer_type",
-            "Gender": "gender",
-            "Product line": "product_line",
-            "Unit price": "unit_price",
-            "Quantity": "quantity",
-            "Tax 5%": "tax_5pct",
-            "Total": "total",
-            "Date": "date",
-            "Time": "time",
-            "Payment": "payment",
-            "Cost of goods sold": "cogs",
-            "Gross margin percentage": "gross_margin_pct",
-            "Gross income": "gross_income",
-            "Customer stratification rating": "customer_rating",
-        },
-    },
-    "online_purchases": {
-        "name": "Online Purchases (2006-2019)",
-        "source": "ptvan/datasets (Open)",
-        "url": "https://raw.githubusercontent.com/ptvan/datasets/master/online_purchases/purchases_2006-2019.csv",
-        "method": "purchases_csv",
-        "size_hint": "~500 KB — fast",
-        "indicators": {
-            "order_date": "order_date",
-            "shipment_date": "shipment_date",
-            "category": "category",
-            "list_price_per_unit": "list_price",
-            "purchase_price_per_unit": "purchase_price",
-            "quantity": "quantity",
-            "item_subtotal": "item_subtotal",
-            "item_tax": "item_tax",
-            "item_total": "item_total",
-        },
-    },
-}
-
-
-def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
+def _download_census(n_sample: int = 10000) -> pd.DataFrame:
     """Download Census ACS via API. Pulls PUMA-level demographic profiles."""
+    import json
+    import time
+    import urllib.parse
+    import urllib.request
 
-    var_map = DOWNLOADERS["census_acs"]["indicators"]
+    import numpy as np
+
+    var_map = DATASETS["census_acs"]["indicators"]
     variables = ",".join(var_map.keys())
 
     states = [f"{i:02d}" for i in range(1, 57)]
@@ -280,101 +135,9 @@ def _download_census(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_bls(dataset_id: str, n_sample: int = 10000) -> pd.DataFrame:
-    """Download BLS QCEW state-level employment and wages."""
-
-    # We fetch Quarterly data for a high-resolution time series.
-    # To keep the download fast, we focus on the US National level and Top 5 states.
-    years = list(range(2018, 2024))
-    quarters = [1, 2, 3, 4]
-
-    # Area Codes: US National (US000) + Top 10 states (CA, TX, NY, FL, IL, PA, OH, GA, NC, WA)
-    area_codes = [
-        "US000",
-        "06000",
-        "48000",
-        "36000",
-        "12000",
-        "17000",
-        "42000",
-        "39000",
-        "13000",
-        "37000",
-        "53000",
-    ]
-
-    base_url = "https://data.bls.gov/cew/data/api"
-    frames = []
-
-    for year in years:
-        print(f"    Fetching QCEW quarterly data for {year}...", flush=True)
-        for qtr in quarters:
-            for area_code in area_codes:
-                url = f"{base_url}/{year}/{qtr}/area/{area_code}.csv"
-                try:
-                    with urllib.request.urlopen(url, timeout=15) as r:
-                        df_q = pd.read_csv(
-                            io.BytesIO(r.read()),
-                            dtype={"area_fips": str, "qtr": str, "industry_code": str},
-                        )
-                        # Filter to Private Sector (ownership=5) and NAICS Sectors (2-digit or Total)
-                        df_q = df_q[
-                            (df_q["own_code"] == 5)
-                            & (df_q["industry_code"].str.len() <= 3)
-                        ]
-                        if not df_q.empty:
-                            frames.append(df_q)
-                except Exception as exc:
-                    import warnings
-
-                    warnings.warn(
-                        f"BLS request failed ({year} Q{qtr} area {area_code}): {exc}",
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    continue
-                time.sleep(0.005)
-
-    if not frames:
-        raise RuntimeError("BLS download produced 0 usable rows after cleaning")
-
-    raw = pd.concat(frames, ignore_index=True)
-
-    required = DOWNLOADERS["bls"]["indicators"]
-    missing = [c for c in required if c not in raw.columns]
-    if missing:
-        raise RuntimeError(f"BLS payload missing expected columns: {missing}")
-
-    df = raw[list(required)].rename(columns=required)
-
-    # Convert numeric columns
-    for col in [
-        "avg_weekly_wage",
-        "total_employment",
-        "yoy_employment_change",
-        "yoy_wage_change",
-    ]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Final cleaning
-    df["quarter"] = pd.to_numeric(df["quarter"], errors="coerce")
-    df = df.dropna(
-        subset=[
-            "naics_sector",
-            "state",
-            "avg_weekly_wage",
-            "total_employment",
-            "year",
-            "quarter",
-        ]
-    )
-
-    return df.sample(min(n_sample, len(df)), random_state=42)
-
-
-def _download_adult(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+def _download_adult(n_sample: int = 50000) -> pd.DataFrame:
     """Download Adult dataset from UCI repository."""
-    url = DOWNLOADERS["adult"]["url"]
+    url = DATASETS["adult"]["url"]
     cols = [
         "age",
         "workclass",
@@ -405,15 +168,15 @@ def _download_adult(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_credit(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+def _download_credit(n_sample: int = 50000) -> pd.DataFrame:
     """Download Credit Card Default dataset from UCI repository."""
-    url = DOWNLOADERS["credit"]["url"]
+    url = DATASETS["credit"]["url"]
     print("    Fetching Credit Card Default dataset from UCI...")
     df = pd.read_excel(url, header=1)
     if "ID" in df.columns:
         df = df.drop(columns=["ID"])
 
-    rename_map = DOWNLOADERS["credit"]["indicators"]
+    rename_map = DATASETS["credit"]["indicators"]
     df = df.rename(columns=rename_map)
     df.columns = [c.strip().lower() for c in df.columns]
 
@@ -437,15 +200,15 @@ def _download_credit(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_supermarket_sales(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+def _download_supermarket_sales(n_sample: int = 50000) -> pd.DataFrame:
     """Download Supermarket Sales dataset from Plotly datasets."""
-    url = DOWNLOADERS["supermarket_sales"]["url"]
+    url = DATASETS["supermarket_sales"]["url"]
     print("    Fetching Supermarket Sales dataset from Plotly...")
 
     df = pd.read_csv(url)
 
     # Rename columns using indicators
-    rename_map = DOWNLOADERS["supermarket_sales"]["indicators"]
+    rename_map = DATASETS["supermarket_sales"]["indicators"]
     df = df.rename(columns=rename_map)
 
     # Cast categorical columns to string
@@ -474,15 +237,15 @@ def _download_supermarket_sales(dataset_id: str, n_sample: int = 50000) -> pd.Da
     return df.sample(min(n_sample, len(df)), random_state=42)
 
 
-def _download_online_purchases(dataset_id: str, n_sample: int = 50000) -> pd.DataFrame:
+def _download_online_purchases(n_sample: int = 50000) -> pd.DataFrame:
     """Download Online Purchases dataset from GitHub."""
-    url = DOWNLOADERS["online_purchases"]["url"]
+    url = DATASETS["online_purchases"]["url"]
     print("    Fetching Online Purchases dataset from GitHub...")
 
     df = pd.read_csv(url)
 
     # Rename columns using indicators
-    rename_map = DOWNLOADERS["online_purchases"]["indicators"]
+    rename_map = DATASETS["online_purchases"]["indicators"]
     df = df.rename(columns=rename_map)
 
     # Clean price columns (remove $ sign if present)
@@ -514,7 +277,6 @@ def _download_online_purchases(dataset_id: str, n_sample: int = 50000) -> pd.Dat
 
 # Mapping of registry methods to internal downloader functions
 METHOD_MAP = {
-    "bls_api": _download_bls,
     "census_api": _download_census,
     "direct_csv": _download_adult,
     "direct_excel": _download_credit,
@@ -546,25 +308,25 @@ def download(
     Example
     -------
         from tabular_polygraph.dataset.downloader import download
-        df = download("bls")
+        df = download("adult")
         all_data = download("all")  # yields a dictionary
     """
     if dataset_id == "all":
         results = {}
-        for did in DOWNLOADERS:
+        for did in DATASETS:
             try:
                 results[did] = download(did, force=force, n_sample=n_sample)
             except Exception as e:
                 print(f"  ✗ {did}: {e}")
 
-        failed = [did for did in DOWNLOADERS if did not in results]
+        failed = [did for did in DATASETS if did not in results]
         if failed:
             print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
 
         return results
 
-    if dataset_id not in DOWNLOADERS:
-        available = ", ".join(DOWNLOADERS)
+    if dataset_id not in DATASETS:
+        available = ", ".join(DATASETS)
         raise ValueError(
             f"No downloader for '{dataset_id}'. Available: {available}\n"
             f"For other datasets, pass your own CSV to gen.fit(your_df)."
@@ -577,14 +339,14 @@ def download(
             print(f"  ✓ {dataset_id} — loaded from cache ({cached})")
             return df_cached
 
-    info = DOWNLOADERS[dataset_id]
+    info = DATASETS[dataset_id]
     print(f"\n  Downloading {info['name']}...")
     print(f"  Source: {info['source']}")
     print(f"  Size:   {info['size_hint']}")
 
     method = info["method"]
     if method in METHOD_MAP:
-        df = METHOD_MAP[method](dataset_id, n_sample)
+        df = METHOD_MAP[method](n_sample)
     else:
         raise NotImplementedError(
             f"Downloader for '{dataset_id}' (method: {method}) requires manual download.\n"
@@ -598,18 +360,11 @@ def download(
 
 
 def load_cached(dataset_id: str) -> pd.DataFrame | None:
-    """
-    Load cached real data if available, else return None.
-    Applies per-dataset column drops defined in loader.DATASETS.
-    """
+    """Load cached real data if available, else return None."""
     p = cache_path(dataset_id)
     if p.exists():
         df = pd.read_parquet(p)
-        # Apply per-dataset drops
-        from tabular_polygraph.dataset.loader import DATASETS
-
-        ds_meta = DATASETS.get(dataset_id, {})
-        drop_cols = ds_meta.get("drop_cols", [])
+        drop_cols = DATASETS.get(dataset_id, {}).get("drop_cols", [])
         if drop_cols:
             existing = [c for c in drop_cols if c in df.columns]
             if existing:
@@ -621,15 +376,13 @@ def load_cached(dataset_id: str) -> pd.DataFrame | None:
 def status() -> pd.DataFrame:
     """Show which datasets have been downloaded and cached."""
     rows = []
-    for did, _info in DOWNLOADERS.items():
+    for did in DATASETS:
         p = cache_path(did)
         if p.exists():
-            df = pd.read_parquet(p)
             rows.append(
                 {
                     "dataset": did,
-                    "status": "✓ cached",
-                    "rows": f"{len(df):,}",
+                    "status": "cached",
                     "size": f"{p.stat().st_size // 1024:,} KB",
                     "path": str(p),
                 }
@@ -638,8 +391,7 @@ def status() -> pd.DataFrame:
             rows.append(
                 {
                     "dataset": did,
-                    "status": "○ not downloaded",
-                    "rows": "—",
+                    "status": "not downloaded",
                     "size": "—",
                     "path": "—",
                 }

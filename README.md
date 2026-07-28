@@ -149,11 +149,11 @@ Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confir
 - **Utility coupling**: Can be strong or weak depending on dataset and target protocol.
 
 ### 2. Cross-Architecture Audit (Table 2)
-Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) on the BLS macroeconomic manifold. Includes the "real" ground-truth baseline for sanity checking.
+Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) on the Census ACS demographic manifold. Includes the "real" ground-truth baseline for sanity checking.
 
 ```bash
 python scripts/04_metric_comparison.py \
-  --dataset bls \
+  --dataset census_acs \
   --generators gaussian vine ctgan real \
   --rows 5000
 ```
@@ -162,16 +162,6 @@ python scripts/04_metric_comparison.py \
 These commands reproduce the results showing how selecting records that satisfy the neuro-symbolic manifold laws recovers predictive performance lost during generation (Utility Recovery). Note that the utility task is a **5-class quintile classification** problem (random baseline = 0.20), making the observed 0.5+ F1-scores significant.
 
 ```bash
-# BLS Economic Audit (Table 1)
-python scripts/02_utility_filtering.py \
-  --dataset bls \
-  --target avg_weekly_wage \
-  --generator ctgan \
-  --rows 5000 \
-  --seeds 5 \
-  --epochs 300 \
-  --output results/table1_bls.csv
-
 # Census ACS Utility Audit (Table 1)
 python scripts/02_utility_filtering.py \
   --dataset census_acs \
@@ -181,6 +171,16 @@ python scripts/02_utility_filtering.py \
   --seeds 5 \
   --epochs 300 \
   --output results/table1_census.csv
+
+# Adult Utility Audit (Table 1)
+python scripts/02_utility_filtering.py \
+  --dataset adult \
+  --target income \
+  --generator ctgan \
+  --rows 5000 \
+  --seeds 5 \
+  --epochs 300 \
+  --output results/table1_adult.csv
 ```
 
 > [!NOTE]
