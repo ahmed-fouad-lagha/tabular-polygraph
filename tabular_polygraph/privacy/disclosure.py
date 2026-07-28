@@ -23,7 +23,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_SEED,
     DEFAULT_PRIVACY_SYN_MULTIPLIER,
 )
-from tabular_polygraph.utils import normalize, numeric_columns
+from tabular_polygraph.utils import DEFAULT_DROP_LIST, normalize, numeric_columns
 
 from .common import risk_level_membership
 
@@ -75,24 +75,24 @@ def membership_inference_risk(
     -------
     dict with attack_auc, advantage (AUC - 0.5), risk_level
     """
+    id_cols = DEFAULT_DROP_LIST
     cols = numeric_cols or [
         c
         for c in numeric_columns(real_train)
-        if c in synthetic.columns and c != "syn_id"
+        if c in synthetic.columns and c not in id_cols
     ]
 
     if len(cols) < 2:
         return {"error": "Insufficient numeric columns", "attack_auc": 0.5}
 
-    sample_train = real_train.sample(
-        n=min(n_sample, len(real_train)), random_state=int(seed)
-    )
+    rng = np.random.default_rng(seed)
+    sample_train = real_train.sample(n=min(n_sample, len(real_train)), random_state=rng)
     sample_holdout = real_holdout.sample(
-        n=min(n_sample, len(real_holdout)), random_state=int(seed)
+        n=min(n_sample, len(real_holdout)), random_state=rng
     )
     sample_syn = synthetic.sample(
         n=min(n_sample * DEFAULT_PRIVACY_SYN_MULTIPLIER, len(synthetic)),
-        random_state=int(seed),
+        random_state=rng,
     )
 
     arr_tr = sample_train[cols].fillna(0).values.astype(float)

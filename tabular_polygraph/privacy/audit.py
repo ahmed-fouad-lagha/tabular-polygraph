@@ -27,6 +27,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_N_ATTACKS,
     DEFAULT_PRIVACY_SEED,
 )
+from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
 from .disclosure import membership_inference_risk
 from .linkability import linkability_risk
@@ -70,7 +71,8 @@ def privacy_audit(
     report: dict = {}
 
     # ── Exact copy check ──────────────────────────────────────────────────────
-    shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
+    id_cols = DEFAULT_DROP_LIST
+    shared = [c for c in real.columns if c in synthetic.columns and c not in id_cols]
     real_hashes = set(real[shared].astype(str).apply("|".join, axis=1))
     syn_cols = synthetic[[c for c in shared if c in synthetic.columns]]
     syn_hashes = syn_cols.astype(str).apply("|".join, axis=1)

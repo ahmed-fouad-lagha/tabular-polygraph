@@ -20,7 +20,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_SEED,
     DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS,
 )
-from tabular_polygraph.utils import categorical_columns
+from tabular_polygraph.utils import DEFAULT_DROP_LIST, categorical_columns
 
 from .common import risk_level_singling_out
 
@@ -41,7 +41,8 @@ def singling_out_risk(
     """
     rng = np.random.default_rng(seed)
 
-    shared = [c for c in real.columns if c in synthetic.columns and c != "syn_id"]
+    id_cols = DEFAULT_DROP_LIST
+    shared = [c for c in real.columns if c in synthetic.columns and c not in id_cols]
     if quasi_id_cols is None:
         qi_cols = [c for c in categorical_columns(real) if c in shared][
             :DEFAULT_PRIVACY_QUASI_ID_MAX
@@ -54,8 +55,9 @@ def singling_out_risk(
 
     n_singled = 0
     n_tested = min(n_attacks, len(synthetic))
+    rng = np.random.default_rng(seed)
     syn_sample = (
-        synthetic.sample(n=n_tested, random_state=seed)
+        synthetic.sample(n=n_tested, random_state=rng)
         if len(synthetic) > n_tested
         else synthetic
     )

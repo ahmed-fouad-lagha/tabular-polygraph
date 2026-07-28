@@ -17,6 +17,7 @@ of real rows and no individual-level information.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
@@ -42,7 +43,7 @@ class _Prior:
         return (self.n_0 * self.mean_0 + n * mle_mean) / (self.n_0 + n)
 
     def map_std(self, mle_std: float, n: int) -> float:
-        var = (self.n_0 * self.std_0 ** 2 + n * mle_std ** 2) / (self.n_0 + n)
+        var = (self.n_0 * self.std_0**2 + n * mle_std**2) / (self.n_0 + n)
         return float(np.sqrt(max(var, 1e-12)))
 
 
@@ -77,7 +78,10 @@ class _NumericMarginal:
         return self
 
     def to_uniform(self, series: pd.Series) -> np.ndarray:
-        arr = series.fillna(series.median()).astype(float).values
+        fill_val = series.median()
+        if pd.isna(fill_val):
+            fill_val = 0.0
+        arr = series.fillna(fill_val).astype(float).values
         p = self._params
         if p["kind"] == "lognorm":
             u = stats.lognorm.cdf(arr, p["s"], loc=p["loc"], scale=p["scale"])
@@ -155,7 +159,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         import warnings
 
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+            warnings.simplefilter("ignore", RuntimeWarning)
             return self._fit_impl(data)
 
     def _fit_impl(self, data: pd.DataFrame) -> "GaussianCopulaGenerator":
@@ -239,6 +243,12 @@ class GaussianCopulaGenerator(BaseGenerator):
         try:
             L = np.linalg.cholesky(self._corr)
         except np.linalg.LinAlgError:
+            warnings.warn(
+                "Correlation matrix not positive-definite; "
+                "falling back to identity (columns sampled independently)",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             L = np.eye(len(self._columns))
 
         filters = filters or {}

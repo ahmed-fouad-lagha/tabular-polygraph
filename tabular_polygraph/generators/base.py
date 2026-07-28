@@ -98,6 +98,8 @@ class BaseGenerator(ABC):
 
     def _cast_types(self, df: pd.DataFrame) -> pd.DataFrame:
         """Cast generated columns back to original dtypes where safe."""
+        import warnings
+
         for col, dtype in self._dtypes.items():
             if col not in df.columns:
                 continue
@@ -108,8 +110,12 @@ class BaseGenerator(ABC):
                     df[col] = df[col].round(0).astype("boolean")
                 elif isinstance(dtype, pd.CategoricalDtype):
                     df[col] = df[col].astype(dtype)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                warnings.warn(
+                    f"Could not cast column '{col}' to {dtype}: {e}",
+                    UserWarning,
+                    stacklevel=2,
+                )
         return df
 
     def _add_syn_id(self, df: pd.DataFrame) -> pd.DataFrame:

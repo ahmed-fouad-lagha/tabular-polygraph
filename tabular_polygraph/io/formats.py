@@ -160,7 +160,7 @@ def _read_arrow(path, **kw) -> pd.DataFrame:
 def _read_sas(path, **kw) -> pd.DataFrame:
     try:
         return pd.read_sas(str(path), format="sas7bdat", encoding="latin-1", **kw)
-    except Exception as e:
+    except (ValueError, TypeError, OSError, ImportError) as e:
         raise RuntimeError(f"Could not read SAS file: {e}") from e
 
 

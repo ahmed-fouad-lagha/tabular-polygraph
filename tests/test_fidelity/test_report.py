@@ -13,7 +13,9 @@ def test_fidelity_report_smoke():
         }
     )
     syn = real.copy()
-    report = fidelity_report(real, syn, target_col="C", hif_epochs=2, hif_hubs=2, hif_depth=4)
+    report = fidelity_report(
+        real, syn, target_col="C", hif_epochs=2, hif_hubs=2, hif_depth=4
+    )
     assert "summary" in report
     assert "moment_matching_score" in report["summary"]
     assert "logic_score" in report["summary"]

@@ -84,11 +84,15 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
         )
 
     cached = load_cached(dataset_id)
-    if cached is not None and len(cached) >= 100:
-        return cached.sample(min(n, len(cached)), random_state=42).reset_index(
-            drop=True
-        )
-    else:
+    if cached is not None:
+        if len(cached) >= 100:
+            return cached.sample(min(n, len(cached)), random_state=42).reset_index(
+                drop=True
+            )
         raise ValueError(
-            f"Dataset '{dataset_id}' not cached. Download real data first: tabular-polygraph download {dataset_id}"
+            f"Dataset '{dataset_id}' has only {len(cached)} rows (need ≥100). "
+            f"Cached data is too small for meaningful analysis."
         )
+    raise ValueError(
+        f"Dataset '{dataset_id}' not cached. Download real data first: tabular-polygraph download {dataset_id}"
+    )

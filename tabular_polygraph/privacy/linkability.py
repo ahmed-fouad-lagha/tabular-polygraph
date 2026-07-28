@@ -24,16 +24,9 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_N_ATTACKS,
     DEFAULT_PRIVACY_SEED,
 )
-from tabular_polygraph.utils import normalize, numeric_columns
+from tabular_polygraph.utils import DEFAULT_DROP_LIST, normalize, numeric_columns
 
 from .common import risk_level_linkability
-
-
-def _normalise(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
-    arr = df[cols].fillna(0).values.astype(float)
-    result = normalize(arr, return_params=False)
-    assert isinstance(result, np.ndarray)
-    return result
 
 
 def linkability_risk(
@@ -59,8 +52,11 @@ def linkability_risk(
     chance), risk_level, and lift over baseline.
     """
     if numeric_cols is None:
+        id_cols = DEFAULT_DROP_LIST
         cols = [
-            c for c in numeric_columns(real) if c in synthetic.columns and c != "syn_id"
+            c
+            for c in numeric_columns(real)
+            if c in synthetic.columns and c not in id_cols
         ]
     else:
         cols = numeric_cols
@@ -71,16 +67,18 @@ def linkability_risk(
             "linkability_rate": 0.0,
         }
 
-    real_norm = _normalise(real, cols)
+    arr_real = real[cols].fillna(0).values.astype(float)
+    real_norm, mu, sigma = normalize(arr_real, return_params=True)
 
     n_test = min(n_attacks, len(synthetic))
-    syn_sample = synthetic.sample(n=n_test, random_state=int(seed)).reset_index(
-        drop=True
-    )
+    rng = np.random.default_rng(seed)
+    syn_sample = synthetic.sample(n=n_test, random_state=rng).reset_index(drop=True)
 
     linked = 0
+    arr_syn = syn_sample[cols].fillna(0).values.astype(float)
+    syn_norm = (arr_syn - mu) / sigma
     for i in range(n_test):
-        syn_vec = _normalise(syn_sample.iloc[[i]], cols)[0]
+        syn_vec = syn_norm[i]
         dists = np.sum((real_norm - syn_vec) ** 2, axis=1)
         sorted_dists = np.sort(dists)
         d1 = sorted_dists[0]

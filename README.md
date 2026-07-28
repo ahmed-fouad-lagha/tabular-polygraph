@@ -107,10 +107,10 @@ print(f"Hybrid Integrity Score: {report['summary']['hybrid_integrity']}%")
 # 3. Detect Row-Level Hallucinations
 # hif_score returns per-row penalty scores [0 = valid, 1 = hallucination]
 hif_results = hif_score(real, syn)
-syn['hallucination_score'] = hif_results['row_penalties']
+syn["hallucination_score"] = hif_results["row_penalties"]
 
 # Identify the top Hallucinations
-hallucinations = syn.sort_values('hallucination_score', ascending=False).head(5)
+hallucinations = syn.sort_values("hallucination_score", ascending=False).head(5)
 print(hallucinations)
 ```
 

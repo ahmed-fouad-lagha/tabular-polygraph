@@ -12,9 +12,7 @@ def test_nic_scorer_manifold_continuity():
     noise = np.random.normal(0, 0.3, n)
     vals = np.array([offsets[g] for g in groups]) + noise
 
-    real_cat = pd.DataFrame(
-        {"g1": groups, "g2": np.random.choice(["A", "B", "C"], n)}
-    )
+    real_cat = pd.DataFrame({"g1": groups, "g2": np.random.choice(["A", "B", "C"], n)})
     real_num = pd.DataFrame({"val": vals})
 
     syn_cat = pd.DataFrame({"g1": ["low"], "g2": ["A"]})

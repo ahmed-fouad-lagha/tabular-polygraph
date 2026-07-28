@@ -31,6 +31,7 @@ __all__ = [
     "is_cached",
 ]
 
+import logging
 import os
 import urllib.error
 import urllib.parse
@@ -41,6 +42,8 @@ from pathlib import Path
 import pandas as pd
 
 from .registry import DATASETS
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -93,7 +96,7 @@ def _download_census(n_sample: int = 50_000) -> pd.DataFrame:
             for row in data[1:]:
                 all_rows.append(dict(zip(headers, row, strict=True)))
             if int(state) % 10 == 0:
-                print(f"    Progress: {state}/56 states...", flush=True)
+                logger.info("Progress: %s/56 states...", state)
         except (
             urllib.error.URLError,
             json.JSONDecodeError,
@@ -169,7 +172,7 @@ def _download_adult(n_sample: int = 50_000) -> pd.DataFrame:
         "native-country",
         "income",
     ]
-    print("    Fetching Adult dataset from UCI...")
+    logger.info("Fetching Adult dataset from UCI...")
     df = pd.read_csv(url, names=cols, sep=r",\s*", engine="python", na_values="?")
     df = df.dropna()
 
@@ -185,7 +188,7 @@ def _download_adult(n_sample: int = 50_000) -> pd.DataFrame:
 def _download_credit(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Credit Card Default dataset from UCI repository."""
     url = DATASETS["credit"]["url"]
-    print("    Fetching Credit Card Default dataset from UCI...")
+    logger.info("Fetching Credit Card Default dataset from UCI...")
     df = pd.read_excel(url, header=1)
     if "ID" in df.columns:
         df = df.drop(columns=["ID"])
@@ -217,7 +220,7 @@ def _download_credit(n_sample: int = 50_000) -> pd.DataFrame:
 def _download_supermarket_sales(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Supermarket Sales dataset from Plotly datasets."""
     url = DATASETS["supermarket_sales"]["url"]
-    print("    Fetching Supermarket Sales dataset from Plotly...")
+    logger.info("Fetching Supermarket Sales dataset from Plotly...")
 
     df = pd.read_csv(url)
 
@@ -253,7 +256,7 @@ def _download_supermarket_sales(n_sample: int = 50_000) -> pd.DataFrame:
 def _download_online_purchases(n_sample: int = 50_000) -> pd.DataFrame:
     """Download Online Purchases dataset from GitHub."""
     url = DATASETS["online_purchases"]["url"]
-    print("    Fetching Online Purchases dataset from GitHub...")
+    logger.info("Fetching Online Purchases dataset from GitHub...")
 
     df = pd.read_csv(url)
 
@@ -336,18 +339,17 @@ def download(
 
         df_cached = load_cached(dataset_id)
         if df_cached is not None:
-            print(f"  [ok] {dataset_id} -- loaded from cache ({cached})")
+            logger.info("Loaded %s from cache (%s)", dataset_id, cached)
             return df_cached
 
     info = DATASETS[dataset_id]
-    print(f"\n  Downloading {info['name']}...")
-    print(f"  Source: {info['source']}")
-    print(f"  Size:   {info['size_hint']}")
+    logger.info("Downloading %s...", info["name"])
+    logger.info("Source: %s | Size: %s", info["source"], info["size_hint"])
 
     df = _DOWNLOADERS[dataset_id](n_sample)
 
     df.to_parquet(cached, index=False)
-    print(f"  [ok] Cached {len(df):,} rows -> {cached}")
+    logger.info("Cached %d rows -> %s", len(df), cached)
     return df
 
 
@@ -378,11 +380,11 @@ def download_all(
         try:
             results[ds_id] = download(ds_id, force=force, n_sample=n_sample)
         except (urllib.error.URLError, OSError, TimeoutError, ValueError) as e:
-            print(f"  [fail] {ds_id}: {e}")
+            logger.warning("Failed to download %s: %s", ds_id, e)
 
     failed = [ds_id for ds_id in DATASETS if ds_id not in results]
     if failed:
-        print(f"\n  {len(failed)} dataset(s) failed: {', '.join(failed)}")
+        logger.warning("%d dataset(s) failed: %s", len(failed), ", ".join(failed))
 
     return results
 

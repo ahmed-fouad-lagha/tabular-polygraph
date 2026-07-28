@@ -14,9 +14,7 @@ def test_hif_handles_single_category_feature():
 
 
 def test_hif_small_dataset_train_with_verbose():
-    real = pd.DataFrame(
-        {"a": ["x", "y"] * 20, "b": ["m", "n"] * 20}
-    )
+    real = pd.DataFrame({"a": ["x", "y"] * 20, "b": ["m", "n"] * 20})
     syn = real.copy()
     result = hif_score(real, syn, verbose=True, random_state=42)
     assert 0.0 <= result["hif_score"] <= 1.0
