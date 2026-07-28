@@ -58,6 +58,12 @@ class CTGANGenerator(BaseGenerator):
                 batch_size=self._batch_size,
                 verbose=self._verbose,
             )
+            if self._verbose:
+                from tabular_polygraph.io.console import info
+
+                info(
+                    "    Pre-processing data (fitting Gaussian Mixtures)... this can take a few minutes before the progress bar appears."
+                )
             self._model.fit(data[self._columns])
 
         self._fitted = True

@@ -1,7 +1,0 @@
-dataset,generator,aggregate,hif,violation_rate,n_broken,p90,real_acc,syn_acc,filt_acc
-adult,gaussian_copula,0.9213,0.8151,0.1243,373,0.5559,0.8278,0.7547,0.7429
-adult,vine_copula,0.9658,0.6864,0.245,735,0.9611,0.8278,0.7223,0.7146
-credit,gaussian_copula,0.7393,0.575,0.3783,1135,0.9716,,,
-credit,vine_copula,0.8469,0.3317,0.632,1896,0.9826,,,
-supermarket_sales,gaussian_copula,0.7062,0.9553,0.0423,127,0.0202,,,
-supermarket_sales,vine_copula,0.6504,0.0318,0.995,2985,0.9979,,,

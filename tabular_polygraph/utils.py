@@ -67,7 +67,11 @@ def categorical_columns(df: pd.DataFrame) -> list[str]:
     Returns:
         List of column names with non-numeric dtype.
     """
-    return [c for c in df.columns if not pd.api.types.is_numeric_dtype(df[c])]
+    return [
+        c
+        for c in df.columns
+        if not pd.api.types.is_numeric_dtype(df[c]) or pd.api.types.is_bool_dtype(df[c])
+    ]
 
 
 # ============================================================================
@@ -156,11 +160,7 @@ def normalize(
         Normalized array, or tuple of (normalized, mean, std) if return_params=True.
     """
     if arr.size == 0:
-        empty_params = (
-            np.array([])
-            if arr.ndim <= 1
-            else np.empty((0, arr.shape[1] if arr.ndim > 1 else 0))
-        )
+        empty_params = np.array([]) if arr.ndim <= 1 else np.full(arr.shape[1], np.nan)
         if return_params:
             return arr.copy(), empty_params, empty_params
         return arr.copy()

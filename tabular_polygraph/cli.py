@@ -377,10 +377,10 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
                 drop_cols,
                 generator_type=getattr(args, "generator", "copula"),
                 epochs=getattr(args, "epochs", None),
-                verbose=getattr(args, "verbose", False),
+                verbose=not getattr(args, "quiet", False),
             )
         else:
-            gen_kwargs: dict[str, Any] = {"verbose": getattr(args, "verbose", False)}
+            gen_kwargs: dict[str, Any] = {"verbose": not getattr(args, "quiet", False)}
             if getattr(args, "epochs", None) is not None:
                 gen_kwargs["epochs"] = args.epochs
             gen, seed_df, gen_type = _load_generator(

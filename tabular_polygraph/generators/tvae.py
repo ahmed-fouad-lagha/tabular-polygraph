@@ -85,6 +85,12 @@ class TVAEGenerator(BaseGenerator):
                 loss_factor=self._loss_factor,
                 verbose=self._verbose,
             )
+            if self._verbose:
+                from tabular_polygraph.io.console import info
+
+                info(
+                    "    Pre-processing data (fitting Gaussian Mixtures)... this can take a few minutes before the progress bar appears."
+                )
             self._model.fit(data[self._columns])
 
         self._fitted = True
