@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from tabular_polygraph._config import HIFConfig
+from tabular_polygraph._config import HIFConfig, RulesConfig
 
 from .auditor import HIFAuditor
 
@@ -41,14 +41,16 @@ def hif_score(
         depth=hif_depth,
         confidence_percentile=confidence_percentile,
         violation_threshold=violation_threshold,
-        rule_min_confidence=rule_min_confidence,
-        rule_min_support=rule_min_support,
-        rule_max_rules=rule_max_rules,
-        rule_min_lift=rule_min_lift,
-        rule_max_antecedents=rule_max_antecedents,
+        component_floor=component_floor,
         ablation_mode=ablation_mode,
         aggregation=aggregation,
-        component_floor=component_floor,
+        rules=RulesConfig(
+            min_confidence=rule_min_confidence,
+            min_support=rule_min_support,
+            max_rules=rule_max_rules,
+            min_lift=rule_min_lift,
+            max_antecedents=rule_max_antecedents,
+        ),
         verbose=verbose,
     )
 

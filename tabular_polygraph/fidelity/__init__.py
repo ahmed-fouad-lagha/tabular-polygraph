@@ -31,7 +31,7 @@ def fidelity_report(
     include_privacy: bool = False,
     privacy_n_attacks: int = 300,
 ) -> dict:
-    from tabular_polygraph._config import HIFConfig
+    from tabular_polygraph._config import HIFConfig, LSEConfig, NICConfig, RulesConfig
 
     config = FidelityConfig(
         columns=columns,
@@ -45,12 +45,16 @@ def fidelity_report(
             epochs=hif_epochs,
             hubs=hif_hubs,
             depth=hif_depth,
-            rule_min_confidence=rule_min_confidence,
-            rule_min_support=rule_min_support,
-            rule_max_rules=rule_max_rules,
-            rule_min_lift=rule_min_lift,
-            rule_max_antecedents=rule_max_antecedents,
             random_state=random_state,
+            nic=NICConfig(),
+            lse=LSEConfig(),
+            rules=RulesConfig(
+                min_confidence=rule_min_confidence,
+                min_support=rule_min_support,
+                max_rules=rule_max_rules,
+                min_lift=rule_min_lift,
+                max_antecedents=rule_max_antecedents,
+            ),
         ),
     )
 

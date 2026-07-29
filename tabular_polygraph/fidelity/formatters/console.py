@@ -132,4 +132,46 @@ class ConsoleFormatter:
         lines.append("")
         lines.append(f"  Computed in {s.get('elapsed_seconds', '?')}s")
         lines.append("=" * self.width)
+
+        # Privacy section
+        pv = report.get("privacy")
+        if pv:
+            lines.append("")
+            lines.append("=" * self.width)
+            lines.append("  PRIVACY (TAMIS Audit)")
+            lines.append("=" * self.width)
+            v = pv.get("verdict", {})
+            overall = v.get("overall_risk", "—").upper()
+            icon = "[OK]" if overall in ("VERY_LOW", "LOW") else "[FAIL]"
+            lines.append(f"  {icon} Overall risk: {overall}")
+
+            ec = pv.get("exact_copies", {})
+            lines.append(
+                f"  Exact copies      : {ec.get('count', '—')}  [{ec.get('risk_level', '—')}]"
+            )
+
+            mi = pv.get("membership_inference", {})
+            lines.append(
+                f"  Membership inf.   : AUC={mi.get('attack_auc', '—')}  [{mi.get('risk_level', '—')}]"
+            )
+            lines.append(f"    {mi.get('interpretation', '')}")
+
+            so = pv.get("singling_out", {})
+            lines.append(
+                f"  Singling-out      : rate={so.get('singling_out_rate', '—')}  [{so.get('risk_level', '—')}]"
+            )
+
+            lk = pv.get("linkability", {})
+            lines.append(
+                f"  Linkability       : rate={lk.get('linkability_rate', '—')}  [{lk.get('risk_level', '—')}]"
+            )
+            lines.append(
+                f"    lift={lk.get('lift_over_baseline_pct', '—')}% over baseline"
+            )
+
+            lines.append("")
+            lines.append(f"  Recommendation: {v.get('recommendation', '—')}")
+            lines.append(f"  Elapsed: {v.get('elapsed_seconds', '—')}s")
+            lines.append("=" * self.width)
+
         return "\n".join(lines)

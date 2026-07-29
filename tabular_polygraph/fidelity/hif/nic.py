@@ -19,7 +19,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 
-from tabular_polygraph._config import HIFConfig
+from tabular_polygraph._config import NICConfig
 
 from .sentinel import ManifoldEncoder
 
@@ -36,8 +36,8 @@ class NeighborInvariantContinuity:
     Audits continuous features against categorical manifold using non-linear reconstruction.
     """
 
-    def __init__(self, config: HIFConfig | None = None, random_state: int = 42):
-        self.config = config
+    def __init__(self, config: NICConfig | None = None, random_state: int = 42):
+        self.config = config or NICConfig()
         self.regressors: dict[str, HistGradientBoostingRegressor] = {}
         self.scalers: dict[str, StandardScaler] = {}
         self.z_thresholds: dict[str, float] = {}
@@ -70,7 +70,7 @@ class NeighborInvariantContinuity:
         if n_feat < 1 or n_samples < 2:
             return None, 0
 
-        dim_cap = self.config.nic_latent_dim_cap if self.config else 32
+        dim_cap = self.config.latent_dim_cap if self.config else 32
         n_comp = max(1, min(n_samples // 2, n_feat, dim_cap))
         if verbose:
             logger.debug(f"Spectral Embedding ({n_feat} -> {n_comp} target)...")
@@ -112,12 +112,12 @@ class NeighborInvariantContinuity:
         y_scaled = scaler.fit_transform(y_valid.reshape(-1, 1)).ravel()
 
         if self.config is not None:
-            max_iter = self.config.nic_max_iter
-            max_depth = self.config.nic_max_depth
-            learning_rate = self.config.nic_learning_rate
-            l2_reg = self.config.nic_l2_regularization
-            z_pct = self.config.nic_z_percentile
-            gamma_pct = self.config.nic_gamma_percentile
+            max_iter = self.config.max_iter
+            max_depth = self.config.max_depth
+            learning_rate = self.config.learning_rate
+            l2_reg = self.config.l2_regularization
+            z_pct = self.config.z_percentile
+            gamma_pct = self.config.gamma_percentile
         else:
             max_iter = 100
             max_depth = 5
@@ -153,7 +153,7 @@ class NeighborInvariantContinuity:
             max(p_gamma, 2.0 * self.z_thresholds[column_name]), 3.0 * mad, 0.1
         )
 
-        collapse_threshold = self.config.nic_collapse_threshold if self.config else 0.5
+        collapse_threshold = self.config.collapse_threshold if self.config else 0.5
         self._collapsed[column_name] = float(np.std(y_pred)) < collapse_threshold
 
     def fit(
@@ -199,7 +199,7 @@ class NeighborInvariantContinuity:
         latent = self.pca.transform(x_scaled)
         row_penalties = np.zeros(len(continuous_df))
 
-        collapse_penalty = self.config.nic_collapse_penalty if self.config else 0.6
+        collapse_penalty = self.config.collapse_penalty if self.config else 0.6
 
         for col in continuous_df.columns:
             if col not in self.regressors:

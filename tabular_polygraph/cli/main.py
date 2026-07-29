@@ -222,6 +222,11 @@ def main():
         help="Maximum antecedent size for mined logical rules (default: 2)",
     )
     p.add_argument(
+        "--privacy",
+        action="store_true",
+        help="Run TAMIS privacy audit (membership inference, singling-out, linkability)",
+    )
+    p.add_argument(
         "-v", "--verbose", action="store_true", help="Enable detailed debug logs"
     )
     p.add_argument(

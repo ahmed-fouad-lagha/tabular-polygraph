@@ -85,7 +85,7 @@ class HIFAuditor:
             # Hubs are selected for categorical logic (LSE), not continuous prediction (NIC)
             cat_context_real = real_f[self._valid_cols] if self._valid_cols else real_f
             self.nic_auditor = NeighborInvariantContinuity(
-                config=cfg,
+                config=cfg.nic,
                 random_state=cfg.random_state,
             )
             self.nic_auditor.fit(
@@ -148,11 +148,11 @@ class HIFAuditor:
             real_f,
             synthetic_f_norm,
             columns=columns,
-            min_confidence=cfg.rule_min_confidence,
-            min_support=cfg.rule_min_support,
-            max_rules=cfg.rule_max_rules,
-            min_lift=cfg.rule_min_lift,
-            max_antecedents=cfg.rule_max_antecedents,
+            min_confidence=cfg.rules.min_confidence,
+            min_support=cfg.rules.min_support,
+            max_rules=cfg.rules.max_rules,
+            min_lift=cfg.rules.min_lift,
+            max_antecedents=cfg.rules.max_antecedents,
             random_state=cfg.random_state,
             pre_binned=True,
         )

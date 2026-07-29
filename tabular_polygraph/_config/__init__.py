@@ -105,6 +105,43 @@ DEFAULT_PRIVACY_LINKABILITY_BASELINE: float = 0.5
 
 
 @dataclass
+class NICConfig:
+    latent_dim_cap: int = DEFAULT_NIC_LATENT_DIM_CAP
+    z_percentile: int = DEFAULT_NIC_Z_PERCENTILE
+    gamma_percentile: int = DEFAULT_NIC_GAMMA_PERCENTILE
+    collapse_threshold: float = DEFAULT_NIC_COLLAPSE_THRESHOLD
+    collapse_penalty: float = DEFAULT_NIC_COLLAPSE_PENALTY
+    max_iter: int = DEFAULT_NIC_MAX_ITER
+    max_depth: int = DEFAULT_NIC_MAX_DEPTH
+    learning_rate: float = DEFAULT_NIC_LEARNING_RATE
+    l2_regularization: float = DEFAULT_NIC_L2_REGULARIZATION
+
+
+@dataclass
+class LSEConfig:
+    n_estimators_discovery: int = DEFAULT_LSE_N_ESTIMATORS_DISCOVERY
+    max_depth_discovery: int = DEFAULT_LSE_MAX_DEPTH_DISCOVERY
+    max_features_discovery: str = DEFAULT_LSE_MAX_FEATURES_DISCOVERY
+    max_features_train: str = DEFAULT_LSE_MAX_FEATURES_TRAIN
+    confidence_floor: float = DEFAULT_LSE_CONFIDENCE_FLOOR
+    min_samples_leaf: int = DEFAULT_LSE_MIN_SAMPLES_LEAF
+    cv_splits: int = DEFAULT_LSE_CV_SPLITS
+    high_cardinality_cap: int = DEFAULT_LSE_HIGH_CARDINALITY_CAP
+
+
+@dataclass
+class RulesConfig:
+    quantization_bins: int = DEFAULT_RULE_QUANTIZATION_BINS
+    max_candidates: int = DEFAULT_RULE_MAX_CANDIDATES
+    max_examples: int = DEFAULT_RULE_MAX_EXAMPLES
+    min_confidence: float = DEFAULT_RULE_MIN_CONFIDENCE
+    min_support: float = DEFAULT_RULE_MIN_SUPPORT
+    max_rules: int = DEFAULT_RULE_MAX_RULES
+    min_lift: float = DEFAULT_RULE_MIN_LIFT
+    max_antecedents: int = DEFAULT_RULE_MAX_ANTECEDENTS
+
+
+@dataclass
 class HIFConfig:
     epochs: int = DEFAULT_HIF_EPOCHS
     hubs: int = DEFAULT_HIF_HUBS
@@ -112,39 +149,15 @@ class HIFConfig:
     confidence_percentile: float = DEFAULT_HIF_CONFIDENCE_PERCENTILE
     violation_threshold: float = DEFAULT_HIF_VIOLATION_THRESHOLD
     component_floor: float = DEFAULT_HIF_COMPONENT_FLOOR
-    rule_min_confidence: float = DEFAULT_RULE_MIN_CONFIDENCE
-    rule_min_support: float = DEFAULT_RULE_MIN_SUPPORT
-    rule_max_rules: int = DEFAULT_RULE_MAX_RULES
-    rule_min_lift: float = DEFAULT_RULE_MIN_LIFT
-    rule_max_antecedents: int = DEFAULT_RULE_MAX_ANTECEDENTS
-    random_state: int = DEFAULT_FIDELITY_RANDOM_STATE
     ablation_mode: str = DEFAULT_HIF_ABLATION_MODE
     aggregation: str = DEFAULT_HIF_AGGREGATION
     verbose: bool = False
     progress_callback: Any | None = None
+    random_state: int = DEFAULT_FIDELITY_RANDOM_STATE
 
-    nic_latent_dim_cap: int = DEFAULT_NIC_LATENT_DIM_CAP
-    nic_z_percentile: int = DEFAULT_NIC_Z_PERCENTILE
-    nic_gamma_percentile: int = DEFAULT_NIC_GAMMA_PERCENTILE
-    nic_collapse_threshold: float = DEFAULT_NIC_COLLAPSE_THRESHOLD
-    nic_collapse_penalty: float = DEFAULT_NIC_COLLAPSE_PENALTY
-    nic_max_iter: int = DEFAULT_NIC_MAX_ITER
-    nic_max_depth: int = DEFAULT_NIC_MAX_DEPTH
-    nic_learning_rate: float = DEFAULT_NIC_LEARNING_RATE
-    nic_l2_regularization: float = DEFAULT_NIC_L2_REGULARIZATION
-
-    lse_n_estimators_discovery: int = DEFAULT_LSE_N_ESTIMATORS_DISCOVERY
-    lse_max_depth_discovery: int = DEFAULT_LSE_MAX_DEPTH_DISCOVERY
-    lse_max_features_discovery: str = DEFAULT_LSE_MAX_FEATURES_DISCOVERY
-    lse_max_features_train: str = DEFAULT_LSE_MAX_FEATURES_TRAIN
-    lse_confidence_floor: float = DEFAULT_LSE_CONFIDENCE_FLOOR
-    lse_min_samples_leaf: int = DEFAULT_LSE_MIN_SAMPLES_LEAF
-    lse_cv_splits: int = DEFAULT_LSE_CV_SPLITS
-    lse_high_cardinality_cap: int = DEFAULT_LSE_HIGH_CARDINALITY_CAP
-
-    rule_quantization_bins: int = DEFAULT_RULE_QUANTIZATION_BINS
-    rule_max_candidates: int = DEFAULT_RULE_MAX_CANDIDATES
-    rule_max_examples: int = DEFAULT_RULE_MAX_EXAMPLES
+    nic: NICConfig = field(default_factory=NICConfig)
+    lse: LSEConfig = field(default_factory=LSEConfig)
+    rules: RulesConfig = field(default_factory=RulesConfig)
 
 
 @dataclass
