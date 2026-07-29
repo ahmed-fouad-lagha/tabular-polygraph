@@ -90,33 +90,3 @@ def singling_out_risk(
         "risk_level": risk_level_singling_out(rate),
         "quasi_id_cols": qi_cols,
     }
-
-    # Pre-convert real quasi-identifier columns to string for vectorized comparison
-    real_qi = real[qi_cols].astype(str)
-    syn_qi = syn_sample[qi_cols].astype(str)
-
-    for _ in range(n_tested):
-        # Pick a random subset of 2–4 quasi-identifiers
-        k = int(rng.integers(2, min(5, len(qi_cols) + 1)))
-        cols = list(rng.choice(qi_cols, size=k, replace=False))
-
-        # Sample a random synthetic row
-        syn_row = syn_qi.sample(n=1, random_state=rng).iloc[0]
-
-        # Vectorized matching: find rows matching on all selected columns
-        mask = np.ones(len(real), dtype=bool)
-        for col in cols:
-            mask &= real_qi[col].values == syn_row[col]
-
-        n_matching = int(mask.sum())
-        if n_matching == 1:
-            n_singled += 1
-
-    rate = round(n_singled / max(n_tested, 1), 4)
-    return {
-        "singling_out_rate": rate,
-        "n_attacks": n_tested,
-        "n_singled_out": n_singled,
-        "risk_level": risk_level_singling_out(rate),
-        "quasi_id_cols": qi_cols,
-    }

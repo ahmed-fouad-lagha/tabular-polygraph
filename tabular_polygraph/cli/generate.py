@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from tabular_polygraph.utils import set_seed
 
 from .utils import C, _c, bar, err, header, info, ok, section, warn
@@ -80,7 +82,12 @@ def _fit_custom_input_generator(
     return gen, seed_df, generator_type
 
 
-def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
+def _fit_generate_generator(
+    input_file: str | None,
+    dataset_id: str | None,
+    args: Any,
+    drop_cols: list[str],
+) -> tuple[Any, pd.DataFrame, str]:
     t0 = time.time()
     print()
     info("Fitting generator...")
@@ -96,6 +103,7 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
         else:
             from .helpers import _load_generator
 
+            assert dataset_id is not None  # guarded by _prepare_generate_request
             gen_kwargs: dict[str, Any] = {"verbose": not getattr(args, "quiet", False)}
             if getattr(args, "epochs", None) is not None:
                 gen_kwargs["epochs"] = args.epochs
@@ -118,18 +126,18 @@ def _fit_generate_generator(input_file, dataset_id, args, drop_cols):
 
 
 def _compute_generate_report(
-    seed_df,
-    syn,
-    gen_type,
-    seed=42,
-    hif_epochs=10,
-    hif_hubs=5,
-    hif_depth=12,
-    rule_params=None,
-    verbose=False,
-    target_col=None,
-    run_privacy=False,
-):
+    seed_df: pd.DataFrame,
+    syn: pd.DataFrame,
+    gen_type: str,
+    seed: int = 42,
+    hif_epochs: int = 10,
+    hif_hubs: int = 5,
+    hif_depth: int = 12,
+    rule_params: dict | None = None,
+    verbose: bool = False,
+    target_col: str | None = None,
+    run_privacy: bool = False,
+) -> dict | None:
     from tabular_polygraph.fidelity import fidelity_report
     from tabular_polygraph.privacy import privacy_audit
 

@@ -117,7 +117,13 @@ def _write_stata(df, path, **kw):
     # Stata can't handle string columns > 244 chars or certain dtypes
     df_stata = df.copy()
     truncated_cols = []
-    for col in df_stata.select_dtypes(include="object").columns:
+    str_cols = [
+        c
+        for c in df_stata.columns
+        if pd.api.types.is_object_dtype(df_stata[c])
+        or pd.api.types.is_string_dtype(df_stata[c])
+    ]
+    for col in str_cols:
         str_s = df_stata[col].astype(str)
         if (str_s.str.len() > 244).any():
             truncated_cols.append(col)

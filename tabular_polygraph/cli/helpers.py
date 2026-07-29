@@ -6,6 +6,8 @@ import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 if TYPE_CHECKING:
     from tabular_polygraph.generators import BaseGenerator
 
@@ -13,7 +15,7 @@ if TYPE_CHECKING:
 def _parse_filters(filter_args):
     from .utils import warn
 
-    filters = {}
+    filters: dict[str, float | str | list[str]] = {}
     if not filter_args:
         return filters
     for f in filter_args:
@@ -87,12 +89,12 @@ def _create_generator_instance(generator_type: str, **kwargs) -> BaseGenerator:
 
 
 def _load_generator(
-    dataset_id,
-    generator_type="auto",
+    dataset_id: str,
+    generator_type: str = "auto",
     drop_cols: list[str] | None = None,
     fit_rows: int | None = None,
-    **kwargs,
-):
+    **kwargs: object,
+) -> tuple[BaseGenerator, pd.DataFrame, str]:
     from tabular_polygraph.dataset import load_dataset
     from tabular_polygraph.dataset.loader import load_cached
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
