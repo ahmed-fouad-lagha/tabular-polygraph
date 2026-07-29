@@ -128,15 +128,17 @@ def _compute_generate_report(
     rule_params=None,
     verbose=False,
     target_col=None,
+    run_privacy=False,
 ):
     from tabular_polygraph.fidelity import fidelity_report
+    from tabular_polygraph.privacy import privacy_audit
 
     info("Running fidelity report...")
     dataset_type = "cross_sectional"
     syn_body = syn.drop(columns=["syn_id"], errors="ignore")
     rp = rule_params or {}
     try:
-        return fidelity_report(
+        report = fidelity_report(
             seed_df,
             syn_body,
             dataset_type=dataset_type,
@@ -157,6 +159,22 @@ def _compute_generate_report(
         warn(f"Fidelity report skipped: {fe}")
         logging.debug("Fidelity report failure traceback:", exc_info=True)
         return None
+
+    if run_privacy:
+        try:
+            info("Running TAMIS privacy audit...")
+            privacy_report = privacy_audit(
+                seed_df,
+                syn_body,
+                n_attacks=300,
+                seed=seed,
+            )
+            report["privacy"] = privacy_report
+        except Exception as pe:
+            warn(f"Privacy audit skipped: {pe}")
+            logging.debug("Privacy audit failure traceback:", exc_info=True)
+
+    return report
 
 
 def _print_generate_bars(report):
@@ -281,6 +299,42 @@ def _print_generate_downstream(report):
         print()
 
 
+def _print_generate_privacy(report):
+    pv = report.get("privacy")
+    if not pv:
+        return
+    section("Privacy (TAMIS Audit)")
+    v = pv.get("verdict", {})
+    overall = v.get("overall_risk", "—").upper()
+    icon = "[OK]" if overall in ("VERY_LOW", "LOW") else "[FAIL]"
+    print(f"  {icon} Overall risk: {overall}")
+
+    ec = pv.get("exact_copies", {})
+    print(
+        f"  Exact copies      : {ec.get('count', '—')}  [{ec.get('risk_level', '—')}]"
+    )
+
+    mi = pv.get("membership_inference", {})
+    print(
+        f"  Membership inf.   : AUC={mi.get('attack_auc', '—')}  [{mi.get('risk_level', '—')}]"
+    )
+    print(f"    {mi.get('interpretation', '')}")
+
+    so = pv.get("singling_out", {})
+    print(
+        f"  Singling-out      : rate={so.get('singling_out_rate', '—')}  [{so.get('risk_level', '—')}]"
+    )
+
+    lk = pv.get("linkability", {})
+    print(
+        f"  Linkability       : rate={lk.get('linkability_rate', '—')}  [{lk.get('risk_level', '—')}]"
+    )
+    print(f"    lift={lk.get('lift_over_baseline_pct', '—')}% over baseline")
+
+    print(f"  Recommendation: {v.get('recommendation', '—')}")
+    print(f"  Elapsed: {v.get('elapsed_seconds', '—')}s")
+
+
 def _print_generate_report(report):
     if report is None:
         return
@@ -290,6 +344,7 @@ def _print_generate_report(report):
     _print_generate_logical(report)
     _print_generate_downstream(report)
     _print_generate_stylized(report)
+    _print_generate_privacy(report)
 
 
 def _save_generated_output(syn, output_path: str):
@@ -325,6 +380,7 @@ def cmd_generate(args):
         hif_depth=getattr(args, "hif_depth", 12),
         target_col=getattr(args, "target", None),
         verbose=getattr(args, "verbose", False),
+        run_privacy=getattr(args, "privacy", False),
     )
     _print_generate_report(report)
 

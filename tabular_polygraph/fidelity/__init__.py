@@ -28,6 +28,8 @@ def fidelity_report(
     random_state: int = 42,
     verbose: bool = False,
     progress_callback: Any | None = None,
+    include_privacy: bool = False,
+    privacy_n_attacks: int = 300,
 ) -> dict:
     from tabular_polygraph._config import HIFConfig
 
@@ -54,7 +56,29 @@ def fidelity_report(
 
     pipeline = FidelityPipeline(config)
     report = pipeline.run(real, synthetic)
-    return report.to_dict()
+    report_dict = report.to_dict()
+
+    if include_privacy:
+        from tabular_polygraph.privacy import privacy_audit
+
+        try:
+            privacy_report = privacy_audit(
+                real,
+                synthetic,
+                real_holdout=None,
+                holdout_frac=0.2,
+                quasi_id_cols=None,
+                numeric_cols=None,
+                n_attacks=privacy_n_attacks,
+                seed=random_state,
+            )
+            report_dict["privacy"] = privacy_report
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(f"Privacy audit failed: {e}")
+
+    return report_dict
 
 
 def format_report(report: dict, width: int = 60) -> str:
