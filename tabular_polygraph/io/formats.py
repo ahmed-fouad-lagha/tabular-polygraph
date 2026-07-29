@@ -18,6 +18,7 @@ Supported input formats (for real data ingestion):
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -41,7 +42,23 @@ def write(
 
     Returns the Path written to.
     """
-    path = Path(path)
+    path = Path(path).resolve()
+    # Prevent path traversal: ensure output stays within CWD or system temp dir
+    cwd = Path.cwd().resolve()
+    try:
+        path.relative_to(cwd)
+    except ValueError:
+        # Allow system temp directories (pytest tmp_path, etc.)
+        temp_base = Path(
+            os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
+        ).resolve()
+        try:
+            path.relative_to(temp_base)
+        except ValueError:
+            raise ValueError(
+                f"Output path must be within current working directory or temp dir: {path}"
+            ) from None
+
     if not path.suffix:
         # Default to .csv if no extension provided
         ext = ".csv"

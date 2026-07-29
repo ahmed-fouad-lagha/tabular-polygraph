@@ -269,8 +269,10 @@ class FidelityPipeline:
         report: FidelityReport,
     ) -> None:
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as ex:
+            # Submit fit tasks with independent copies per metric
             fit_futures = {
-                ex.submit(inst.fit, real, targets[inst.name]): inst for inst in metrics
+                ex.submit(inst.fit, real.copy(), targets[inst.name]): inst
+                for inst in metrics
             }
             failed_fit: set[str] = set()
             for fut in as_completed(fit_futures):
@@ -281,11 +283,17 @@ class FidelityPipeline:
                     logger.warning("Metric '%s'.fit() failed: %s", inst.name, e)
                     failed_fit.add(inst.name)
 
+            # Submit compute tasks with independent copies per metric
             compute_futures = {}
             for inst in metrics:
                 if inst.name in failed_fit:
                     continue
-                fut = ex.submit(inst.compute, real, syn, targets[inst.name])  # type: ignore[arg-type]
+
+                # wrap to satisfy executor typing (compute returns dict, submit expects None)
+                def _compute_wrapper(inst=inst, r=real, s=syn, t=targets[inst.name]):
+                    return inst.compute(r, s, t)
+
+                fut = ex.submit(_compute_wrapper)
                 compute_futures[fut] = inst
 
             for fut in as_completed(compute_futures):
