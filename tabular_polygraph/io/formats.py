@@ -25,6 +25,23 @@ from typing import Callable
 import pandas as pd
 
 
+def _check_safe_path(path: Path) -> None:
+    resolved = path.resolve()
+    cwd = Path.cwd().resolve()
+    try:
+        resolved.relative_to(cwd)
+    except ValueError:
+        temp_base = Path(
+            os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
+        ).resolve()
+        try:
+            resolved.relative_to(temp_base)
+        except ValueError:
+            raise ValueError(
+                f"Path must be within current working directory or temp dir: {path}"
+            ) from None
+
+
 def write(
     df: pd.DataFrame,
     path: str | Path,
@@ -43,21 +60,7 @@ def write(
     Returns the Path written to.
     """
     path = Path(path).resolve()
-    # Prevent path traversal: ensure output stays within CWD or system temp dir
-    cwd = Path.cwd().resolve()
-    try:
-        path.relative_to(cwd)
-    except ValueError:
-        # Allow system temp directories (pytest tmp_path, etc.)
-        temp_base = Path(
-            os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
-        ).resolve()
-        try:
-            path.relative_to(temp_base)
-        except ValueError:
-            raise ValueError(
-                f"Output path must be within current working directory or temp dir: {path}"
-            ) from None
+    _check_safe_path(path)
 
     if not path.suffix:
         ext = ".csv"
@@ -168,7 +171,8 @@ def read(path: str | Path, fmt: str | None = None, **kwargs) -> pd.DataFrame:
     path : input file path
     fmt  : format override (inferred from extension if None)
     """
-    path = Path(path)
+    path = Path(path).resolve()
+    _check_safe_path(path)
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
 

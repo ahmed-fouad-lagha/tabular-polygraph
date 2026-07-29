@@ -6,7 +6,6 @@ from typing import Any
 __all__ = [
     "HIFConfig",
     "FidelityConfig",
-    "GeneratorConfig",
 ]
 
 # ── Fidelity metric defaults ─────────────────────────────────────────────────
@@ -150,8 +149,3 @@ class FidelityConfig:
     max_workers: int = DEFAULT_FIDELITY_MAX_WORKERS
 
     hif: HIFConfig = field(default_factory=HIFConfig)
-
-
-@dataclass
-class GeneratorConfig:
-    random_state: int = DEFAULT_FIDELITY_RANDOM_STATE

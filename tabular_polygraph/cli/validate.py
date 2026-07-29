@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+from tabular_polygraph.io.formats import _check_safe_path
+
 from .utils import C, _c, _json_clean, err, header, info, ok, section
 
 
@@ -42,6 +44,7 @@ def cmd_validate(args):
         if args.json:
             print(json.dumps(_json_clean(report), indent=2))
         if args.output:
+            _check_safe_path(Path(args.output))
             Path(args.output).write_text(json.dumps(report, indent=2, default=str))
             ok(f"Report saved → {args.output}")
         return

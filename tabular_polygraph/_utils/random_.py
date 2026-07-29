@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import random
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def set_seed(seed: int | None) -> None:
@@ -19,4 +22,4 @@ def set_seed(seed: int | None) -> None:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
     except ImportError:
-        pass
+        logger.warning("torch not available — skipping torch seed")
