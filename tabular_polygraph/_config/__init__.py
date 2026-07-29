@@ -11,94 +11,101 @@ __all__ = [
 
 # ── Fidelity metric defaults ─────────────────────────────────────────────────
 
+# MomentMatching: weights for (mean, var, skew, kurtosis) — sum to 1.0
+# Chosen to prioritize first two moments per statistical convention
 DEFAULT_MOMENT_WEIGHTS: tuple[float, float, float, float] = (0.40, 0.35, 0.15, 0.10)
-DEFAULT_MOMENT_EPS: float = 1e-8
-DEFAULT_MOMENT_MIN_SAMPLES: int = 10
+DEFAULT_MOMENT_EPS: float = 1e-8  # Numerical stability for division
+DEFAULT_MOMENT_MIN_SAMPLES: int = 10  # Minimum rows for reliable moments
 
-DEFAULT_KS_MIN_SAMPLES: int = 10
+DEFAULT_KS_MIN_SAMPLES: int = 10  # Minimum for KS test asymptotic validity
 
-DEFAULT_TVD_MIN_SAMPLES: int = 1
+DEFAULT_TVD_MIN_SAMPLES: int = 1  # TVD needs only 1 sample per category
 
-DEFAULT_JOINT_MIN_COLS: int = 2
+DEFAULT_JOINT_MIN_COLS: int = 2  # Minimum 2 columns for correlation matrix
 
+# AlphaBeta: 30 steps balances resolution vs runtime (O(n_steps * n_rows))
 DEFAULT_ALPHA_BETA_N_STEPS: int = 30
-DEFAULT_ALPHA_BETA_MAX_ROWS: int = 10000
-DEFAULT_ALPHA_BETA_MIN_ROWS: int = 10
+DEFAULT_ALPHA_BETA_MAX_ROWS: int = 10000  # Cap for memory/performance
+DEFAULT_ALPHA_BETA_MIN_ROWS: int = 10  # Minimum for 2D density estimation
 
+# StylizedFacts: 50 samples minimum for tail/concentration estimates
 DEFAULT_STYLIZED_MIN_SAMPLES: int = 50
-DEFAULT_STYLIZED_TAIL_PERCENTILES: tuple[int, int] = (99, 50)
-DEFAULT_STYLIZED_CONCENTRATION_TOP: float = 0.05
+DEFAULT_STYLIZED_TAIL_PERCENTILES: tuple[int, int] = (99, 50)  # P99 vs median
+DEFAULT_STYLIZED_CONCENTRATION_TOP: float = 0.05  # Top 5% concentration
 
+# Downstream TSTR: 30% test split is standard ML practice
 DEFAULT_DOWNSTREAM_TEST_FRAC: float = 0.3
-DEFAULT_DOWNSTREAM_N_ESTIMATORS: int = 100
-DEFAULT_DOWNSTREAM_CLASS_THRESHOLD: int = 10
+DEFAULT_DOWNSTREAM_N_ESTIMATORS: int = 100  # RF trees, balances accuracy/speed
+DEFAULT_DOWNSTREAM_CLASS_THRESHOLD: int = 10  # Max classes for classification
 
 # ── NIC defaults ─────────────────────────────────────────────────────────────
 
-DEFAULT_NIC_LATENT_DIM_CAP: int = 32
-DEFAULT_NIC_Z_PERCENTILE: int = 95
-DEFAULT_NIC_GAMMA_PERCENTILE: int = 98
-DEFAULT_NIC_COLLAPSE_THRESHOLD: float = 0.1
-DEFAULT_NIC_COLLAPSE_PENALTY: float = 0.6
-DEFAULT_NIC_MAX_ITER: int = 100
-DEFAULT_NIC_MAX_DEPTH: int = 5
-DEFAULT_NIC_LEARNING_RATE: float = 0.1
-DEFAULT_NIC_L2_REGULARIZATION: float = 1.0
+DEFAULT_NIC_LATENT_DIM_CAP: int = 32  # Max SVD components (prevents overfit)
+DEFAULT_NIC_Z_PERCENTILE: int = 95  # Residual threshold: 95th percentile
+DEFAULT_NIC_GAMMA_PERCENTILE: int = 98  # Gamma scaling: 98th percentile
+DEFAULT_NIC_COLLAPSE_THRESHOLD: float = 0.1  # std(pred) < 0.1 → collapsed
+DEFAULT_NIC_COLLAPSE_PENALTY: float = 0.6  # Penalty for collapsed regressors
+DEFAULT_NIC_MAX_ITER: int = 100  # HGBR max iterations
+DEFAULT_NIC_MAX_DEPTH: int = 5  # Tree depth (shallow = more robust)
+DEFAULT_NIC_LEARNING_RATE: float = 0.1  # Shrinkage
+DEFAULT_NIC_L2_REGULARIZATION: float = 1.0  # L2 penalty
 
 # ── LSE defaults ─────────────────────────────────────────────────────────────
 
-DEFAULT_LSE_N_ESTIMATORS_DISCOVERY: int = 25
-DEFAULT_LSE_MAX_DEPTH_DISCOVERY: int = 8
-DEFAULT_LSE_MAX_FEATURES_DISCOVERY: str = "sqrt"
-DEFAULT_LSE_MAX_FEATURES_TRAIN: str = "log2"
-DEFAULT_LSE_CONFIDENCE_FLOOR: float = 0.01
-DEFAULT_LSE_MIN_SAMPLES_LEAF: int = 5
-DEFAULT_LSE_CV_SPLITS: int = 5
-DEFAULT_LSE_HIGH_CARDINALITY_CAP: int = 50
+DEFAULT_LSE_N_ESTIMATORS_DISCOVERY: int = 25  # Fast discovery phase
+DEFAULT_LSE_MAX_DEPTH_DISCOVERY: int = 8  # Deeper for discovery
+DEFAULT_LSE_MAX_FEATURES_DISCOVERY: str = "sqrt"  # Feature subsampling
+DEFAULT_LSE_MAX_FEATURES_TRAIN: str = "log2"  # More aggressive for final
+DEFAULT_LSE_CONFIDENCE_FLOOR: float = 0.01  # Min prob for OOB calibration
+DEFAULT_LSE_MIN_SAMPLES_LEAF: int = 5  # Prevents overfit on small groups
+DEFAULT_LSE_CV_SPLITS: int = 5  # Standard 5-fold CV
+DEFAULT_LSE_HIGH_CARDINALITY_CAP: int = 50  # Skip hub candidates > 50 levels
 
 # ── Rule-mining defaults ─────────────────────────────────────────────────────
 
-DEFAULT_RULE_QUANTIZATION_BINS: int = 10
-DEFAULT_RULE_MAX_CANDIDATES: int = 10000
-DEFAULT_RULE_MAX_EXAMPLES: int = 20
-DEFAULT_RULE_MIN_CONFIDENCE: float = 0.95
-DEFAULT_RULE_MIN_SUPPORT: float = 0.005
-DEFAULT_RULE_MAX_RULES: int = 25
-DEFAULT_RULE_MIN_LIFT: float = 1.0
-DEFAULT_RULE_MAX_ANTECEDENTS: int = 2
+DEFAULT_RULE_QUANTIZATION_BINS: int = 10  # Quantiles for numeric→categorical
+DEFAULT_RULE_MAX_CANDIDATES: int = 10000  # Max rule candidates before pruning
+DEFAULT_RULE_MAX_EXAMPLES: int = 20  # Max violation examples per rule
+DEFAULT_RULE_MIN_CONFIDENCE: float = 0.95  # Association rule confidence
+DEFAULT_RULE_MIN_SUPPORT: float = 0.005  # Minimum support (0.5%)
+DEFAULT_RULE_MAX_RULES: int = 25  # Max rules to keep
+DEFAULT_RULE_MIN_LIFT: float = 1.0  # Lift > 1.0 = positive association
+DEFAULT_RULE_MAX_ANTECEDENTS: int = 2  # Max conditions in rule IF-part
 
 # ── HIF runner defaults ──────────────────────────────────────────────────────
 
-DEFAULT_HIF_EPOCHS: int = 10
-DEFAULT_HIF_HUBS: int = 5
-DEFAULT_HIF_DEPTH: int = 12
-DEFAULT_HIF_CONFIDENCE_PERCENTILE: float = 5.0
-DEFAULT_HIF_VIOLATION_THRESHOLD: float = 0.5
-DEFAULT_HIF_COMPONENT_FLOOR: float = 1e-4
-DEFAULT_HIF_ABLATION_MODE: str = "full"
-DEFAULT_HIF_AGGREGATION: str = "geometric"
+DEFAULT_HIF_EPOCHS: int = 10  # LSE trees = max(10, epochs * 10)
+DEFAULT_HIF_HUBS: int = 5  # Number of manifold hubs
+DEFAULT_HIF_DEPTH: int = 12  # Max tree depth
+DEFAULT_HIF_CONFIDENCE_PERCENTILE: float = 5.0  # OOB prob floor percentile
+DEFAULT_HIF_VIOLATION_THRESHOLD: float = 0.5  # Penalty > 0.5 = violation
+DEFAULT_HIF_COMPONENT_FLOOR: float = 1e-4  # Geometric mean floor
+DEFAULT_HIF_ABLATION_MODE: str = (
+    "full"  # full | lse_only | nic_only | rules_only | lse_nic
+)
+DEFAULT_HIF_AGGREGATION: str = "geometric"  # geometric | arithmetic mean
 
 # ── Fidelity runner defaults ─────────────────────────────────────────────────
 
-DEFAULT_FIDELITY_RANDOM_STATE: int = 42
+DEFAULT_FIDELITY_RANDOM_STATE: int = 42  # Reproducibility seed
 DEFAULT_FIDELITY_DATASET_TYPE: str = "cross_sectional"
-DEFAULT_FIDELITY_PARALLEL: bool = False
-DEFAULT_FIDELITY_MAX_WORKERS: int = 4
-DEFAULT_FIDELITY_INCLUDE_DOWNSTREAM: bool = True
+DEFAULT_FIDELITY_PARALLEL: bool = False  # ThreadPoolExecutor for metrics
+DEFAULT_FIDELITY_MAX_WORKERS: int = 4  # CPU cores
+DEFAULT_FIDELITY_INCLUDE_DOWNSTREAM: bool = True  # TSTR by default
 DEFAULT_FIDELITY_VERBOSE: bool = False
 
 # ── Privacy audit defaults ───────────────────────────────────────────────────
 
-DEFAULT_PRIVACY_HOLDOUT_FRAC: float = 0.2
-DEFAULT_PRIVACY_N_ATTACKS: int = 300
-DEFAULT_PRIVACY_N_SAMPLE: int = 200
-DEFAULT_PRIVACY_SYN_MULTIPLIER: int = 5
-DEFAULT_PRIVACY_BATCH: int = 100
-DEFAULT_PRIVACY_SEED: int = 42
-DEFAULT_PRIVACY_QUASI_ID_MAX: int = 8
-DEFAULT_PRIVACY_MIN_DATA: int = 20
-DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS: int = 500
-DEFAULT_PRIVACY_LINKABILITY_BASELINE: float = 0.5
+DEFAULT_PRIVACY_HOLDOUT_FRAC: float = 0.2  # 20% holdout for MI attacks
+DEFAULT_PRIVACY_N_ATTACKS: int = 300  # Shadow model attacks per test
+DEFAULT_PRIVACY_N_SAMPLE: int = 200  # Samples per attack
+DEFAULT_PRIVACY_SYN_MULTIPLIER: int = 5  # Synthetic samples = 5x attacks
+DEFAULT_PRIVACY_BATCH: int = 100  # Batch size for distance computation
+DEFAULT_PRIVACY_SEED: int = 42  # Reproducibility
+DEFAULT_PRIVACY_QUASI_ID_MAX: int = 8  # Max quasi-identifier columns
+DEFAULT_PRIVACY_MIN_DATA: int = 20  # Minimum rows for attack
+DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS: int = 500  # SO attacks
+DEFAULT_PRIVACY_LINKABILITY_BASELINE: float = 0.5  # Expected NNDR by chance
 
 
 # ── Config dataclasses ───────────────────────────────────────────────────────
