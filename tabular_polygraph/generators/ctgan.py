@@ -6,12 +6,15 @@ CTGAN (Conditional Tabular GAN) generator.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from typing import Any
 
 import pandas as pd
 
 from .base import BaseGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class CTGANGenerator(BaseGenerator):
@@ -59,9 +62,7 @@ class CTGANGenerator(BaseGenerator):
                 verbose=self._verbose,
             )
             if self._verbose:
-                from tabular_polygraph.io.console import info
-
-                info(
+                logger.info(
                     "    Pre-processing data (fitting Gaussian Mixtures)... this can take a few minutes before the progress bar appears."
                 )
             self._model.fit(data[self._columns])
