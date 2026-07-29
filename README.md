@@ -18,7 +18,7 @@
 The Hybrid Integrity Framework (HIF) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity. Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a Tabular Polygraph to detect "Semantic Hallucinations".
 
 <p align="center">
-	<img src="assets/hif_architecture.png" alt="Hybrid Integrity Framework Architecture" width="88%"/>
+	<img src="assets/hif_architecture.svg" alt="Hybrid Integrity Framework Architecture" width="88%"/>
 	<br>
 	<em>Figure 1: The Hybrid Integrity Framework (HIF)</em>
 </p>
