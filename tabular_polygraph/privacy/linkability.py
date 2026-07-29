@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from sklearn.neighbors import NearestNeighbors
 
 from tabular_polygraph._config import (
     DEFAULT_PRIVACY_LINKABILITY_BASELINE,
@@ -74,18 +75,17 @@ def linkability_risk(
     rng = np.random.default_rng(seed)
     syn_sample = synthetic.sample(n=n_test, random_state=rng).reset_index(drop=True)
 
-    linked = 0
     arr_syn = syn_sample[cols].fillna(0).values.astype(float)
     syn_norm = (arr_syn - mu) / sigma
-    for i in range(n_test):
-        syn_vec = syn_norm[i]
-        dists = np.sum((real_norm - syn_vec) ** 2, axis=1)
-        sorted_dists = np.sort(dists)
-        d1 = sorted_dists[0]
-        d2 = sorted_dists[1]
-        if d2 > 0 and (d1 / d2) < nn_ratio_threshold:
-            linked += 1
 
+    # Use NearestNeighbors for O(n log n) instead of O(n²)
+    nbrs = NearestNeighbors(n_neighbors=2, metric="euclidean", n_jobs=-1)
+    nbrs.fit(real_norm)
+    dists, _ = nbrs.kneighbors(syn_norm)
+    d1 = dists[:, 0]
+    d2 = dists[:, 1]
+
+    linked = int(np.sum((d2 > 0) & (d1 / d2 < nn_ratio_threshold)))
     rate = round(linked / max(n_test, 1), 4)
     baseline = DEFAULT_PRIVACY_LINKABILITY_BASELINE  # expected by chance
     lift = round((rate - baseline) / baseline * 100, 1)

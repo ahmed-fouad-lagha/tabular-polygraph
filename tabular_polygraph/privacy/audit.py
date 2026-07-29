@@ -37,6 +37,11 @@ _RISK_ORDER = {"very_low": 0, "low": 1, "medium": 2, "high": 3, "very_high": 4}
 _RISK_LABEL = {0: "very_low", 1: "low", 2: "medium", 3: "high", 4: "very_high"}
 
 
+def _hash_rows(df: pd.DataFrame, columns: list[str]) -> set[int]:
+    """Hash rows using pandas built-in hashing to avoid collisions."""
+    return set(pd.util.hash_pandas_object(df[columns], index=False).values)
+
+
 def privacy_audit(
     real: pd.DataFrame,
     synthetic: pd.DataFrame,
@@ -73,10 +78,9 @@ def privacy_audit(
     # ── Exact copy check ──────────────────────────────────────────────────────
     id_cols = DEFAULT_DROP_LIST
     shared = [c for c in real.columns if c in synthetic.columns and c not in id_cols]
-    real_hashes = set(real[shared].astype(str).apply("|".join, axis=1))
-    syn_cols = synthetic[[c for c in shared if c in synthetic.columns]]
-    syn_hashes = syn_cols.astype(str).apply("|".join, axis=1)
-    n_exact = int(syn_hashes.isin(real_hashes).sum())
+    real_hashes = _hash_rows(real, shared)
+    syn_hashes = _hash_rows(synthetic, shared)
+    n_exact = int(len(real_hashes & syn_hashes))
 
     report["exact_copies"] = {
         "count": n_exact,
