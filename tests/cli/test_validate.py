@@ -13,6 +13,8 @@ def test_cmd_validate(tmp_path, capsys):
         dup_threshold=0.5,
         max_cardinality=500,
         min_rows=10,
+        json=False,
+        output=None,
     )
     cmd_validate(args)
     captured = capsys.readouterr()

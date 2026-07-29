@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
-from .utils import C, _c, err, header, info, ok, section
+from .utils import C, _c, _json_clean, err, header, info, ok, section
 
 
 def cmd_validate(args):
@@ -29,6 +30,21 @@ def cmd_validate(args):
         max_cardinality=args.max_cardinality,
         min_rows=args.min_rows,
     )
+
+    if args.json or args.output:
+        report = {
+            "file": args.file,
+            "passed": result.passed,
+            "errors": result.errors,
+            "warnings": result.warnings,
+            "stats": result.stats,
+        }
+        if args.json:
+            print(json.dumps(_json_clean(report), indent=2))
+        if args.output:
+            Path(args.output).write_text(json.dumps(report, indent=2, default=str))
+            ok(f"Report saved → {args.output}")
+        return
 
     if result.passed:
         ok("Validation PASSED")

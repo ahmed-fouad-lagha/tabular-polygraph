@@ -241,6 +241,16 @@ def main():
     p.add_argument("--dup-threshold", type=float, default=0.05, metavar="F")
     p.add_argument("--max-cardinality", type=int, default=500, metavar="N")
     p.add_argument("--min-rows", type=int, default=50, metavar="N")
+    p.add_argument(
+        "--json", action="store_true", help="Print validation report as JSON"
+    )
+    p.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help="Save JSON report to file",
+    )
     p.set_defaults(func=cmd_validate)
 
     # download
