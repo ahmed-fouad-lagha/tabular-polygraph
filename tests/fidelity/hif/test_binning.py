@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.fidelity.binning import apply_binning, fit_binning
+from tabular_polygraph.fidelity.hif.binning import apply_binning, fit_binning
 
 
 def test_adaptive_binning():
