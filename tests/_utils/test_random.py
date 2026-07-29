@@ -4,7 +4,7 @@ import random
 
 import numpy as np
 
-from tabular_polygraph.utils import set_seed
+from tabular_polygraph._utils import set_seed
 
 
 def test_set_seed_reproducibility():

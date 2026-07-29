@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from tabular_polygraph.utils import set_seed
+from tabular_polygraph._utils import set_seed
 
 from .utils import _json_clean, err, header, info, ok
 

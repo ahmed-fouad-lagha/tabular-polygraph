@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tabular_polygraph.utils import normalize, to_numeric_array
+from tabular_polygraph._utils import normalize, to_numeric_array
 
 
 def test_to_numeric_array():

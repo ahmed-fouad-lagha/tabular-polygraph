@@ -27,7 +27,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_N_ATTACKS,
     DEFAULT_PRIVACY_SEED,
 )
-from tabular_polygraph.utils import DEFAULT_DROP_LIST
+from tabular_polygraph._utils import DEFAULT_DROP_LIST
 
 from .disclosure import membership_inference_risk
 from .linkability import linkability_risk

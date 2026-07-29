@@ -22,7 +22,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_SEED,
     DEFAULT_PRIVACY_SINGLING_OUT_N_ATTACKS,
 )
-from tabular_polygraph.utils import DEFAULT_DROP_LIST, categorical_columns
+from tabular_polygraph._utils import DEFAULT_DROP_LIST, categorical_columns
 
 from .common import risk_level_singling_out
 

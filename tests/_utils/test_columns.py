@@ -1,6 +1,6 @@
 import pandas as pd
 
-from tabular_polygraph.utils import categorical_columns, numeric_columns
+from tabular_polygraph._utils import categorical_columns, numeric_columns
 
 
 def test_column_filters():

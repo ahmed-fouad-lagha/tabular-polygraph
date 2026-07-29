@@ -23,7 +23,7 @@ from tabular_polygraph._config import (
     DEFAULT_PRIVACY_SEED,
     DEFAULT_PRIVACY_SYN_MULTIPLIER,
 )
-from tabular_polygraph.utils import DEFAULT_DROP_LIST, normalize, numeric_columns
+from tabular_polygraph._utils import DEFAULT_DROP_LIST, normalize, numeric_columns
 
 from .common import risk_level_membership
 

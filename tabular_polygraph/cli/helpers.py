@@ -95,9 +95,9 @@ def _load_generator(
     fit_rows: int | None = None,
     **kwargs: object,
 ) -> tuple[BaseGenerator, pd.DataFrame, str]:
+    from tabular_polygraph._utils import DEFAULT_DROP_LIST
     from tabular_polygraph.dataset import load_dataset
     from tabular_polygraph.dataset.loader import load_cached
-    from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
     from .utils import info
 
@@ -150,7 +150,7 @@ def _load_eval_frames(real_path: str, syn_path: str):
 
 
 def _apply_eval_drop_cols(real, syn, drop_cols_arg: str | None):
-    from tabular_polygraph.utils import DEFAULT_DROP_LIST
+    from tabular_polygraph._utils import DEFAULT_DROP_LIST
 
     from .utils import info
 

@@ -67,7 +67,7 @@ class BaseGenerator(ABC):
             return pd.DataFrame(columns=self._columns)
 
         if seed is not None:
-            from tabular_polygraph.utils import set_seed
+            from tabular_polygraph._utils import set_seed
 
             set_seed(seed)
 
