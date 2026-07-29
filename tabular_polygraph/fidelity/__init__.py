@@ -6,7 +6,7 @@ import pandas as pd
 
 from tabular_polygraph._config import FidelityConfig
 
-from .formatters import ConsoleFormatter
+from .console import ConsoleFormatter
 from .pipeline import FidelityPipeline
 
 
