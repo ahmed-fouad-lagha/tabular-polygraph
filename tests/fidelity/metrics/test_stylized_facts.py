@@ -32,4 +32,4 @@ def test_tabular_stylized_facts_no_numeric():
     real = pd.DataFrame({"cat": ["A", "B"] * 20})
     syn = pd.DataFrame({"cat": ["A", "B"] * 20})
     res = StylizedFacts().compute(real, syn, [])
-    assert res["applicable"] is False
+    assert not res["applicable"]

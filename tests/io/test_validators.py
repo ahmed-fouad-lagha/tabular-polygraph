@@ -15,13 +15,13 @@ def test_validation_result_str():
 def test_validate_catches_nulls():
     df = pd.DataFrame({"a": [1, 2, None], "b": [4, 5, 6]})
     report = validate(df, min_rows=1)
-    assert report.passed is False
+    assert not report.passed
 
 
 def test_validate_min_rows():
     df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
     report = validate(df, min_rows=10)
-    assert report.passed is False
+    assert not report.passed
 
 
 def test_validate_required_columns():
