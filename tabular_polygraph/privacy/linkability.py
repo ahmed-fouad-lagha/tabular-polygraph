@@ -35,7 +35,7 @@ def linkability_risk(
     numeric_cols: list[str] | None = None,
     n_attacks: int = DEFAULT_PRIVACY_N_ATTACKS,
     seed: int = DEFAULT_PRIVACY_SEED,
-    nn_ratio_threshold: float = 0.5,
+    nn_ratio_threshold: float = 0.8,
 ) -> dict:
     """
     Estimate linkability risk via Nearest Neighbour Distance Ratio (NNDR).

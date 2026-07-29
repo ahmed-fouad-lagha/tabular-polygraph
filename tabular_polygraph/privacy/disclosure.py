@@ -31,12 +31,12 @@ from .common import risk_level_membership
 def _min_dist_to_synthetic(
     records: np.ndarray,
     synthetic: np.ndarray,
-    batch: int = DEFAULT_PRIVACY_BATCH,
+    batch_size: int = DEFAULT_PRIVACY_BATCH,
 ) -> np.ndarray:
     """Return minimum L2 distance from each record to the synthetic set."""
     min_dists = np.full(len(records), np.inf)
-    for i in range(0, len(synthetic), batch):
-        block = synthetic[i : i + batch]
+    for i in range(0, len(synthetic), batch_size):
+        block = synthetic[i : i + batch_size]
         dists = np.sqrt(((records[:, None, :] - block[None, :, :]) ** 2).sum(axis=2))
         min_dists = np.minimum(min_dists, dists.min(axis=1))
     return min_dists
@@ -99,8 +99,11 @@ def membership_inference_risk(
     arr_ho = sample_holdout[cols].fillna(0).values.astype(float)
     arr_sy = sample_syn[cols].fillna(0).values.astype(float)
 
-    # UNIFIED NORMALIZATION: Fit mean/std ONCE on real_train to preserve relative spatial distances
-    members, mu, sigma = normalize(arr_tr, return_params=True)
+    # NORMALIZATION: Fit on combined data to avoid train->synthetic leakage
+    # Stack train + holdout + synthetic to compute unified mean/std
+    combined = np.vstack([arr_tr, arr_ho, arr_sy])
+    _, mu, sigma = normalize(combined, return_params=True)
+    members = (arr_tr - mu) / sigma
     nonmembers = (arr_ho - mu) / sigma
     syn_arr = (arr_sy - mu) / sigma
 
