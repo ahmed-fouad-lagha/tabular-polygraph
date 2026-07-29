@@ -106,7 +106,8 @@ class Downstream(Metric):
             X_real, y_real, test_size=test_frac, random_state=42
         )
 
-        preprocessor.fit(X_real_tr)
+        # Fit preprocessor on FULL real data to avoid leakage from test split
+        preprocessor.fit(X_real)
         X_syn_pre = preprocessor.transform(syn)
         X_real_pre = preprocessor.transform(X_real_tr)
         X_test_pre = preprocessor.transform(X_test)

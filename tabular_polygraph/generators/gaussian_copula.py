@@ -17,6 +17,7 @@ of real rows and no individual-level information.
 
 from __future__ import annotations
 
+import time
 import warnings
 from typing import Any
 
@@ -266,14 +267,17 @@ class GaussianCopulaGenerator(BaseGenerator):
         collected = 0
         batch_size = max(n * 10, 1000)
         _max_iter = 1000
+        _max_seconds = 30.0
         _iter = 0
+        _start = time.time()
 
         while collected < n:
             _iter += 1
-            if _iter > _max_iter:
+            if _iter > _max_iter or (time.time() - _start) > _max_seconds:
                 raise RuntimeError(
-                    f"Generation terminated after {_max_iter} iterations: "
-                    f"filters are too strict. Collected {collected}/{n} rows."
+                    f"Generation terminated after {_iter} iterations / "
+                    f"{time.time() - _start:.1f}s: filters too strict. "
+                    f"Collected {collected}/{n} rows."
                 )
             z = rng.standard_normal((batch_size, len(self._columns))) @ L.T
             u = stats.norm.cdf(z)

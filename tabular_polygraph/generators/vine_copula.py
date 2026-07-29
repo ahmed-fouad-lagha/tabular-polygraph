@@ -33,6 +33,7 @@ Usage
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import numpy as np
@@ -246,13 +247,20 @@ class VineCopulaGenerator(BaseGenerator):
         collected = 0
         batch_size = max(n * 10, 1000)
         _max_iter = 1000
+        _max_time_sec = 30.0
         _iter = 0
+        _start_time = time.time()
 
         while collected < n:
             _iter += 1
             if _iter > _max_iter:
                 raise RuntimeError(
                     f"Generation terminated after {_max_iter} iterations: "
+                    f"filters are too strict. Collected {collected}/{n} rows."
+                )
+            if time.time() - _start_time > _max_time_sec:
+                raise RuntimeError(
+                    f"Generation timed out after {_max_time_sec:.1f}s: "
                     f"filters are too strict. Collected {collected}/{n} rows."
                 )
             U_syn = self._vine.simulate(batch_size, seeds=seed)
