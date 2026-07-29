@@ -58,7 +58,11 @@ def _fit_custom_input_generator(
     from tabular_polygraph.io import validate as validate_df
     from tabular_polygraph.utils import DEFAULT_DROP_LIST
 
-    from .helpers import _create_generator_instance, _drop_existing_columns
+    from .helpers import (
+        _create_generator_instance,
+        _drop_existing_columns,
+        _resolve_generator_type,
+    )
 
     seed_df = read(input_file)
     all_drop = list(set((drop_cols or []) + list(DEFAULT_DROP_LIST)))
@@ -74,7 +78,9 @@ def _fit_custom_input_generator(
     if epochs is not None:
         gen_kwargs["epochs"] = epochs
 
-    gen = _create_generator_instance(generator_type, **gen_kwargs)
+    gen = _create_generator_instance(
+        _resolve_generator_type(input_file, generator_type), **gen_kwargs
+    )
     gen.fit(seed_df)
     info(
         f"Loaded {len(seed_df):,} rows × {len(seed_df.columns)} columns from {input_file}"

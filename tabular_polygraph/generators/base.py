@@ -63,6 +63,9 @@ class BaseGenerator(ABC):
                 f"{self.__class__.__name__} has not been fitted. Call .fit(df) first."
             )
 
+        if n <= 0:
+            return pd.DataFrame(columns=self._columns)
+
         if seed is not None:
             from tabular_polygraph.utils import set_seed
 
@@ -105,9 +108,9 @@ class BaseGenerator(ABC):
                 continue
             try:
                 if pd.api.types.is_integer_dtype(dtype):
-                    df[col] = df[col].round(0).astype("Int64")
+                    df[col] = df[col].round(0).astype(dtype)
                 elif pd.api.types.is_bool_dtype(dtype):
-                    df[col] = df[col].round(0).astype("boolean")
+                    df[col] = df[col].round(0).astype(dtype)
                 elif isinstance(dtype, pd.CategoricalDtype):
                     df[col] = df[col].astype(dtype)
             except (ValueError, TypeError) as e:
@@ -154,7 +157,7 @@ class BaseGenerator(ABC):
         exact_filters: dict[str, Any] = {}
         post_filters: dict[str, Any] = {}
         for k, v in filters.items():
-            if k in self._columns and not isinstance(v, list):
+            if k in self._columns:
                 exact_filters[k] = v
             else:
                 post_filters[k] = v

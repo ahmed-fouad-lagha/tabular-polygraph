@@ -85,7 +85,8 @@ def linkability_risk(
     d1 = dists[:, 0]
     d2 = dists[:, 1]
 
-    linked = int(np.sum((d2 > 0) & (d1 / d2 < nn_ratio_threshold)))
+    nndr = np.divide(d1, d2, out=np.full_like(d1, np.inf), where=(d2 > 0))
+    linked = int(np.sum(nndr < nn_ratio_threshold))
     rate = round(linked / max(n_test, 1), 4)
     baseline = DEFAULT_PRIVACY_LINKABILITY_BASELINE  # expected by chance
     lift = round((rate - baseline) / baseline * 100, 1)

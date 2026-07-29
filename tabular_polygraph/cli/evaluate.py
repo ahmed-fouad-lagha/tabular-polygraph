@@ -53,6 +53,7 @@ def cmd_evaluate(args):
         hif_hubs=getattr(args, "hif_hubs", 5),
         hif_depth=getattr(args, "hif_depth", 12),
         random_state=args.seed,
+        verbose=getattr(args, "verbose", False),
         include_privacy=getattr(args, "privacy", False),
         **rule_params,
     )

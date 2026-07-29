@@ -197,7 +197,7 @@ class GaussianCopulaGenerator(BaseGenerator):
         if self._priors is None:
             return
         prior = self._priors.get(col)
-        if prior is not None and m.kind in ("norm", "lognorm"):
+        if prior is not None and m.kind == "norm":
             p = m._params
             p["loc"] = prior.map_mean(p.get("loc", 0), n)
             p["scale"] = max(prior.map_std(p.get("scale", 1), n), 1e-6)

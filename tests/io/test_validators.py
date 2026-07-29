@@ -75,7 +75,7 @@ def test_validate_inf():
     df = pd.DataFrame({"a": [1.0, 2.0, np.inf, 4.0] * 15})
     res = validate(df)
     assert not res.passed
-    assert any("contains Inf or NaN" in e for e in res.errors)
+    assert any("contains Inf" in e for e in res.errors)
 
 
 def test_validate_no_cols():

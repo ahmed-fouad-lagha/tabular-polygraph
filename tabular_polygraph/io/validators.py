@@ -159,11 +159,18 @@ def validate(
     # ── Numeric sanity ────────────────────────────────────────────────────────
     num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     for col in num_cols:
-        s = df[col].dropna().astype(float)
+        s = df[col].dropna()
         if len(s) < 4:
             continue
-        if not np.all(np.isfinite(s)):
-            errors.append(f"Column '{col}' contains Inf or NaN values after dropna")
+        try:
+            s_float = s.astype(float)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Column '{col}' has non-numeric values despite numeric dtype ({s.dtype})"
+            )
+            continue
+        if not np.all(np.isfinite(s_float)):
+            errors.append(f"Column '{col}' contains Inf values after dropna")
 
     passed = len(errors) == 0
     return ValidationResult(

@@ -60,12 +60,18 @@ def write(
             ) from None
 
     if not path.suffix:
-        # Default to .csv if no extension provided
         ext = ".csv"
         if fmt:
-            # Map format back to canonical extension
-            inv_map = {v: k for k, v in _EXT_MAP.items()}
-            ext = inv_map.get(fmt, ".csv")
+            _FMT_TO_EXT = {
+                "csv": ".csv",
+                "parquet": ".pq",
+                "arrow": ".arrow",
+                "json": ".json",
+                "stata": ".dta",
+                "excel": ".xlsx",
+                "sas": ".sas7bdat",
+            }
+            ext = _FMT_TO_EXT.get(fmt, ".csv")
         path = path.with_suffix(ext)
 
     fmt = fmt or _infer_format(path)
@@ -114,7 +120,7 @@ def _write_json(df, path, **kw):
 
 
 def _write_stata(df, path, **kw):
-    # Stata can't handle string columns > 244 chars or certain dtypes
+    # Stata can't handle NaN in string columns or values > 244 chars
     df_stata = df.copy()
     truncated_cols = []
     str_cols = [
@@ -124,10 +130,13 @@ def _write_stata(df, path, **kw):
         or pd.api.types.is_string_dtype(df_stata[c])
     ]
     for col in str_cols:
+        is_null = df_stata[col].isna()
         str_s = df_stata[col].astype(str)
         if (str_s.str.len() > 244).any():
             truncated_cols.append(col)
         df_stata[col] = str_s.str[:244]
+        # Preserve NaN semantics instead of writing literal "nan"
+        df_stata.loc[is_null, col] = None
     if truncated_cols:
         import warnings
 

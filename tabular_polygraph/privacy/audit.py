@@ -89,7 +89,7 @@ def privacy_audit(
     }
 
     # ── Membership inference ──────────────────────────────────────────────────
-    if real_holdout is not None:
+    if real_holdout is not None and len(real_holdout) > 0:
         train = real
         holdout = real_holdout
     else:
