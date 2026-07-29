@@ -106,8 +106,8 @@ class Downstream(Metric):
             X_real, y_real, test_size=test_frac, random_state=42
         )
 
-        # Fit preprocessor on FULL real data to avoid leakage from test split
-        preprocessor.fit(X_real)
+        # Fit preprocessor on training split only to avoid leakage from test split
+        preprocessor.fit(X_real_tr)
         X_syn_pre = preprocessor.transform(syn)
         X_real_pre = preprocessor.transform(X_real_tr)
         X_test_pre = preprocessor.transform(X_test)
@@ -142,17 +142,24 @@ class Downstream(Metric):
                 metric_fn(y_test_enc, rf_trr.predict(X_test_pre), average="macro")
             )
         else:
+            try:
+                y_syn_num = y_syn.astype(float)
+                y_real_tr_num = y_real_tr.astype(float)
+                y_test_num = y_test.astype(float)
+            except (ValueError, TypeError):
+                return {"error": "Regression target column must be numeric"}
+
             rf_tstr = RandomForestRegressor(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )
             rf_trr = RandomForestRegressor(
                 n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
             )
-            rf_tstr.fit(X_syn_pre, y_syn)
-            rf_trr.fit(X_real_pre, y_real_tr)
+            rf_tstr.fit(X_syn_pre, y_syn_num)
+            rf_trr.fit(X_real_pre, y_real_tr_num)
 
-            tstr = float(metric_fn(y_test, rf_tstr.predict(X_test_pre)))
-            trr = float(metric_fn(y_test, rf_trr.predict(X_test_pre)))
+            tstr = float(metric_fn(y_test_num, rf_tstr.predict(X_test_pre)))
+            trr = float(metric_fn(y_test_num, rf_trr.predict(X_test_pre)))
             metric_name = "r2"
 
         ratio = round(tstr / max(abs(trr), 1e-6), 4)

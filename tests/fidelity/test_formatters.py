@@ -39,7 +39,7 @@ def test_format_report_with_errors():
             "elapsed_seconds": 1.5,
         },
         "logical": {"error": "Test error message"},
-        "stylized_facts": {"_summary": {"applicable": False, "note": "Not applicable"}},
+        "stylized_facts": {"applicable": False, "note": "Not applicable"},
     }
     formatted = format_report(report)
     assert "ERROR (Test error message)" in formatted

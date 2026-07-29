@@ -22,9 +22,11 @@ class ConsoleFormatter:
         )
         lines.append("")
         lines.append("-" * self.width)
-        lines.append(f"  Moment matching : {s.get('moment_matching_score', 0):>6.2f}%")
-        lines.append(f"  KS distribution : {s.get('ks_score', 0):>6.2f}%")
-        lines.append(f"  Joint distance  : {s.get('joint_score', 0):>6.2f}%")
+        lines.append(
+            f"  Moment matching : {s.get('moment_matching_score') or 0:>6.2f}%"
+        )
+        lines.append(f"  KS distribution : {s.get('ks_score') or 0:>6.2f}%")
+        lines.append(f"  Joint distance  : {s.get('joint_score') or 0:>6.2f}%")
 
         ap = s.get("alpha_precision")
         br = s.get("beta_recall")
@@ -39,9 +41,7 @@ class ConsoleFormatter:
         lines.append("-" * self.width)
         lines.append("")
 
-        sf = report.get("stylized_facts", {}).get(
-            "_summary", report.get("stylized_facts", {})
-        )
+        sf = report.get("stylized_facts", {})
         lines.append("  Stylized facts:")
         if sf.get("applicable", True):
             lines.append(f"    Mean score  : {sf.get('mean_score', PLACEHOLDER)}%")

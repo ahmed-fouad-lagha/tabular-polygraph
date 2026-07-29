@@ -136,7 +136,7 @@ class HIFAuditor:
                 cat_context_syn, synthetic[nic_targets], x_precomputed=None
             )
             nic_penalties = nic_penalties_raw
-            nic_violation_rate = (nic_penalties > 0.5).mean()
+            nic_violation_rate = (nic_penalties > cfg.violation_threshold).mean()
 
         if callable(progress_callback):
             progress_callback(3, 3, "Mining Implication Rules...")

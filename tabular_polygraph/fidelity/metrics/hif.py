@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tabular_polygraph._config import HIFConfig, RulesConfig
+from tabular_polygraph._config import HIFConfig
 from tabular_polygraph._types import Metric
 
 from . import register
@@ -26,7 +26,7 @@ class HIFMetric(Metric):
     ) -> dict:
         from tabular_polygraph.fidelity.hif import hif_score as _hif_score
 
-        rules = self._config.rules if hasattr(self._config, "rules") else RulesConfig()
+        rules = self._config.rules
         result = _hif_score(
             real,
             synthetic,
@@ -34,6 +34,11 @@ class HIFMetric(Metric):
             hif_epochs=self._config.epochs,
             hif_hubs=self._config.hubs,
             hif_depth=self._config.depth,
+            confidence_percentile=self._config.confidence_percentile,
+            violation_threshold=self._config.violation_threshold,
+            component_floor=self._config.component_floor,
+            ablation_mode=self._config.ablation_mode,
+            aggregation=self._config.aggregation,
             rule_min_confidence=rules.min_confidence,
             rule_min_support=rules.min_support,
             rule_max_rules=rules.max_rules,
@@ -66,5 +71,4 @@ class HIFMetric(Metric):
             "columns_used": result["columns_used"],
             "top_violated_rules": result.get("top_violated_rules", []),
             "violation_examples": result.get("violation_examples", []),
-            "logical_validity": logical_validity,
         }
