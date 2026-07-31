@@ -1,6 +1,6 @@
-\section{Formal Guarantees for the HIF Score}
+\section{Formal Results for the HIF Score Under Stated Assumptions}
 
-We provide a formal analysis of the Hybrid Integrity Framework (HIF) score properties under the \textbf{ structured drift-proof (SDP)} framework introduced by Shang et al. \cite{shang2026finetuning}.
+We provide a formal analysis of Hybrid Integrity Framework (HIF) score properties under the \textbf{structured drift-proof (SDP)} framework introduced by Shang et al. \cite{shang2026finetuning}. The results below should be interpreted as assumption-scoped statements rather than unconditional guarantees.
 
 \subsection{Proof of Intersection Soundness}
 
@@ -15,29 +15,29 @@ where $L$ is the number of auditing layers in the model.
     \item \textbf{Soundness (Non-Compensatory Property):} Suppose $\mathbf{x} \notin \mathcal{M}_{total}$. Then, there exists at least one $l^*$ such that $\mathbf{x} \notin \mathcal{M}_{l^*}$, implying $\mathcal{C}_{l^*}(\mathbf{x}) < 1$. Because $0 \le \mathcal{C}_l(\mathbf{x}) \le 1$ for all $l$, the multiplicative product $H(\mathbf{x}) = \mathcal{C}_{l^*}(\mathbf{x}) \cdot \prod_{l \neq l^*} \mathcal{C}_l(\mathbf{x}) < 1$.
     \item \textbf{Strict Convergence:} If $\mathbf{x}$ exhibits an ``Absolute Violation'' in any layer ($\mathcal{P}_{l^*} \to 1 \implies \mathcal{C}_{l^*} \to 0$), the product $H(\mathbf{x}) \to 0$ regardless of the performance in other layers.
 \end{enumerate}
-This confirms that $H(\mathbf{x})$ provides a strictly conservative diagnosis for the joint satisfaction of all latent manifold law.
+Under the assumptions above, this confirms that $H(\mathbf{x})$ behaves as a conservative diagnostic for joint satisfaction of latent manifold constraints.
 
 \subsection{Proof of Asymptotic Statistical Convergence}
 
-\textbf{Theorem 2 (Asymptotic Convergence of the HIF Penalty).} Let $\hat{P}_N(x_h \mid \mathbf{x}_{\setminus h})$ be the empirical conditional probability estimator (the Sentinel $f_h$) trained on a ground-truth dataset $\mathcal{D}_{real}$ of size $N$. Assuming the base estimator is statistically consistent (e.g., consistent non-parametric trees), as $N \to \infty$, $\hat{P}_N$ converges in probability to the true conditional distribution $P^*(x_h \mid \mathbf{x}_{\setminus h})$. Consequently, the empirical penalty $\mathcal{P}_h^{(N)}(\mathbf{x})$ converges to the true underlying dependency violation penalty.
+\textbf{Theorem 2 (Asymptotic Convergence of the HIF Penalty).} Let $\hat{P}_N(x_h \mid \mathbf{x}_{\setminus h})$ be the empirical conditional probability estimator (the Sentinel $f_h$) trained on a ground-truth dataset $\mathcal{D}_{real}$ of size $N$. Assuming the base estimator is statistically consistent (e.g., consistent non-parametric trees), as $N \to \infty$, $\hat{P}_N$ converges in probability to the true conditional distribution $P^*(x_h \mid \mathbf{x}_{\setminus h})$. Consequently, the empirical penalty $\mathcal{P}_h^{(N)}(\mathbf{x})$ converges to the corresponding population penalty under the same modeling assumptions.
 \begin{equation}
     \lim_{N \to \infty} P\left( \sup_{\mathbf{x}} \left| \mathcal{P}_h^{(N)}(\mathbf{x}) - \mathcal{P}_h^*(\mathbf{x}) \right| > \epsilon \right) = 0 \quad \forall \epsilon > 0
 \end{equation}
 
 \begin{enumerate}
     \item \textbf{Consistent Density Estimation:} Because the LSE leverages consistent non-parametric estimators (Random Forests), the empirical conditional probabilities uniformly converge to the true Bayesian posterior $P^*$, provided the feature space is bounded and the leaf nodes grow sub-linearly with $N$.
-    \item \textbf{Bounded False Positive Rate:} By defining the confidence floor $\delta_h$ as the empirical 5th-percentile of $\hat{P}_N$ on the training data, we ensure that as $N \to \infty$, the asymptotic false positive rate (the probability of penalizing a true ground-truth record) is strictly bounded above by $\alpha = 0.05$.
-    \item \textbf{Asymptotic Soundness:} Therefore, any synthetic record $\mathbf{x}_{syn}$ that is penalized by the converged HIF ($\mathcal{P}^* > 0$) is guaranteed to possess a conditional probability strictly lower than $95\%$ of the true data manifold, providing a statistically rigorous guarantee that the record is a structural hallucination.
-    \item \textbf{Consistency of Feature Dependency Score $S(h)$:} By the Uniform Law of Large Numbers (ULLN) and the Continuous Mapping Theorem, the empirical feature dependency score $S^{(N)}(h)$ converges in probability to the Bayes optimal classification accuracy $S^*(h) = \mathbb{E}_{\mathbf{x} \sim P_{real}} \left[ \mathbb{I} \left( \arg\max_{c} P^*(x_h = c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]$, guaranteeing that Dependency Hub ranking is asymptotically stable and consistent.
+    \item \textbf{Bounded False Positive Rate:} By defining the confidence floor $\delta_h$ as the empirical 5th-percentile of $\hat{P}_N$ on the training data, we obtain an asymptotic upper bound of approximately $\alpha = 0.05$ on false positives under calibration assumptions.
+    \item \textbf{Asymptotic Soundness:} Therefore, synthetic records penalized by the converged HIF ($\mathcal{P}^* > 0$) are expected to lie in lower-probability conditional regions of the data manifold, supporting (but not by itself proving) a structural-violation interpretation.
+    \item \textbf{Consistency of Feature Dependency Score $S(h)$:} By the Uniform Law of Large Numbers (ULLN) and the Continuous Mapping Theorem, the empirical feature dependency score $S^{(N)}(h)$ converges in probability to the Bayes optimal classification accuracy $S^*(h) = \mathbb{E}_{\mathbf{x} \sim P_{real}} \left[ \mathbb{I} \left( \arg\max_{c} P^*(x_h = c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]$, implying asymptotically stable hub ranking under these conditions.
 \end{enumerate}
 \subsection{Theoretical Bound on Type I Error and Rejection Filtering Purity}
 
-\textbf{Theorem 3 (Type I Error Bound \& Neyman-Pearson Cohort Purity).}
-Let $\mathbf{x} \sim P_{real}$ be a valid record residing on the ground-truth manifold $\mathcal{M}_{real}$ (including rare tail outliers or low-density components of a Gaussian Mixture Model). Under quantile calibration ($\delta_h = Q_{\alpha}$ and continuous tolerance bandwidth $\gamma_y = Q_{1-\beta}$), the probability of false rejection is strictly bounded by the Union Bound:
+\textbf{Theorem 3 (Type I Error Bound \& Cohort-Purity Approximation).}
+Let $\mathbf{x} \sim P_{real}$ be a valid record residing on the ground-truth manifold $\mathcal{M}_{real}$ (including rare tail outliers or low-density components of a Gaussian Mixture Model). Under quantile calibration ($\delta_h = Q_{\alpha}$ and continuous tolerance bandwidth $\gamma_y = Q_{1-\beta}$), the false-rejection probability is upper-bounded by the Union Bound:
 \begin{equation}
     P\left( H(\mathbf{x}) < 0.5 \;\middle|\; \mathbf{x} \in \mathcal{M}_{real} \right) \le \sum_{h \in \mathcal{H}} \alpha_h + \sum_{y} \beta_y
 \end{equation}
-Furthermore, let a generative model produce a noisy mixture distribution $P_{syn} = (1 - \eta) P_{real} + \eta P_{hallucinated}$, where $\eta \in [0, 1]$ represents the structural hallucination rate. Rejection filtering with threshold $H \ge 0.5$ yields a retained cohort with guaranteed purity:
+Furthermore, let a generative model produce a noisy mixture distribution $P_{syn} = (1 - \eta) P_{real} + \eta P_{hallucinated}$, where $\eta \in [0, 1]$ represents the structural hallucination rate. Rejection filtering with threshold $H \ge 0.5$ yields an approximate retained-cohort purity expression under the mixture model assumptions:
 \begin{equation}
     \text{Purity}(H \ge 0.5) = \frac{(1 - \eta)(1 - \alpha)}{(1 - \eta)(1 - \alpha) + \eta \beta_{hallucination}}
 \end{equation}
