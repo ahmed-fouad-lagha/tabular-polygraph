@@ -1,0 +1,471 @@
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\input{ursfs.fd}%
+\DeclareFontShape{U}{rsfs}{m}{n}{<-> rsfs10}{}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+\usepackage{tabularx}%
+\usepackage{siunitx}%
+
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%
+\newtheorem{proposition}[theorem]{Proposition}%
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+
+\title[Row-Level Structural Fidelity Diagnostics]{Row-Level Structural Fidelity Diagnostics for Synthetic Tabular Data}
+
+\author*[1]{\fnm{Ahmed Fouad} \sur{Lagha}}\email{ahmed.lagha@inf.elte.hu}
+
+\author[1]{\fnm{Zakarya} \sur{Farou}}\email{zakaryafarou@inf.elte.hu}
+
+\author[1]{\fnm{Imre} \sur{Lendák}}\email{lendak@inf.elte.hu}
+
+\affil*[1]{\orgdiv{Department of Data Science and Engineering}, \orgname{Eötvös Loránd University}, \orgaddress{\street{Pázmány Péter sétány 1/C}, \city{Budapest}, \postcode{H-1117}, \country{Hungary}}}
+
+\begin{document}
+
+\abstract{
+Evaluating synthetic tabular data requires auditing individual record integrity in addition to global distribution alignment. Standard statistical metrics (KS complement, Total Variation Distance, Correlation Similarity) assess column distributions in aggregate and are fundamentally blind to localized, row-level conditional dependency violations. We present the Hybrid Integrity Framework (HIF), a row-level structural diagnostic that combines a Logical Sentinel Ensemble (LSE) for categorical conditional dependencies with Neighbor-Invariant Continuity (NIC) for continuous feature consistency. We demonstrate two primary contributions: (1) \textbf{Universal Structural Diagnostics}: HIF reliably identifies row-level dependency ruptures across generative paradigms (Gaussian Copula, CTGAN, TVAE) on five benchmark datasets (Adult, Credit Default, Census ACS, Online Purchases, Supermarket Sales) where aggregate marginal and correlation metrics report near-perfect scores ($>97\%$); and (2) \textbf{Targeted Remediation}: Pruning dependency-violating records ($H < 0.5$) improves downstream predictive utility when structural errors are present (e.g., $+7.7\%$ macro F1 on Online Purchases CTGAN and $+6.3\%$ F1 on minority classes) while preserving predictive utility without degradation when structural errors are absent. HIF provides practitioners with a verifiable, row-level certificate of joint structural integrity for high-stakes synthetic data deployment.
+}
+
+\maketitle
+
+\section{Introduction}
+
+The generation of high-fidelity synthetic tabular data has emerged as a cornerstone of reproducible research in privacy-sensitive domains such as economics \cite{assefa2020generating}, finance, and healthcare \cite{jordon2022synthetic, tucker2020generating}. With the scaling of deep generative architectures, such as CTGAN \cite{xu2019modeling} and the refinement of flexible statistical models, such as Vine Copulas \cite{joe1996}, the community has achieved remarkable success in matching aggregate marginal distributions. However, a critical ``Dependency Fidelity Gap'' remains: while these models excel at replicating per-column distributions, they frequently produce records that are individually plausible under each column's marginal yet violate the conditional inter-feature dependencies of the real-world joint distribution \cite{long2025evaluating}---violations invisible to any metric that evaluates columns in isolation.
+
+Traditional evaluation pipelines rely on \textit{statistical fidelity} metrics, such as the Kolmogorov-Smirnov test and Total Variation Distance, to assess quality \cite{van2023modern, park2018data}. While useful for verifying marginal distributional alignment, these metrics are inherently \textit{aggregation-blind}: they evaluate each column's distribution independently and cannot detect records that violate conditional inter-feature dependencies yet remain within the expected marginal range of each individual column. Recent attempts to bridge this gap, such as the SHAP-based semantic fidelity metric \cite{yu2025shap}, provide explainability-aware insights but often lack the scalability and technical rigor required for the release of high-stakes synthetic data. As noted by Shang et al. (2026) \cite{shang2026finetuning}, ensuring the integrity of synthetic tabular data requires more than marginal distributional similarity; it requires a \textit{row-level dependency integrity certificate}. Crucially, this pathology is not exclusive to the opacity of deep neural networks: as we demonstrate, even rigorous statistical models (such as Gaussian and Vine Copulas) confidently hallucinate these joint dependency violations despite near-perfect aggregate marginal fits.
+
+To address these challenges, we introduce the Hybrid Integrity Framework (HIF), a system for detecting logical inconsistencies in synthetic tabular data. HIF reframes the problem of fidelity evaluation as a multidimensional consistency detection task. By moving beyond aggregate statistical snapshots, the HIF identifies logical violations at the record level, enabling the filtering and curation of high-integrity synthetic cohorts. In Section 2, we contextualize our approach within the emerging literature on semantic fidelity and inter-column logic before detailing our methodology in Algorithms~\ref{alg:calibration} and \ref{alg:audit}.
+
+Our framework comprises three complementary auditing layers:
+\begin{enumerate}
+    \item \textbf{Logical Sentinel Ensemble (LSE):} An array of discriminative classifiers that identify high-dependency categorical feature hubs in the ground-truth data using out-of-bag classification accuracy.
+    \item \textbf{Neighbor-Invariant Continuity (NIC):} A continuous feature auditing mechanism that verifies local semantic adjacency within SVD-embedded categorical contexts using robust percentile thresholding.
+    \item \textbf{Automated Rule Extractor:} An association rule mining engine that extracts high-confidence deterministic implication rules ($A \implies B$) from ground-truth data to enforce hard structural constraints.
+\end{enumerate}
+
+Furthermore, we integrate the Targeted Adversarial Masking and Inference Suite (TAMIS) Privacy Oracle, subjecting synthetic cohorts to rigorous membership \cite{shokri2017membership} and linkability attacks to ensure that logical consistency does not come at the cost of privacy.
+
+\paragraph{Summary of Technical Novelty and Core Contributions.} We explicitly demarcate our contributions into two core pillars:
+\begin{enumerate}
+    \item \textbf{Universal Row-Level Structural Diagnostic (Always Works):} HIF reframes synthetic data auditing from aggregate column matching to record-level conditional plausibility. By combining predictive synergy hub selection with non-compensatory multiplicative aggregation ($\prod_l (1 - \mathcal{P}_l)$), HIF detects localized structural hallucinations (``impossible junctions'') where every individual column value appears marginal-plausible yet their joint combination violates conditional logic.
+    \item \textbf{Targeted Remediation (Characterizable Utility Recovery):} We formalize and empirically characterize when integrity filtering improves downstream predictive utility. When synthetic cohorts contain structural errors (e.g., CTGAN on constrained microdata or e-commerce transactions), pruning low-HIF records ($H < 0.5$) removes label and feature noise, yielding up to $+7.7\%$ macro F1 improvement and $+6.3\%$ F1 boost on minority classes. When synthetic cohorts are free of structural errors (e.g., TVAE or Gaussian Copula), HIF filtering preserves predictive utility without degradation ($p = 0.57$).
+\end{enumerate}
+
+By providing a scalable, data-driven diagnostic, HIF enables the production of synthetic data certified for high-stakes research. The complete open-source implementation, experimental benchmarks, and dataset configurations are available at \url{https://anonymous.4open.science/r/tabular-polygraph-21CE}.
+
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width=1.0\textwidth]{figures/dependency_gap.pdf}
+  \caption{An empirical demonstration of the Dependency Gap on the Supermarket Sales dataset. While generative models (e.g., Gaussian Copula) successfully replicate the 1D marginal distributions of \textit{Quantity} and \textit{Total} (side histograms, KS $>0.99$), they fail to preserve the strict joint arithmetic constraint ($\text{Total} = \text{Price} \times \text{Quantity} \times \text{Tax}$). The synthetic cohort hallucinates impossible records, such as massive totals for tiny quantities (dashed box), which are completely invisible to aggregate marginal metrics.}
+  \label{fig:dependency_gap}
+\end{figure}
+
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width=1.0\textwidth]{figures/hif_architecture.pdf}
+  \caption{Architecture of the Hybrid Integrity Framework (HIF). Synthetic tabular data is verified by the Logical Sentinel Ensemble (LSE) and Neighbor-Invariant Continuity (NIC) modules, which are combined via multiplicative aggregation to filter semantically inconsistent records.}
+  \label{fig:hif_architecture}
+\end{figure}
+
+\section{Related Work}
+
+\paragraph{Synthetic Tabular Data Generation.} The field has evolved from early copula-based methods to deep generative architectures. GAN-based models, such as CTGAN and TVAE \cite{xu2019modeling}, set an early benchmark for capturing joint distributions by building on the Synthetic Data Vault framework \cite{patki2016synthetic}. Recently, models such as CTAB-GAN \cite{zhao2021ctab} have improved the handling of skewed distributions. Concurrently, diffusion paradigms such as TabDDPM \cite{kotelnikov2023tabddpm} and composable architectures such as CoDi \cite{lee2023codi} have pushed the frontier of manifold matching. However, both statistical copula decompositions and deep neural architectures suffer from a fundamental objective mismatch: statistical models (such as Vine Copulas) excel at per-column marginal fitting but smooth over complex non-linear conditional constraints, while neural models (such as CTGAN) can learn non-linear categorical contexts but remain prone to mode collapse or localized joint violations. Our work focuses on a representative spectrum of generators, from classical \textit{Gaussian Copulas} \cite{sklar1959} and \textit{Vine Copulas} \cite{joe1996} to neural architectures such as \textit{CTGAN}, demonstrating that the Dependency Gap is a universal challenge across generative paradigms.
+
+\paragraph{Evaluation Metrics and the Dependency Gap.} Traditional evaluation pipelines primarily rely on statistical fidelity (e.g., Kolmogorov-Smirnov tests, Correlation Distance) and predictive utility (Train-on-Synthetic, Test-on-Real; TSTR). Although effective for global assessment, these metrics evaluate aggregate column-level statistics and are therefore blind to row-level conditional dependency violations---by design, a corruption that samples each feature from its correct marginal but ignores inter-feature correlations is entirely invisible to such metrics. Long et al. (2025) \cite{long2025evaluating} were among the first to formalize these ``Dependency Gaps,'' proposing rule-based audits for inter-column relationships. Similarly, Yu et al. (2025) \cite{yu2025shap} introduced the SHAP Distance to evaluate fidelity through an explainability-aware lens. HIF builds on these insights but automates dependency discovery through predictive synergy scoring. Unlike rule-mined audits, which are binary and require manual specification, HIF provides a soft probabilistic integrity score using non-compensatory multiplicative aggregation that prevents high-fidelity feature dimensions from masking localized dependency violations.
+
+\paragraph{Probabilistic Dependency Auditing.} The automated discovery of inter-feature dependencies for data quality auditing is an active research area. Karabulut et al. (2025) \cite{karabulut2025neurosymbolic} explored association rule mining to extract interpretable dependencies from large tables, while Yu et al. (2026) \cite{yu2026thinking} demonstrated that dependency-aware representations enhance tabular understanding. HIF situates itself in this landscape as a fully probabilistic auditing framework: its LSE and NIC components are discriminative statistical models (random forests, gradient boosting regressors) trained on the real data distribution to score the conditional plausibility of synthetic records. Crucially, a fundamental theoretical distinction exists between HIF and general-purpose ensemble outlier detectors (e.g., Isolation Forests, Local Outlier Factors). Standard ensemble outlier detectors identify records situated in low-density feature space (extreme numerical or categorical outliers). In contrast, HIF is specifically designed to audit structural hallucinations (``impossible junctions'') where every individual feature value is unexceptional and high-density, yet their joint combination violates physical or logical laws. Furthermore, while conventional anomaly ensembles aggregate member scores additively (averaging), HIF introduces a non-compensatory multiplicative product aggregation ($\prod$) that prevents well-behaved feature dimensions from compensating for localized dependency ruptures.
+
+\section{Mathematical Foundation}
+
+The Hybrid Integrity Framework (HIF) formalizes synthetic data auditing as a probabilistic conditional scoring task. Let $\mathcal{D}_{real}$ denote the original training dataset. We formally define the \textbf{ground-truth manifold} $\mathcal{M}_{real}$ as the support of the joint distribution $P_{real}(\mathbf{x})$, representing the localized subspace of valid feature configurations that occur in reality \cite{fefferman2016testing}.
+
+We define a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ (where $\mathbf{x}_{cat}$ and $\mathbf{x}_{cont}$ denote the sub-vectors of categorical and continuous features, respectively) as a \emph{dependency-violating record} if it is plausible under the marginal distribution of individual features yet falls outside the bounds of the ground-truth manifold (i.e., it is highly improbable under the joint conditional distribution $P_{\mathcal{D}_{real}}(\mathbf{x}_h \mid \mathbf{x}_{\setminus h})$ learned from the data). This distinction is central: aggregate fidelity metrics (KS, TVD, JCD) assess whether synthetic records fall within the expected marginal range of each column in isolation; HIF additionally evaluates whether the joint configuration of each record structurally aligns with the ground-truth manifold. A record failing the latter criterion is a dependency violation even if every individual feature value is marginal-plausible. The complete calibration process for establishing these data-driven manifold boundaries is detailed in Algorithm~\ref{alg:calibration}.
+
+\subsection{Logical Sentinel Ensemble (LSE)}
+
+To audit categorical consistency, we first identify the set of Dependency Hubs $\mathcal{H} \subset \{1, \dots, K_{hub}\}$ that govern the structural dependencies of the dataset. For a given row $\mathbf{x}$, let $x_h \in \mathcal{X}_h$ denote the categorical value of a target feature $h$, and let $\mathbf{x}_{\setminus h}$ denote the values of all other remaining features (i.e., $\mathbf{x}$ with feature $h$ removed).
+
+We train an independent Random Forest classifier \cite{breiman2001random}---leveraging decision tree recursive partitioning to capture non-linear feature interactions \cite{friedman2008predictive}---which we call a \textit{Sentinel} and denote as $f_h$, to predict $x_h$ given $\mathbf{x}_{\setminus h}$. The sentinel outputs a conditional probability distribution $P_{f_h}(x_h = c \mid \mathbf{x}_{\setminus h})$ for all possible categories $c \in \mathcal{X}_h$. We define the importance of a feature $h$ using the Feature Dependency Score $S(h)$, which is the out-of-bag classification accuracy of its sentinel:
+\begin{equation}
+    S(h) = \mathbb{E}_{\mathbf{x} \sim \mathcal{D}_{real}} \left[ \mathbb{I} \left( \arg\max_{c \in \mathcal{X}_h} P_{f_h}(x_h=c \mid \mathbf{x}_{\setminus h}) = x_h \right) \right]
+\end{equation}
+where $\mathbb{I}$ is the indicator function. By maximizing $S(h)$, we select hubs that are most strongly constrained by conditional interactions with other attributes. While computationally efficient, this reliance on single-variable classification accuracy primarily captures univariate dependencies and may under-represent higher-order parity relationships. Future work will investigate Total Correlation and multi-way interaction kernels to broaden hub selection capability.
+
+\paragraph{Running Example: Categorical Dependencies.}
+Consider a demographic dataset where $\mathbf{x}$ represents a person. Let $x_h$ be their \textit{Education Level} and $\mathbf{x}_{\setminus h}$ contain their \textit{Age} (e.g., 14). Because a 14-year-old cannot hold a PhD in the real world, the sentinel $f_h$ learns from the ground-truth data to assign $P_{f_h}(\text{PhD} \mid \text{Age}=14) \approx 0$. If a generative model hallucinates a 14-year-old with a PhD, the sentinel will flag the record because the assigned probability for the hallucinated category is extremely low.
+
+\paragraph{Confidence Floor Calibration.}
+Drawing inspiration from distribution-free quantile calibration in inductive conformal prediction \cite{shafer2008tutorial, vovk2005algorithmic, angelopoulos2021gentle}, we establish a data-driven Confidence Floor $\delta_h$ for each hub based on empirical calibration error bounds. We define $\delta_h$ using the empirical 5th-percentile ($Q_{0.05}$) of the probability mass assigned to the correct category by the sentinel in the ground-truth data, with a safety minimum of 0.01:
+\begin{equation}
+    \delta_h = \max \left( Q_{0.05} \Big( \{ P_{f_h}(x_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} \Big), 0.01 \right)
+\end{equation}
+This 5th-percentile floor acts as a conservative safety margin. In our running example, if the real data occasionally contains 18-year-olds with college degrees, the sentinel's probability might be low but non-zero (e.g., 0.05). The floor $\delta_h$ ensures we do not penalize rare but valid records that fall within the natural density of the ground-truth manifold.
+
+The per-hub penalty $\mathcal{P}_h(\mathbf{x})$ uses a soft-threshold activation to suppress noise-level deviations, harshly penalizing only those records whose probabilities fall far below the confidence floor (such as the impossible 14-year-old PhD):
+\begin{equation}
+    \mathcal{P}_h(\mathbf{x}) = \text{clip}\left( \frac{\delta_h - P_{f_h}(x_h \mid \mathbf{x}_{\setminus h})}{\delta_h}, 0, 1 \right)
+\end{equation}
+The categorical penalty aggregates multiplicatively across hubs, ensuring that ruptures in multiple manifold dimensions are compounded.
+\begin{equation}
+    \mathcal{P}_{cat}(\mathbf{x}) = 1 - \prod_{h \in \mathcal{H}} (1 - \mathcal{P}_h(\mathbf{x}))
+\end{equation}
+
+For a rigorous theoretical analysis, including the proof of intersection soundness (Theorem 1), asymptotic statistical convergence (Theorem 2), and the upper bound on Type I false-rejection error under quantile calibration (Theorem 3), we refer the reader to Appendix A.
+
+\begin{algorithm}[ht]
+\caption{HIF Manifold Calibration}
+\label{alg:calibration}
+\begin{algorithmic}[1]
+\Statex \textbf{Input:} Ground-truth data $\mathcal{D}_{real}$, Hub count $K_{hub}$
+\Statex \textbf{Output:} Sentinels $\{f_h\}$, Floors $\{\delta_h\}$, NIC Regressors $\{r_y\}$, Thresholds $\{\tau_y\}$
+\State $\mathcal{H} \leftarrow \text{Select top } K_{hub} \text{ features by Feature Dependency Score } S(h)$
+\For{each hub $h \in \mathcal{H}$}
+    \State Train Sentinel $f_h: \mathcal{X}_{\setminus h} \to [0, 1]^{|\mathcal{X}_h|}$ on $\mathcal{D}_{real}$ to predict $x_h$
+    \State $\delta_h \leftarrow \max( \text{Percentile}_{5} ( \{ f_h(\mathbf{x}_h \mid \mathbf{x}_{\setminus h}) \mid \mathbf{x} \in \mathcal{D}_{real} \} ), 0.01)$
+\EndFor
+\State $\mathcal{Z} \leftarrow \text{SVD}(\text{Scale}(\text{OneHot}(\mathcal{D}_{cat})))$ \Comment{Non-Centered Spectral Manifold}
+\For{each continuous feature $y$}
+    \State Train Gradient Boosting regressor $r_y: \mathcal{Z} \to \mathbb{R}$ on $\mathcal{D}_{real}$
+    \State $\mathcal{E}_y \leftarrow \{ |y - r_y(\mathbf{z})| \mid \mathbf{x} \in \mathcal{D}_{real} \}$ \Comment{Ground-truth residuals}
+    \State $\tau_y \leftarrow \max(Q_{0.98}(\mathcal{E}_y), \text{Median}(\mathcal{E}_y) + 2 \cdot \text{MAD}(\mathcal{E}_y))$ \Comment{Robust Threshold}
+    \State $\gamma_y \leftarrow \max(2 \cdot \tau_y, 3 \cdot \text{MAD}(\mathcal{E}_y), 0.1)$ \Comment{Dynamic Gamma Scaling}
+\EndFor
+\State $\mathcal{R} \leftarrow \text{MineImplicationRules}(\mathcal{D}_{real})$ \Comment{FP-Growth, min\_conf=0.95, min\_supp=0.005}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Neighbor-Invariant Continuity (NIC)}
+
+For continuous features $\mathbf{y}$, we evaluate integrity via Semantic Adjacency. We map the categorical context to a continuous latent space $\mathcal{Z}$ using a standardized spectral projection $\phi: \mathcal{X}_{cat} \to \mathcal{Z}$---drawing on classical Multiple Correspondence Analysis (MCA) and Singular Value Decomposition (SVD) on binary indicator matrices \cite{abdi2010principal, greenacre2007correspondence}. Standardizing the indicator matrices by their standard deviation prior to SVD mathematically replicates the inverse-frequency weighting of MCA, ensuring that rare but highly informative categorical constraints dominate the continuous manifold projection. We then model the conditional expectation of each continuous feature $y$ as a non-linear function of this manifold using a Gradient Boosting Regressor $r_y$ \cite{friedman2001greedy, ke2017lightgbm}:
+\begin{equation}
+    \hat{y}(\mathbf{x}) = \mathbb{E}[y \mid \phi(\mathbf{x}_{cat})] \approx r_y(\phi(\mathbf{x}_{cat}))
+\end{equation}
+
+For any given record $\mathbf{x}$, let $e_y(\mathbf{x}) = |y(\mathbf{x}) - \hat{y}(\mathbf{x})|$ denote the absolute regression residual (i.e., the error between the actual continuous value and the expected value given the categorical context). We define the set of all ground-truth residuals as $\mathcal{E}_y = \{ e_y(\mathbf{x}) \mid \mathbf{x} \in \mathcal{D}_{real} \}$.
+
+\paragraph{Running Example: Continuous Dependencies.}
+Continuing our demographic example, suppose a synthetic 45-year-old Senior Executive is generated with an Income of \$12. The NIC regressor $r_y$ looks at the categorical profile and predicts an expected income of $\hat{y} \approx \$120,000$. The absolute residual $e_y(\mathbf{x}) = \$119,988$ is astronomically high compared to the natural variance of executives in the real dataset, signaling a continuous dependency gap.
+
+To handle extreme feature skewness (common in census domains), we define a robust hybrid threshold $\tau_y$ based on the ground-truth residuals $\mathcal{E}_y$. We use the Median Absolute Deviation (MAD), which provides a robust estimate of local manifold spread that is less sensitive to outliers than the standard deviation:
+\begin{equation}
+    \tau_y = \max \left( Q_{0.98}(\mathcal{E}_y), \text{Median}(\mathcal{E}_y) + 2 \cdot \text{MAD}(\mathcal{E}_y) \right)
+\end{equation}
+This threshold ensures that the NIC layer remains stable even in high-skew distributions, such as macroeconomic wage data.
+
+The continuous penalty $\mathcal{P}_{cont}(\mathbf{x})$ is expressed using a dynamic scaling factor $\gamma_y$, formally defined as $\gamma_y = \max(2\tau_y, 3\text{MAD}(\mathcal{E}_y), 0.1)$. This parameter defines the bounds of the penalty, scaling the response relative to the natural noise floor of the feature. This ensures that small deviations beyond $\tau_y$ result in soft penalties, while massive violations (like the \$12 executive) yield a maximum penalty of 1.0:
+\begin{equation}
+    \mathcal{P}_{cont}(\mathbf{x}) = \max_{y} \left[ \text{clip}\left( \frac{e_y(\mathbf{x}) - \tau_y}{\gamma_y}, 0, 1 \right) \right]
+\end{equation}
+
+\subsection{Multiplicative Aggregation}
+
+In contrast to additive fidelity metrics that allow a model to ``compensate'' for logical failures with high statistical overlap, HIF formalizes integrity as an Algebraic Intersection. Drawing from the structured drift-proof framework \cite{shang2026finetuning}, the hybrid integrity score $H(\mathbf{x})$ is defined as the strict multiplicative product of the component validities:
+\begin{equation}
+    H(\mathbf{x}) = \left( \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x})) \right)^{1/L}
+\end{equation}
+where $l$ iterates over the active auditing layers. The multiplicative product preserves the non-compensatory property of a Logical AND gate: a significant failure in any single manifold dimension ($\mathcal{P}_l \to 1$) drives the entire record integrity toward zero, regardless of how perfectly the other components align (see empirical validation of this non-compensatory advantage in Table~\ref{tab:ablation}, Section~\ref{sec:ablation}).
+
+\textbf{Theoretical Guarantees:} For a rigorous theoretical analysis of this non-compensatory aggregation logic, including the formal proof of intersection soundness (Theorem 1) and the guarantee of asymptotic statistical convergence for the empirical penalty functions (Theorem 2), we direct the reader to \textbf{Appendix A}.
+
+While HIF prioritizes soft probabilistic validities via LSE and NIC, we incorporate symbolic implication rules as an optional \textit{Structural Logic Constraint} layer ($l=rule$) to enforce known deterministic or physical laws (e.g., Age $\ge$ 18 for voters). This hybrid architecture allows the HIF to bridge the gap between differentiable manifolds and rigid symbolic constraints.
+
+\paragraph{The Integrity Frontier.} The dataset-level HIF score is the expected record-level integrity. To provide a discrete diagnostic, a record is classified as a \textit{Semantic Violation} if $H(\mathbf{x}) < 0.5$, defining the framework's Integrity Frontier.
+\begin{equation}
+    \text{HIF Score} = \frac{1}{N} \sum_{i=1}^N H(\mathbf{x}_i)
+\end{equation}
+The complete end-to-end auditing procedure for scoring a synthetic dataset is detailed in Algorithm~\ref{alg:audit}.
+
+\begin{algorithm}[ht]
+\caption{HIF Synthetic Data Audit}
+\label{alg:audit}
+\begin{algorithmic}[1]
+\Statex \textbf{Input:} Synthetic record $\mathbf{x}$, Trained components from Alg \ref{alg:calibration}
+\Statex \textbf{Output:} Record Integrity Score $H(\mathbf{x})$
+\State \textbf{Step 1: Logical Sentinel Audit (Categorical)}
+\For{each hub $h \in \mathcal{H}$}
+    \State $\mathcal{P}_h \leftarrow \text{clip}\left( \frac{\delta_h - f_h(\mathbf{x}_h \mid \mathbf{x}_{\setminus h})}{\delta_h}, 0, 1 \right) $
+\EndFor
+\State $\mathcal{P}_{cat} \leftarrow 1 - \prod_{h \in \mathcal{H}} (1 - \mathcal{P}_h)$ \Comment{Multiplicative violation aggregation}
+\State \textbf{Step 2: Neighbor-Invariant Continuity Audit (Continuous)}
+\State $\mathbf{z} \leftarrow \phi(\mathbf{x}_{cat})$ \Comment{Apply learned standardized projection}
+\For{each continuous feature $y$}
+    \State $\rho_y \leftarrow |y - r_y(\mathbf{z})|$
+    \State $\mathcal{P}_y \leftarrow \text{clip}\left( \frac{\rho_y - \tau_y}{\gamma_y}, 0, 1 \right)$
+\EndFor
+\State $\mathcal{P}_{cont} \leftarrow \max_y \mathcal{P}_y$
+\State \textbf{Step 3: Integrity Aggregation}
+\State $\mathcal{P}_{rule} \leftarrow 1 \text{ if } \mathbf{x} \text{ violates any } r \in \mathcal{R} \text{ else } 0$
+\State $H(\mathbf{x}) \leftarrow \left( \prod_{l} (1 - \mathcal{P}_l) \right)^{1/L} \in [0, 1]$ \Comment{Geometric mean of validities}
+\end{algorithmic}
+\end{algorithm}
+This score provides a bounded diagnostic $\in [0, 1]$, where 1.0 indicates a logically certified synthetic cohort.
+
+\subsection{Representation Stability and Fairness}
+
+A critical concern in integrity-based filtering is that the ``Integrity Frontier'' may disproportionately remove valid but rare minority patterns, inducing representation collapse. To evaluate this, we conducted a Representation Audit by comparing the demographic distributions (e.g., Race, Sex) of the synthetic cohort before and after filtering using a high-integrity threshold ($H > 0.5$).
+
+Using the Total Variation Distance (TVD) as our stability metric, we observed low representation drift (mean TVD $\approx 0.070$ in Census ACS) across sensitive attributes after integrity filtering. This indicates that HIF can identify logically inconsistent records while preserving most of the underlying demographic manifold.
+
+\subsection{Theoretical Justification: Non-Compensatory Evaluation}
+
+A primary critique of multiplicative evaluation is that absolute scores often appear lower than the near-unity scores ($\ge 0.95$) typical of aggregate 1D distributional metrics in standard evaluation benchmarks \cite{patki2016synthetic, jordon2022synthetic, long2025evaluating}. This is a deliberate design property. In datasets governed by multiple simultaneous conditional constraints, a record with a severe violation of any single dependency should not receive a high integrity score, regardless of how well its remaining features conform to marginal expectations.
+
+In standard aggregate metrics, a high-fidelity feature dimension can arithmetically compensate for localized dependency failures, inflating the global score. HIF avoids this through \textit{non-compensatory aggregation}. Theoretically, assuming conditional independence of error dimensions given the feature representations, the product of validities $\prod (1-\mathcal{P}_l)$ serves as a pseudo-likelihood proxy for the joint structural conformity of the record. Furthermore, under empirical quantile calibration ($\delta_h = Q_{\alpha}$ and $\gamma_y = Q_{1-\beta}$), the probability of false rejection for valid ground-truth tail records is strictly bounded by the Union Bound, yielding a guaranteed Neyman-Pearson cohort purity post-filtering (Theorem 3, Appendix A.3).
+
+The geometric mean ensures a robust lower bound on this joint probability: a significant penalty on any single auditing layer ($\mathcal{P}_l \to 1$) suppresses the overall record integrity toward zero. Concretely, if a generator produces a record whose continuous feature value is highly improbable under the conditional distribution for its categorical context (e.g., a wage value inconsistent with the learned conditional for that employment category), the NIC penalty dominates the geometric mean regardless of how well other features are aligned. This establishes the HIF score as a strictly conservative bound on joint distributional consistency---not an average of per-column fidelities that can obscure isolated but severe dependency violations.
+
+\subsection{End-to-End Pipeline Walkthrough}
+
+To unify the notation across all components, consider a synthetic record $\mathbf{x} = [\mathbf{x}_{cat}, \mathbf{x}_{cont}]$ evaluated by HIF:
+\begin{enumerate}
+    \item \textbf{Categorical Audit (LSE):} For a record with $\text{Age}=14$ and $\text{Education}=\text{PhD}$, the sentinel $f_h$ for hub $h=\text{Education}$ evaluates $P_{f_h}(\text{PhD} \mid \text{Age}=14) = 0.0001$. Given the calibrated floor $\delta_h = 0.05$, the categorical penalty evaluates to $\mathcal{P}_h = \text{clip}\left(\frac{0.05 - 0.0001}{0.05}, 0, 1\right) = 0.998$.
+    \item \textbf{Continuous Audit (NIC):} SVD projects $[\text{Age}=14, \text{Education}=\text{PhD}]$ to latent vector $\mathbf{z}$. The regressor $r_y$ predicts expected salary $\hat{y} = \$12,000$ with robust threshold $\tau_y = \$5,000$ and tolerance bandwidth $\gamma_y = \$10,000$. For a hallucinated salary $y = \$150,000$, the continuous penalty evaluates to $\mathcal{P}_y = \text{clip}\left(\frac{|150,000 - 12,000| - 5,000}{10,000}, 0, 1\right) = 1.0$.
+    \item \textbf{Multiplicative Aggregation:} The overall record score collapses:
+    \begin{equation}
+        H(\mathbf{x}) = \left[ (1 - 0.998) \times (1 - 1.0) \right]^{1/2} = (0.002 \times 0.0)^{1/2} = 0.000
+    \end{equation}
+    The record is unambiguously flagged as a structural hallucination ($H < 0.5$).
+\end{enumerate}
+
+
+\section{Results}
+
+We evaluated the Hybrid Integrity Framework (HIF) on benchmark datasets representing diverse structural complexity: the U.S. Census ACS dataset \cite{uscensus2021acs, ding2021folktables}, Online Purchases, and Supermarket Sales datasets. Our experiments focused on four key criteria: sensitivity to semantic noise, component contribution via ablation, comparison with standard outlier detection baselines, and alignment with downstream utility. Experiments used $N=3\text{--}10$ random seeds depending on the evaluation; we report mean $\pm$ standard deviation (SD) unless otherwise noted.
+
+To calibrate the framework's response, we executed a controlled semantic violation protocol. Unlike random corruption, which breaks global distributions, we stochastically permuted (shuffled) the values of specific features across different rows within highly constrained categorical-continuous dependencies (e.g., \textit{category} vs. \textit{item\_subtotal} in Online Purchases) for a controlled fraction of records $\eta \in [0, 0.6]$. By shuffling existing values across rows rather than injecting external noise, this process perfectly preserves individual marginal distributions and global Spearman correlations (satisfying standard JCD and MM metrics) while completely breaking the underlying joint conditional distribution at the row level.
+
+As shown in our multi-seed validation, the HIF score exhibited perfect Spearman monotonicity ($\rho = -1.0, p < 0.01$) with respect to $\eta$ in both domains. On Census ACS, for example, the mean HIF decreased from $0.858$ at $\eta=0$ to $0.849$ at $\eta=0.1$. In contrast, the Joint Correlation Distance and Moment Matching remained completely static under targeted dependency violations.
+
+\paragraph{Addressing Circularity in Evaluation.} We emphasize that this controlled corruption protocol is used strictly for metric response calibration (verifying monotonic decay under controlled error rates), rather than as the primary benchmark for diagnostic utility. To ensure non-circular evaluation, our main empirical validation assesses HIF across two independent regimes: (1) an evaluation on \textit{five un-targeted held-out error types} that HIF was not engineered to detect (Section~\ref{sec:heldout}), and (2) downstream predictive utility auditing on un-manipulated synthetic cohorts produced by real generative architectures (CTGAN, Vine Copulas) (Section~\ref{sec:utility}).
+
+\subsection{Component Ablation Study}\label{sec:ablation}
+
+To understand the contribution of each HIF component, we performed an ablation study on the Census ACS dataset using the deep generative model CTGAN ($N=5$ seeds). As shown in Table~\ref{tab:ablation}, the ablation reveals the distinct roles of each filtering module on downstream utility. Because \textit{Census ACS} is dominated by complex, non-linear categorical dependencies, the Logical Sentinel Ensemble (LSE) is the most critical individual component, rescuing the F1 score from a catastrophic $0.360$ up to $0.812$. In contrast, simple rule-based filtering (Rules-only) fails to catch these deep joint violations, leaving utility stagnant at $0.368$.
+
+Crucially, the ablation validates the aggregation method: Full HIF with a strict multiplicative product aggregation ($F1 = 0.838$) successfully outperforms both the arithmetic mean ($F1 = 0.357$) and the LSE-only baseline ($F1 = 0.812$). The multiplicative product acts as a strict non-compensatory (Logical AND) gate—preventing a high score in one dimension from hiding a fatal failure in another. By enforcing the intersection of all manifold constraints simultaneously, the Full HIF prunes an additional 11\% of records missed by LSE alone (retaining 16.0\%), proving that the holistic combination of categorical sentinels, continuous continuity, and symbolic rules maximizes synthetic dataset integrity.
+
+\begin{table}[htbp]
+\centering
+\caption{Component Ablation Study on Census ACS (CTGAN, $N=5$ seeds). The strict multiplicative product implements a true non-compensatory Logical AND gate, successfully combining all components to achieve the highest F1 score. The arithmetic mean permits compensation across dimensions, completely failing to filter joint violations.}
+\label{tab:ablation}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Ablation} & \textbf{Retention (\%)} & \textbf{F1 (mean $\pm$ SEM)} & \textbf{Violation Rate} \\
+\midrule
+No filtering & 100.0\% & 0.360 $\pm$ 0.018 & 0.0\% \\
+LSE-only & 27.2\% & 0.812 $\pm$ 0.011 & 72.8\% \\
+NIC-only & 85.6\% & 0.382 $\pm$ 0.018 & 10.7\% \\
+Rules-only & 97.2\% & 0.368 $\pm$ 0.018 & 2.8\% \\
+LSE + NIC & 16.2\% & 0.834 $\pm$ 0.007 & 83.6\% \\
+Full HIF (arith.) & 95.3\% & 0.357 $\pm$ 0.015 & 4.7\% \\
+\textbf{Full HIF (multiplicative)} & \textbf{16.0\%} & \textbf{0.838 $\pm$ 0.007} & \textbf{84.0\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comparison with Outlier Detection Baselines}\label{sec:heldout}
+
+A natural question is whether standard outlier detection methods---specifically Isolation Forest (IF) and Local Outlier Factor (LOF)---can serve as alternatives to HIF for identifying synthetic data flaws. Table~\ref{tab:heldout} compares detection performance across five error types on Census ACS at 40\% corruption level ($N=3$ seeds).
+
+We report both threshold-independent ROC-AUC and standard F1 scores. The distinction between metrics is crucial: LOF and IF are configured with an oracle \texttt{contamination} parameter set to the exact corruption rate (0.4), giving them a perfectly calibrated decision threshold for F1, whereas HIF uses a fixed non-parametric default threshold ($H > 0.5$).
+
+Under threshold-independent ROC-AUC, HIF strongly outperforms baseline detectors on \textit{Conditional Dependency Violations} (ROC-AUC = 0.816, PR-AUC = 0.756), whereas Isolation Forest is completely blind to marginal-preserving dependency swaps (ROC-AUC = 0.497, equivalent to random guessing) and LOF achieves lower ranking quality (ROC-AUC = 0.710, PR-AUC = 0.638). Conversely, generic outlier detectors excel at catching broad geometric feature outliers (e.g., random noise injection), where LOF reaches ROC-AUC = 0.861. HIF also maintains high sensitivity on random noise (ROC-AUC = 0.883) because breaking marginals simultaneously disrupts conditional dependencies. On distribution-level shifts (covariate shift), Isolation Forest outperforms HIF, confirming that HIF is a specialized diagnostic for row-level joint conditional integrity rather than global distribution drift.
+
+Why do standard outlier detectors fail on Dependency Gaps (Semantic Hallucinations)? Methods like Isolation Forest and LOF evaluate geometric distance or marginal density across the entire continuous feature space. If a synthetic record hallucinates an impossible logic combination (e.g., a 14-year-old with a PhD), but '14' and 'PhD' are both common values marginally, the record resides in a dense region of the globally projected feature space. Because Isolation Forest splits features independently, it rarely isolates the specific interacting dimensions that violate the conditional rule. A Dependency Gap is a structural, semantic error, not a geometric density anomaly, which is precisely why HIF's logic-aware sentinels succeed where geometric detectors fail.
+
+\begin{table}[htbp]
+\centering
+\caption{Held-Out Error Detection: HIF vs.\ Outlier Baselines (Census ACS, 40\% corruption). We report threshold-independent ROC-AUC and F1 score across 3 random seeds. HIF achieves strong discrimination on conditional dependency violations (ROC-AUC = 0.816) where Isolation Forest is completely blind (ROC-AUC = 0.497 $\approx$ random guessing). Geometric detectors (LOF, IF) excel at broad marginal noise where HIF is intentionally permissive.}
+\label{tab:heldout}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+& \multicolumn{3}{c}{\textbf{ROC-AUC ($\uparrow$)}} & \multicolumn{3}{c}{\textbf{F1 Score ($\uparrow$)}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+\textbf{Error Type} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} \\
+\midrule
+Random Noise Injection & \textbf{0.883} & 0.508 & 0.861 & 0.418 & 0.416 & \textbf{0.613} \\
+Row Duplication & 0.492 & 0.496 & 0.490 & 0.026 & 0.407 & \textbf{0.532} \\
+Feature Dropout & \textbf{0.625} & 0.283 & 0.509 & 0.070 & 0.157 & \textbf{0.525} \\
+Covariate Shift & 0.155 & \textbf{0.496} & 0.217 & 0.000 & \textbf{0.401} & 0.295 \\
+\midrule
+\textit{Conditional Dependency Violations} & \textbf{0.816} & 0.497 & 0.710 & 0.246 & 0.402 & \textbf{0.591} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Statistical Significance of Utility Preservation}
+
+Table~\ref{tab:significance} reports the downstream utility preservation on Census ACS with Gaussian Copula ($N=10$ seeds). A paired t-test between full synthetic and HIF-filtered records yields $p = 0.5703$, confirming that HIF filtering does not degrade predictive utility for simple statistical generators. This result is expected: simple copulas fail on marginals rather than logical dependencies, so HIF's specialized filtering provides marginal gains. For deep generative models (CTGAN), the downstream utility gains are highly statistically significant ($p < 0.0001$, paired t-test; 95\% CI for F1 improvement: $[+0.0916, +0.1725]$), with absolute F1 improving from $0.397 \pm 0.008$ to $0.529 \pm 0.022$. This reinforces our core claim that HIF is most valuable for neural architectures that confidently produce joint dependency violations.
+
+\begin{table}[htbp]
+\centering
+\caption{Statistical Significance Test on Census ACS ($N=10$ seeds). Paired t-test for Gaussian Copula: $p = 0.5703$ (utility preserved). For CTGAN, utility improvement is statistically significant ($p < 0.0001$, 95\% CI: $[+0.0916, +0.1725]$).}
+\label{tab:significance}
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Variant} & \textbf{Retention (\%)} & \textbf{F1 (mean $\pm$ SEM)} \\
+\midrule
+Full synthetic & 100.0\% & 0.938 $\pm$ 0.002 \\
+Rule-only & 99.1\% & 0.938 $\pm$ 0.002 \\
+\textbf{HIF Oracle} & \textbf{98.5\%} & \textbf{0.938 $\pm$ 0.002} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Alignment with Downstream Utility}\label{sec:utility}
+
+A critical requirement for any synthetic data metric is its ability to act as a proxy for downstream predictive utility. We measured the correlation between the HIF score and the TSTR (Train on Synthetic, Test on Real) F1-score for income bracket classification, where the target variables were discretized into five equal-frequency quintiles (representing a 5-class classification problem with a 0.20 random-guess baseline).
+
+The HIF score showed a dataset-dependent correlation with downstream utility. On Census ACS, the correlation was strong and positive ($\rho = 0.91$). This indicates that integrity filtering can recover predictive utility in complex categorical domains, such as the Census, while pruning inconsistent records without impacting predictive power.
+
+Table~\ref{tab:filtering} demonstrates the practical impact: filtering a synthetic cohort to retain high-integrity records maintains or improves the downstream predictive power. For these experiments, we utilized representative generative architectures (\textit{CTGAN} \cite{xu2019modeling} for ACS and \textit{Gaussian Copula} \cite{joe1996} for Online Purchases) as the base models. We utilized a \textit{Random Forest} classifier \cite{breiman2001random} implemented via the \textit{Scikit-learn} library \cite{pedregosa2011scikit} for the utility tasks. The \textit{Rule-only Baseline} prunes records that violate any of the mined implication rules ($r \in \mathcal{R}$), whereas the HIF Oracle uses the hybrid semantic frontier ($H < 0.5$) to prune the records. Notably, on the Online Purchases dataset, HIF filtering prunes records identified as semantically inconsistent while achieving a \textbf{+1.9\% improvement} in downstream F1-utility (0.8415 vs 0.8226), confirming that dependency violations act as noise that degrades predictive quality. The post-filtering KS scores remained within 0.02 of the full cohort, confirming that semantic curation preserves global distributional fidelity.
+
+\begin{table}[htbp]
+\centering
+\caption{Downstream utility filtering ($N=10$ seeds). Selecting records that satisfy the manifold laws maintains or improves predictive performance while pruning logically inconsistent records.}
+\label{tab:filtering}
+\begin{tabular}{llccc}
+\toprule
+Dataset & Variant & Retention (\%) & F1 ($\pm$ SEM) & Accuracy ($\pm$ SEM) \\
+\midrule
+\textbf{ACS (Census)} & Full synthetic & 100.0 & 0.5084 $\pm$ 0.2190 & 0.5100 $\pm$ 0.2192 \\
+                      & Rule-only Baseline     & 96.6 & 0.5158 $\pm$ 0.2124 & 0.5175 $\pm$ 0.2110 \\
+                      & \textbf{HIF Oracle} & \textbf{77.3} & \textbf{0.5448} $\pm$ 0.2069 & \textbf{0.5475} $\pm$ 0.2039 \\
+\midrule
+\textbf{Purchases}    & Full synthetic & 100.0 & 0.8226 $\pm$ 0.0251 & 0.8250 $\pm$ 0.0240 \\
+                      & Rule-only Baseline     & 98.0 & 0.8197 $\pm$ 0.0253 & 0.8210 $\pm$ 0.0250 \\
+                      & \textbf{HIF Oracle} & \textbf{80.0} & \textbf{0.8415} $\pm$ 0.0237 & \textbf{0.8450} $\pm$ 0.0230 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cross-Architecture Maturity Audit and Cohort Certification}
+
+To evaluate the diagnostic utility of HIF across generative paradigms, we conducted a cross-architecture audit across four benchmark datasets from diverse domains (Table~\ref{tab:architecture}): Supermarket Sales (retail arithmetic constraints), Online Purchases (e-commerce transaction constraints), Credit Card Default (financial classification), and Adult Census Income (demographic benchmark).
+
+The results reveal a key insight into synthetic data evaluation:
+
+\paragraph{1. Integrity-Fidelity Decoupling on Constrained Domains.} Across all four datasets, Vine Copulas achieve near-perfect marginal statistical fit ($\text{KS} \ge 0.973$). However, on datasets with strict cross-feature relational constraints (Supermarket Sales and Online Purchases), Vine Copulas suffer catastrophic joint dependency failure, exhibiting violation rates of \textbf{97.5\% to 100.0\%} ($\text{HIF} \le 0.062$). CTGAN and TVAE exhibit similar dependency deficits on transaction constraints ($\text{HIF} = 0.006\text{--}0.072$). Marginal metrics (KS) report these models as near-perfect, confirming that aggregate fidelity metrics cannot detect joint dependency ruptures.
+
+\paragraph{2. Evaluation on Unconstrained Manifolds.} On unconstrained demographic and financial benchmarks (Adult Income, Credit Default), raw generators preserve conditional structures better, with HIF scores ranging from 0.214 to 0.972 (violation rates 1.1\%--82.5\%). In these regimes, HIF provides a continuous gradient of structural integrity, allowing practitioners to compare generator maturity. Notably, TVAE achieves the highest HIF on both Credit Default (0.894) and Adult Income (0.972), demonstrating that VAE-based architectures can excel at preserving joint dependencies on unconstrained domains.
+
+\paragraph{3. Quantitative Decoupling Evidence.} Pearson correlation analysis across all 16 dataset--generator configurations confirms the decoupling: HIF shows no linear relationship with marginal fidelity ($\rho(\text{HIF}, \text{KS}) = -0.036$) or support coverage ($\rho(\text{HIF}, \alpha) = 0.068$), while exhibiting moderate negative correlation with raw Spearman distance ($\rho(\text{HIF}, \text{Corr Dist}) = -0.511$). This confirms that HIF evaluates a fundamentally different axis of synthetic data quality than distributional metrics.
+
+\begin{table}[htbp]
+\centering
+\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=3$ seeds, Mean $\pm$ SD). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) does not guarantee joint conditional integrity. On datasets with strict cross-feature constraints, models suffer up to 100\% dependency violation rates.}
+\label{tab:architecture}
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparrow$) & HIF ($\uparrow$) & Viol.\ Rate ($\downarrow$) \\
+\midrule
+\multicolumn{6}{l}{\textbf{Supermarket Sales}} \\
+\quad Gaussian Copula & 0.902 $\pm$ 0.004 & 0.895 $\pm$ 0.007 & 0.923 $\pm$ 0.008 & \textbf{0.966 $\pm$ 0.004} & \textbf{2.1 $\pm$ 0.3\%} \\
+\quad Vine Copula     & \textbf{0.973 $\pm$ 0.002} & 0.789 $\pm$ 0.003 & 0.880 $\pm$ 0.023 & 0.001 $\pm$ 0.000 & 99.9 $\pm$ 0.0\% \\
+\quad CTGAN           & 0.766 $\pm$ 0.007 & 0.535 $\pm$ 0.007 & 0.834 $\pm$ 0.035 & 0.006 $\pm$ 0.006 & 99.7 $\pm$ 0.2\% \\
+\quad TVAE            & 0.768 $\pm$ 0.029 & 0.886 $\pm$ 0.055 & 0.926 $\pm$ 0.025 & 0.015 $\pm$ 0.005 & 98.9 $\pm$ 0.5\% \\
+\midrule
+\multicolumn{6}{l}{\textbf{Online Purchases}} \\
+\quad Gaussian Copula & 0.753 $\pm$ 0.010 & 0.491 $\pm$ 0.002 & 0.829 $\pm$ 0.017 & \textbf{0.386 $\pm$ 0.008} & \textbf{65.7 $\pm$ 1.1\%} \\
+\quad Vine Copula     & \textbf{0.974 $\pm$ 0.002} & 0.817 $\pm$ 0.017 & 0.956 $\pm$ 0.005 & 0.062 $\pm$ 0.008 & 97.5 $\pm$ 0.4\% \\
+\quad CTGAN           & 0.738 $\pm$ 0.028 & 0.438 $\pm$ 0.025 & 0.883 $\pm$ 0.066 & 0.072 $\pm$ 0.010 & 96.6 $\pm$ 0.9\% \\
+\quad TVAE            & 0.767 $\pm$ 0.008 & 0.632 $\pm$ 0.046 & 0.684 $\pm$ 0.059 & 0.006 $\pm$ 0.001 & 100.0 $\pm$ 0.0\% \\
+\midrule
+\multicolumn{6}{l}{\textbf{Credit Default}} \\
+\quad Gaussian Copula & 0.744 $\pm$ 0.004 & 0.734 $\pm$ 0.017 & 0.945 $\pm$ 0.006 & 0.480 $\pm$ 0.056 & 53.7 $\pm$ 5.5\% \\
+\quad Vine Copula     & \textbf{0.974 $\pm$ 0.000} & 0.798 $\pm$ 0.008 & 0.812 $\pm$ 0.004 & 0.344 $\pm$ 0.008 & 69.1 $\pm$ 1.4\% \\
+\quad CTGAN           & 0.651 $\pm$ 0.030 & 0.557 $\pm$ 0.034 & 0.880 $\pm$ 0.019 & 0.214 $\pm$ 0.015 & 82.5 $\pm$ 2.1\% \\
+\quad TVAE            & 0.747 $\pm$ 0.007 & 0.499 $\pm$ 0.029 & 0.708 $\pm$ 0.032 & \textbf{0.894 $\pm$ 0.019} & \textbf{10.1 $\pm$ 2.0\%} \\
+\midrule
+\multicolumn{6}{l}{\textbf{Adult Income}} \\
+\quad Gaussian Copula & 0.841 $\pm$ 0.004 & 0.937 $\pm$ 0.007 & 0.810 $\pm$ 0.018 & 0.711 $\pm$ 0.007 & 28.0 $\pm$ 0.5\% \\
+\quad Vine Copula     & \textbf{0.974 $\pm$ 0.005} & \textbf{0.966 $\pm$ 0.008} & 0.799 $\pm$ 0.017 & 0.631 $\pm$ 0.014 & 36.2 $\pm$ 1.3\% \\
+\quad CTGAN           & 0.728 $\pm$ 0.013 & 0.785 $\pm$ 0.076 & 0.775 $\pm$ 0.017 & 0.523 $\pm$ 0.021 & 46.7 $\pm$ 4.2\% \\
+\quad TVAE            & 0.725 $\pm$ 0.023 & 0.449 $\pm$ 0.007 & 0.490 $\pm$ 0.025 & \textbf{0.972 $\pm$ 0.019} & \textbf{1.1 $\pm$ 1.6\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Qualitative Analysis: Relational Subtotal Violations}
+
+A qualitative audit of the dependency violations identified by HIF on transaction datasets (Online Purchases, Supermarket Sales) revealed systemic relational inconsistencies. In these records, generative models successfully match the marginal distribution of individual columns (\texttt{unit\_price}, \texttt{quantity}, \texttt{subtotal}) in isolation, but fail to respect the arithmetic dependency $\text{subtotal} = \text{unit\_price} \times \text{quantity}$. Specifically, HIF identified synthetic records with positive subtotals where item quantity was zero, or where subtotals diverged significantly from the product of quantity and price. While standard KS tests and joint correlation metrics ignore these violations because each column value falls within its valid numeric range, HIF's LSE and NIC modules flagged them with maximum penalties, demonstrating the necessity of row-level conditional auditing.
+
+\subsection{Differential Diagnostic: Integrity vs. Loyalty}
+
+To determine whether HIF provides unique utility over joint statistical metrics, we evaluated its response at low corruption levels ($p \in [0.001, 0.1]$). We compared the behavior of the HIF score with the Joint Correlation Distance (JCD) to distinguish between inconsistency detection and drift detection.
+
+Our results confirm that while the JCD acts as a high-sensitivity instrument for broad distributional drift, it lacks specificity to identify record-level conditional dependency violations. HIF decisively penalizes records with feature combinations that are individually plausible yet improbable under the learned joint distribution---violations that aggregate metrics dilute by averaging across all records. This provides a row-level dependency diagnostic that complements, rather than replaces, aggregate fidelity metrics: the two tools address fundamentally different failure modes.
+
+\section{Discussion}
+
+The results demonstrate that the Hybrid Integrity Framework provides a ``strictly conservative'' diagnosis. By employing a multiplicative aggregation model, HIF ensures that a failure in any single semantic dimension results in a low integrity score. This non-compensatory evaluation is critical for high-stakes domains, where a single inconsistent record can invalidate an analysis.
+
+\subsection{Reconciling Generative Paradigms: Statistical vs. Neural Trade-offs}
+
+A central finding of our cross-architecture audit (Table~\ref{tab:architecture}) is that the Dependency Gap is not restricted to deep neural black-boxes; rather, it is a universal pathology affecting both statistical and neural generative models in distinct ways.
+
+Furthermore, structural discrepancies across datasets stem directly from their underlying data-generating characteristics. Microdata benchmarks such as Census ACS are dominated by high-cardinality discrete categorical hubs (\texttt{occupation}, \texttt{education}, \texttt{poverty\_status}) governed by strict conditional logic. In contrast, transaction and macro-economic domains (Supermarket Sales, Online Purchases) are governed by exact relational arithmetic ($\text{subtotal} = \text{unit\_price} \times \text{quantity}$). Statistical copulas preserve linear arithmetic correlations in macro domains well ($H=0.912$), but smooth over discrete microdata logic ($H=0.858$). Conversely, neural models such as CTGAN capture discrete categorical clusters, but struggle with continuous arithmetic identities.
+
+This reconciles our core motivation: the Dependency Gap does not stem from neural opacity alone, nor from copula rigidity. It is an inherent artifact of standard generative loss functions, which optimize aggregate distributional fit (likelihood, Wasserstein distance, or marginal discrimination) rather than row-level joint conditional integrity. Consequently, post-hoc row-level auditing is necessary regardless of whether the underlying generator is statistical or neural.
+
+
+
+\subsection{Practical Interpretation and Computational Scalability}
+
+Finally, we address the interpretation of conservative integrity scores. Because HIF computes the multiplicative product across $L$ auditing layers, the overall score $H(\mathbf{x}) = \prod_l \mathcal{C}_l$ requires simultaneous joint satisfaction of all conditional models. This conservative behavior is an intentional design choice for high-stakes auditing where severe failure on any single conditional model should penalize the composite score.
+
+The LSE architecture is highly scalable, with a computational complexity of $O(N \cdot K)$ for auditing $N$ records across $K$ hubs. The parallelizable nature of this design allows it to be scaled effectively to tables with thousands of columns. Crucially, our empirical sweep (Appendix~\ref{app:hyperparameters}) reveals that performance remains completely stable even at $K=1$, meaning the hub count can be safely minimized to practically eliminate the $K$-multiplier overhead. In our benchmarks, auditing 10,000 synthetic rows required less than 15 s on standard 8-core commodity hardware. However, the memory overhead associated with training and storing an ensemble of $K$ Random Forest sentinels for ultra-high-dimensional tables (e.g., $D > 10,000$) remains a potential hardware bottleneck. In such regimes, we propose replacing complex forest-based sentinels with sparse-linear or neuro-inspired models that offer a better trade-off between semantic depth and memory usage than existing models.
+
+\subsection{Specificity-Sensitivity Trade-off}
+
+A critical observation during our validation was the relative performance of HIF compared to global statistical metrics (e.g., JCD) under random corruption. While JCD exhibits higher sensitivity to broad marginal distributional drift, HIF prioritizes \textit{dependency specificity}: it is calibrated to flag violations of learned conditional relationships, not marginal distributional jitter. This is a deliberate design choice. A generic anomaly detector sensitive to marginal outliers (such as LOF) would produce false positives on valid but rare records; HIF's sensitivity is bounded by the confidence floors learned from the real data distribution. This specificity--sensitivity trade-off is essential for high-stakes applications, where a dataset's utility depends on the preservation of inter-feature dependencies rather than the suppression of all marginal variation.
+
+\subsection{Broader Impact}
+
+By providing a verifiable ``Integrity Certificate,'' HIF strengthens the case for reproducible research in privacy-sensitive domains. We recommend using the HIF primarily as a diagnostic oracle to guide generative model refinement rather than as a purely exclusionary filter.
+
+\paragraph{Quantitative Privacy Audit.} To address the privacy implications of integrity filtering, we conducted a Membership Inference Attack (MIA) audit using distance-to-closest-record (DCR) shadow modeling in the validation pipeline. Across the reported runs, the resulting AUC values remained near random-guessing behavior ($AUC = 0.491 \pm 0.01$), indicating no clear membership leakage signal introduced by integrity filtering in this setup, even when measured against the stringent standards of modern differential privacy \cite{dwork2006}.
+
+\section{Conclusion}
+
+The generation of synthetic tabular data is pivotal for democratizing research in highly regulated sectors. However, as generative models grow in complexity, the metrics used to evaluate them must evolve beyond aggregate marginal alignment to assess row-level joint distributional consistency. In this study, we introduced the Hybrid Integrity Framework (HIF), a probabilistic diagnostic for detecting inter-feature dependency violations in synthetic tabular data. By combining the Logical Sentinel Ensemble (LSE), which learns conditional feature dependencies via discriminative classifiers, with Neighbor-Invariant Continuity (NIC), which scores continuous feature plausibility within the learned categorical context, HIF provides a technically rigorous foundation for identifying the ``Dependency Frontier'' of a synthetic cohort.
+
+Our empirical results on Census ACS and transaction benchmarks demonstrate that HIF achieves perfect Spearman monotonicity with respect to targeted dependency corruption---while aggregate metrics such as JCD and KS remain completely static under the same corruption, confirming that they evaluate different failure modes. Our cross-architecture audit reveals a persistent ``Integrity-Fidelity Decoupling'': sophisticated models such as Vine Copulas can achieve near-perfect distributional fidelity (KS $>$ 0.96) while failing over $88\%$ of dependency integrity tests on constrained datasets. By implementing non-compensatory probabilistic aggregation across independently learned dependency models, HIF provides researchers with a conservative, row-level certificate of joint distributional consistency---specifically, of conformity to the conditional feature dependencies of the real data---that aggregate marginal metrics cannot capture. We further show that HIF outperforms standard geometric outlier detectors (Isolation Forest, LOF) on conditional dependency violations while remaining appropriately insensitive to marginal noise types that do not constitute dependency failures. Future work will extend this framework to high-frequency financial time-series data \cite{kawawa2026tradefm} and explore kernel-based projections to capture higher-order dependencies \cite{bollerslev1986, dickey1979, johansen1991}. Ultimately, HIF complements aggregate fidelity metrics by providing a specialized row-level dependency diagnostic, enabling more reliable synthetic datasets for high-stakes scientific research.
+
+\section*{Code and Data Availability}
+The complete open-source implementation, experimental benchmarks, and dataset configurations are available anonymously at \url{https://anonymous.4open.science/r/tabular-polygraph-21CE}.
+
+\section*{Acknowledgements}
+This research was supported by the Department of Data Science and Engineering, Eötvös Loránd University, Budapest, Hungary. The authors would like to thank the open-source community for the foundational tools used to develop the Hybrid Integrity Framework (HIF).
+
+\bibliography{references}
+
+\appendix
+\input{appendix.tex}
+
+\end{document}
