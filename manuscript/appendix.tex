@@ -64,7 +64,7 @@ This robust approach avoids the instability of 1st-percentile thresholds in spar
 We evaluated HIF robustness across three key hyperparameters on the Census ACS dataset (2,000 records with 5\% injected violations). All experiments used $N=5$ random seeds; we report mean $\pm$ SEM. The continuous HIF score is the primary metric; the violation rate is derived by applying the violation threshold to row-level penalties.
 
 \subsubsection{Hub Count $K$}
-Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across all hub counts, confirming that the framework's integrity signal is not dependent on a specific number of dependency hubs. The geometric mean aggregation ensures that adding more sentinels does not dilute the score.
+Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across all hub counts, suggesting that the framework's integrity signal is not dependent on a specific number of dependency hubs. The geometric mean aggregation ensures that adding more sentinels does not dilute the score.
 
 \begin{table}[htbp]
 \centering
@@ -134,7 +134,7 @@ Specifically, CTGAN often fragments the latent manifold during adversarial train
 
 \subsection{Macro-Economic Violation Detection}
 
-The application of HIF to the \textbf{World Bank Development Indicators} ($D=12$) highlights the framework's effectiveness in macro-level auditing. Macroeconomic data are governed by strict structural relationships (e.g., the relationship between GDP growth, inflation, and the Gini index).
+The application of HIF to the \textbf{World Bank Development Indicators} ($D=12$) highlights the framework's effectiveness in macro-level auditing. Macroeconomic data are governed by tight structural relationships (e.g., the relationship between GDP growth, inflation, and the Gini index).
 
 As shown in our audit, all evaluated generative models suffered from a significant ``Integrity Deficit'' in the World Bank domain, with integrity scores dropping near $H=0.00$ in several trials. This suggests that for macroeconomic indicators governed by global state-level laws, standard generative architectures fail to recover sparse semantic manifolds. By leveraging the \textbf{Neighbor-Invariant Continuity (NIC)} module, the HIF correctly identifies these records as continuous manifold violations, even when the distributional fidelity appears to be high.
 
