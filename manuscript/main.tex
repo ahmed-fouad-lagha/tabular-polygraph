@@ -79,7 +79,7 @@ By providing a scalable, data-driven diagnostic, HIF enables the production of s
 \begin{figure}[t!]
   \centering
   \includegraphics[width=1.0\textwidth]{figures/dependency_gap.pdf}
-  \caption{An empirical demonstration of the Dependency Gap on the Supermarket Sales dataset. While generative models (e.g., Vine Copulas) successfully replicate the 1D marginal distributions of \textit{Quantity} and \textit{Total} (side histograms, KS $>0.97$), they fail to preserve the joint arithmetic constraint ($\text{Total} = \text{Price} \times \text{Quantity} \times (1 + \text{Tax})$). The synthetic cohort hallucinates impossible records, such as massive totals for tiny quantities (dashed box), which aggregate marginal metrics do not capture.}
+  \caption{An empirical demonstration of the Dependency Gap on the Supermarket Sales dataset. While generative models (e.g., Vine Copulas) successfully replicate the 1D marginal distributions of \textit{Quantity} and \textit{Total} (side histograms, KS $\approx 0.96$), they fail to preserve the joint arithmetic constraint ($\text{Total} = \text{Price} \times \text{Quantity} \times (1 + \text{Tax})$). The synthetic cohort hallucinates impossible records, such as massive totals for tiny quantities (dashed box), which aggregate marginal metrics do not capture.}
   \label{fig:dependency_gap}
 \end{figure}
 

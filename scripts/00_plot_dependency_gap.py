@@ -1,3 +1,4 @@
+import argparse
 import sys
 from pathlib import Path
 
@@ -180,7 +181,7 @@ def plot_empirical_gap(save_path):
     ax_marg_x_syn.axis("off")
     ax_marg_y_syn.axis("off")
     ax_marg_x_syn.set_title(
-        "Synthetic Data (Gaussian Copula)\n(KS Fit > 0.99, but Broken Dependency)",
+        f"Synthetic Data (Gaussian Copula)\n(KS: Qty {ks_x:.2f}, Total {ks_y:.2f}, but Broken Dependency)",
         pad=15,
         fontweight="bold",
     )
@@ -215,6 +216,15 @@ def plot_empirical_gap(save_path):
 
 
 if __name__ == "__main__":
-    out_path = Path(PROJECT_ROOT) / "manuscript" / "figures" / "dependency_gap.pdf"
+    parser = argparse.ArgumentParser(description="Plot the Dependency Gap figure")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(PROJECT_ROOT) / "manuscript" / "figures" / "dependency_gap.pdf",
+        help="Output PDF path (default: manuscript/figures/dependency_gap.pdf)",
+    )
+    args = parser.parse_args()
+
+    out_path = args.output
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plot_empirical_gap(out_path)

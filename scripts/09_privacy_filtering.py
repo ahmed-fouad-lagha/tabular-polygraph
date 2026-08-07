@@ -12,7 +12,7 @@ Flow:
   5. Evaluate TAMIS Privacy Oracle (MIA AUC, Linkability Risk, Exact Copies) across variants
 
 Run:
-    python scripts/09_privacy_filtering.py --dataset supermarket_sales --generator gaussian --seeds 3
+    python scripts/09_privacy_filtering.py --dataset census_acs --generator ctgan --seeds 3
 """
 
 from __future__ import annotations
