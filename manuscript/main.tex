@@ -458,7 +458,7 @@ Despite strong results, several limitations remain. First, HIF is not designed a
 
 By providing a verifiable integrity signal, HIF strengthens the case for reproducible research in privacy-sensitive domains. We recommend using HIF primarily as a diagnostic tool to guide generative model refinement rather than as a purely exclusionary filter.
 
-\paragraph{Quantitative Privacy Audit.} To address the privacy implications of integrity filtering, we conducted a Membership Inference Attack (MIA) audit using distance-to-closest-record (DCR) shadow modeling (Appendix~\ref{app:privacy}). The AUC values remained near random-guessing behavior for both the full synthetic cohort ($AUC = 0.490 \pm 0.015$) and the HIF-filtered cohort ($AUC = 0.499 \pm 0.024$), indicating no clear membership leakage signal introduced by integrity filtering in this setup, even when measured against the stringent standards of modern differential privacy \cite{dwork2006}.
+\paragraph{Quantitative Privacy Audit.} To address the privacy implications of integrity filtering, we conducted a Membership Inference Attack (MIA) audit using distance-to-closest-record (DCR) shadow modeling (Appendix~\ref{app:privacy}). The AUC values remained near random-guessing behavior for both the full synthetic cohort ($AUC = 0.490 \pm 0.026$) and the HIF-filtered cohort ($AUC = 0.499 \pm 0.041$), indicating no clear membership leakage signal introduced by integrity filtering in this setup, even when measured against the stringent standards of modern differential privacy \cite{dwork2006}.
 
 \section{Conclusion}
 
