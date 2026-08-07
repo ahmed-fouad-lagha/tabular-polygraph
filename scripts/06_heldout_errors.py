@@ -392,7 +392,7 @@ if __name__ == "__main__":
     parser.add_argument("--rows", type=int, default=2000)
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--corruption-levels", default="0.4")
-    parser.add_argument("--output-dir", default="outputs/regenerated")
+    parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
 
     levels = [float(x) for x in args.corruption_levels.split(",")]

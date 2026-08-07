@@ -232,7 +232,7 @@ if __name__ == "__main__":
         default="gaussian_copula",
         choices=["gaussian_copula", "ctgan", "tvae", "vine"],
     )
-    parser.add_argument("--output-dir", default="outputs/regenerated")
+    parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
 
     run_significance_test(

@@ -175,7 +175,7 @@ if __name__ == "__main__":
         default="gaussian,vine",
         help="Comma-separated: gaussian,vine,ctgan,tvae",
     )
-    parser.add_argument("--output-dir", default="outputs/regenerated")
+    parser.add_argument("--output-dir", default="outputs")
     args = parser.parse_args()
 
     run_benchmark(

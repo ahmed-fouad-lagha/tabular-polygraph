@@ -134,7 +134,7 @@ def main() -> None:
         choices=["permutation", "conditional_swap"],
     )
     parser.add_argument("--generator", type=str, default="gaussian_copula")
-    parser.add_argument("--output-dir", type=str, default="outputs/regenerated")
+    parser.add_argument("--output-dir", type=str, default="outputs")
     args = parser.parse_args()
 
     seeds = [int(x.strip()) for x in args.seeds.split(",") if x.strip()]
