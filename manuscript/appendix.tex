@@ -48,7 +48,7 @@ where $\beta_{hallucination}$ is the leakage probability of hallucinated records
 The LSE architecture prioritizes categorical dependency modeling by identifying and enforcing high-dependency hubs across categorical features.
 
 \subsection{Feature Dependency Hub Discovery}
-We ranked features based on their \textbf{Feature Dependency Score} $S(h)$, which measures the classification accuracy of predicting a feature within the full dataset context (including binned numeric features). In our experiments on the U.S. Census ACS dataset, the LSE identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{age\_group}.
+We ranked features based on their \textbf{Feature Dependency Score} $S(h)$, which measures the classification accuracy of predicting a feature within the full dataset context (including binned numeric features). In our experiments on the U.S. Census ACS dataset, the LSE identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{tenure}.
 
 \subsection{Confidence Floor Calibration}
 The confidence floor $\delta_h$ is defined as the 5th-percentile of the probability mass that a Sentinel $f_h$ assigns to the correct category in the ground-truth data $\mathcal{D}_{real}$, with a safety floor of 0.01:
@@ -130,13 +130,11 @@ Using the TAMIS Privacy Oracle, we confirmed that the HIF-filtered records did n
 
 Our Cross-Architecture Maturity Audit revealed distinct ``Violation Frontiers'' for different generative families. While statistical models (\textbf{Gaussian and Vine Copulas}) tend to violate constraints through excessive smoothing (averaging out manifold sharp edges), neural models like \textbf{CTGAN} exhibit \textit{Combinatorial Violations}.
 
-Specifically, CTGAN often fragments the latent manifold during adversarial training, leading to synthetic records that satisfy the marginal distributions for each feature but inhabit ``Impossible Junctions''---categorical combinations that have zero probability mass in the ground-truth manifold. The Logical Sentinel Ensemble (LSE) is particularly effective at identifying these junctions, as the sentinels assign near-zero probability to the violated categories conditioned on their manifold hubs. This architectural discrepancy explains the higher base integrity score of CTGAN ($H=0.291$) compared to that of Vine Copulas ($H=0.250$) on complex relational datasets (e.g., Online Purchases), despite the latter's superior statistical marginal fidelity.
+Specifically, CTGAN often fragments the latent manifold during adversarial training, leading to synthetic records that satisfy the marginal distributions for each feature but inhabit ``Impossible Junctions''---categorical combinations that have zero probability mass in the ground-truth manifold. The Logical Sentinel Ensemble (LSE) is particularly effective at identifying these junctions, as the sentinels assign near-zero probability to the violated categories conditioned on their manifold hubs. This architectural discrepancy explains the higher base integrity score of CTGAN ($H=0.285$) compared to that of Vine Copulas ($H=0.278$) on complex relational datasets (e.g., Online Purchases), despite the latter's superior statistical marginal fidelity.
 
 \subsection{Macro-Economic Violation Detection}
 
-The application of HIF to the \textbf{World Bank Development Indicators} ($D=12$) highlights the framework's effectiveness in macro-level auditing. Macroeconomic data are governed by tight structural relationships (e.g., the relationship between GDP growth, inflation, and the Gini index).
-
-As shown in our audit, all evaluated generative models suffered from a significant ``Integrity Deficit'' in the World Bank domain, with integrity scores dropping near $H=0.00$ in several trials. This suggests that for macroeconomic indicators governed by global state-level laws, standard generative architectures fail to recover sparse semantic manifolds. By leveraging the \textbf{Neighbor-Invariant Continuity (NIC)} module, the HIF correctly identifies these records as continuous manifold violations, even when the distributional fidelity appears to be high.
+The application of HIF to macroeconomic domains is a natural extension: macro-level tables are governed by tight structural relationships (e.g., between GDP growth, inflation, and the Gini index), and sparse state-level semantics are a plausible failure regime for generative models. We leave a systematic evaluation on such data (e.g., World Bank Development Indicators) to future work; the results reported in this paper are confined to the microdata benchmarks for which the full pipeline and evidence are available.
 
 \section{Limitations and Open Challenges}
 
