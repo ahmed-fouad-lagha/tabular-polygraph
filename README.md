@@ -116,76 +116,78 @@ print(hallucinations)
 
 ## Reproduce Benchmarks
 
-To reproduce the empirical results and tables presented in the manuscript, run the following validation suite:
+The empirical results and tables in the manuscript are produced by the scripts in `scripts/`, which write to `outputs/` by default. Each section below maps a manuscript result to its reproducing command.
 
-### 1. HIF Empirical Validation (Census ACS & Adult)
-These scripts verify the framework's sensitivity to semantic corruption across multiple seeds and noise levels.
-
-```bash
-# Census ACS Validation
-python scripts/01_hif_validation.py \
-  --dataset census_acs \
-  --corruption-strategy manifold_rupture \
-  --rows 5000 \
-  --seeds 42,43,44,45,46 \
-  --corruption-levels 0,0.1,0.2,0.4,0.6 \
-  --target employment_status \
-  --output-dir results/census
-
-# Adult Validation
-python scripts/01_hif_validation.py \
-  --dataset adult \
-  --corruption-strategy manifold_rupture \
-  --rows 2000 \
-  --seeds 42,43,44,45,46 \
-  --corruption-levels 0,0.1,0.2,0.4,0.6 \
-  --output-dir results/adult
-```
-
-Summaries are generated in `results/<dataset>/hif_validation_summary.md`, confirming:
-- **Monotonicity**: Strong rank-monotonic sensitivity to corruption levels (often $\rho = -1.0$ in our current benchmarks).
-- **Practical separability**: HIF tracks targeted manifold ruptures under `manifold_rupture` even when aggregate fidelity metrics are less specific.
-- **External validity**: Correlation with rule-violation behavior.
-- **Utility coupling**: Can be strong or weak depending on dataset and target protocol.
-
-### 2. Cross-Architecture Audit (Table 2)
-Evaluates HIF across diverse architectures (Gaussian Copula, Vine Copula, CTGAN) on the Census ACS demographic manifold. Includes the "real" ground-truth baseline for sanity checking.
+### 1. HIF Validation & Calibration (Fig. 2)
+Sensitivity of HIF to semantic corruption under `permutation` and `conditional_swap` corruption strategies, and the associated calibration curves.
 
 ```bash
-python scripts/04_metric_comparison.py \
-  --dataset census_acs \
-  --generators gaussian vine ctgan real \
-  --rows 5000
+python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
+  --levels 0,0.1,0.2,0.4,0.6 --strategy permutation --generator ctgan
+
+python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
+  --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator ctgan
 ```
 
-### 3. Utility Recovery through HIF Filtering (Table 1)
-These commands reproduce the results showing how selecting records that satisfy the neuro-symbolic manifold laws recovers predictive performance lost during generation (Utility Recovery). Note that the utility task is a **5-class quintile classification** problem (random baseline = 0.20), making the observed 0.5+ F1-scores significant.
+### 2. Cross-Architecture Benchmark (Tables 2 & 5)
+Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity, utility, and privacy metrics, including a real-data ground-truth baseline.
 
 ```bash
-# Census ACS Utility Audit (Table 1)
-python scripts/02_utility_filtering.py \
-  --dataset census_acs \
-  --target household_income \
-  --generator ctgan \
-  --rows 5000 \
-  --seeds 5 \
-  --epochs 300 \
-  --output results/table1_census.csv
-
-# Adult Utility Audit (Table 1)
-python scripts/02_utility_filtering.py \
-  --dataset adult \
-  --target income \
-  --generator ctgan \
-  --rows 5000 \
-  --seeds 5 \
-  --epochs 300 \
-  --output results/table1_adult.csv
+python scripts/10_full_benchmark.py --rows 2000 --seeds 3 --generators gaussian_copula,vine,ctgan,tvae
 ```
 
-> [!NOTE]
-> The **HIF Oracle** variant selects high-integrity synthetic records using the $20^{\text{th}}$ percentile penalty threshold.
-> For canonical manuscript numbers, we recommend using `--epochs 300` for CTGAN to ensure stable manifold learning.
+### 3. Ablation Study (Table 1)
+Isolates each HIF component (LSE, NIC, rule audit) and each aggregation scheme to measure its contribution to violation detection.
+
+```bash
+python scripts/08_ablation_study.py --dataset census_acs --target household_income \
+  --rows 2000 --seeds 5 --generator ctgan
+```
+
+### 4. Statistical Significance (Table 3)
+Paired tests comparing downstream F1 under HIF filtering vs no filtering (binary median-split `household_income` target).
+
+```bash
+python scripts/03_statistical_significance.py --dataset census_acs --target household_income \
+  --rows 2000 --seeds 10 --generator gaussian_copula
+
+python scripts/03_statistical_significance.py --dataset census_acs --target household_income \
+  --rows 2000 --seeds 10 --generator ctgan
+```
+
+### 5. Utility Recovery through HIF Filtering (Table 4)
+Shows that retaining high-integrity synthetic records recovers predictive performance lost during generation.
+
+```bash
+python scripts/08_ablation_study.py --dataset census_acs --target household_income \
+  --rows 2000 --seeds 10 --generator gaussian_copula
+
+python scripts/08_ablation_study.py --dataset census_acs --target household_income \
+  --rows 2000 --seeds 10 --generator ctgan
+```
+
+### 6. Hyperparameter Sensitivity (App. A.3.1)
+Demonstrates HIF's stability across hub counts, confidence percentiles, and violation thresholds.
+
+```bash
+python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
+```
+
+### 7. Privacy under Filtering (App. A.3.3)
+TAMIS membership-inference and linkability audit showing HIF filtering does not increase privacy vulnerability.
+
+```bash
+python scripts/09_privacy_filtering.py --dataset supermarket_sales --generator ctgan \
+  --rows 500 --seeds 3 --epochs 50
+```
+
+### 8. Held-Out Error Benchmarks
+Validates HIF on held-out synthetic cohorts across corruption levels.
+
+```bash
+python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5 \
+  --corruption-levels 0,0.1,0.2,0.4,0.6
+```
 
 ## License
 

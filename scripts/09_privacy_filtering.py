@@ -1,5 +1,6 @@
 """
-Experiment: Privacy Filtering Audit - TAMIS Privacy Preservation under HIF Filtering.
+Experiment: Privacy Filtering Audit - TAMIS Privacy Preservation under HIF Filtering
+(ported to current API).
 
 Q: "Does filtering out logically inconsistent synthetic rows increase or decrease privacy risk?"
 
@@ -10,8 +11,11 @@ Flow:
   4. Perform HIF auditing and filter cohort (Full vs Rule-Only vs HIF Oracle)
   5. Evaluate TAMIS Privacy Oracle (MIA AUC, Linkability Risk, Exact Copies) across variants
 
-python scripts/09_privacy_filtering.py --dataset supermarket_sales --generator gaussian --seeds 3
+Run:
+    python scripts/09_privacy_filtering.py --dataset supermarket_sales --generator gaussian --seeds 3
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
@@ -22,48 +26,22 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tabular_polygraph.dataset import load_dataset  # noqa: E402
-from tabular_polygraph.fidelity import hif_score  # noqa: E402
-from tabular_polygraph.generators import (  # noqa: E402
-    CTGANGenerator,
-    GaussianCopulaGenerator,
-    TVAEGenerator,
-)
-from tabular_polygraph.privacy import privacy_audit  # noqa: E402
-
-try:
-    from tabular_polygraph.generators import VineCopulaGenerator
-
-    HAS_VINE = True
-except ImportError:
-    HAS_VINE = False
+# ruff: noqa: E402
+from _exp_utils import audit_hif, generate, load_real
+from tabular_polygraph.privacy import privacy_audit
 
 
 def run_privacy_filtering(real_full, gen_type, rows, seed, epochs):
-    np.random.seed(seed)
     train_size = int(len(real_full) * 0.7)
     train_df = real_full.iloc[:train_size].reset_index(drop=True)
     test_df = real_full.iloc[train_size:].reset_index(drop=True)
 
-    if gen_type == "gaussian":
-        gen = GaussianCopulaGenerator()
-    elif gen_type == "vine":
-        if not HAS_VINE:
-            raise ImportError("Vine requires: pip install .[vine]")
-        gen = VineCopulaGenerator()
-    elif gen_type == "ctgan":
-        gen = CTGANGenerator(epochs=epochs, batch_size=min(100, len(train_df)))
-    elif gen_type == "tvae":
-        gen = TVAEGenerator(epochs=epochs)
-    else:
-        raise ValueError(f"Unknown generator: {gen_type}")
+    syn_full = generate(train_df, rows, seed, gen_type, epochs=epochs)
 
-    gen.fit(train_df)
-    syn_full = gen.generate(rows, seed=seed).drop(columns=["syn_id"], errors="ignore")
-
-    # HIF Audit
-    hif_res = hif_score(train_df, syn_full, verbose=False)
+    # HIF Audit (seeded for reproducibility)
+    hif_res = audit_hif(train_df, syn_full, seed=seed)
     row_penalties = hif_res["row_penalties"]
     rule_violation_mask = hif_res.get(
         "rule_violation_mask", np.zeros(len(syn_full), dtype=bool)
@@ -119,8 +97,8 @@ def run_privacy_filtering(real_full, gen_type, rows, seed, epochs):
     return results
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Privacy filtering audit")
     parser.add_argument("--dataset", type=str, default="supermarket_sales")
     parser.add_argument("--generator", type=str, default="gaussian")
     parser.add_argument("--rows", type=int, default=500)
@@ -132,7 +110,7 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    real_full = load_dataset(args.dataset)
+    real_full = load_real(args.dataset)
     print(
         f"Privacy Filtering Audit: {args.generator} on {args.dataset} ({args.seeds} seeds)"
     )

@@ -64,7 +64,7 @@ This robust approach avoids the instability of 1st-percentile thresholds in spar
 We evaluated HIF robustness across three key hyperparameters on the Census ACS dataset (2,000 records with 5\% injected violations). All experiments used $N=5$ random seeds; we report mean $\pm$ SEM. The continuous HIF score is the primary metric; the violation rate is derived by applying the violation threshold to row-level penalties.
 
 \subsubsection{Hub Count $K$}
-Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across all hub counts, suggesting that the framework's integrity signal is not dependent on a specific number of dependency hubs. The geometric mean aggregation ensures that adding more sentinels does not dilute the score.
+Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across hub counts, varying by less than $1\%$ across the swept range ($0.979$ at $K=1$ to $0.987$ at $K\geq 10$), suggesting that the framework's integrity signal is not dependent on a specific number of dependency hubs. The geometric mean aggregation ensures that adding more sentinels does not dilute the score.
 
 \begin{table}[htbp]
 \centering
@@ -74,17 +74,17 @@ Table~\ref{tab:sensitivity_k} shows that the HIF score is stable across all hub 
 \toprule
 $K$ & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
 \midrule
-1  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-3  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-5  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-10 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-15 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
+1  & 0.9786 $\pm$ 0.0003 & 0.0039 $\pm$ 0.0003 \\
+3  & 0.9817 $\pm$ 0.0002 & 0.0036 $\pm$ 0.0001 \\
+5  & 0.9841 $\pm$ 0.0002 & 0.0037 $\pm$ 0.0001 \\
+10 & 0.9866 $\pm$ 0.0007 & 0.0106 $\pm$ 0.0010 \\
+15 & 0.9866 $\pm$ 0.0007 & 0.0106 $\pm$ 0.0010 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsubsection{Confidence Floor Percentile}
-Table~\ref{tab:sensitivity_p} shows that the HIF score is stable for percentiles 1--5, with a minor 0.2\% drop at the 10th percentile. The 5th-percentile default provides the optimal balance between sensitivity to genuine violations and robustness against borderline records.
+Table~\ref{tab:sensitivity_p} shows that the HIF score is stable for percentiles 1--5, with a minor $0.3\%$ drop at the 10th percentile. The 5th-percentile default provides the optimal balance between sensitivity to genuine violations and robustness against borderline records.
 
 \begin{table}[htbp]
 \centering
@@ -94,10 +94,10 @@ Table~\ref{tab:sensitivity_p} shows that the HIF score is stable for percentiles
 \toprule
 Percentile & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
 \midrule
-1  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-3  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-5  & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-10 & 0.9260 $\pm$ 0.0003 & 0.038 $\pm$ 0.000 \\
+1  & 0.9848 $\pm$ 0.0002 & 0.0037 $\pm$ 0.0001 \\
+3  & 0.9846 $\pm$ 0.0002 & 0.0037 $\pm$ 0.0001 \\
+5  & 0.9841 $\pm$ 0.0002 & 0.0037 $\pm$ 0.0001 \\
+10 & 0.9815 $\pm$ 0.0002 & 0.0048 $\pm$ 0.0002 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -113,18 +113,18 @@ Table~\ref{tab:sensitivity_t} demonstrates that the continuous HIF score is inva
 \toprule
 Threshold & HIF Score ($\pm$SEM) & Violation Rate ($\pm$SEM) \\
 \midrule
-0.3 & 0.9284 $\pm$ 0.0004 & 0.076 $\pm$ 0.000 \\
-0.5 & 0.9284 $\pm$ 0.0004 & 0.036 $\pm$ 0.001 \\
-0.7 & 0.9284 $\pm$ 0.0004 & 0.023 $\pm$ 0.000 \\
+0.3 & 0.9841 $\pm$ 0.0002 & 0.0081 $\pm$ 0.0002 \\
+0.5 & 0.9841 $\pm$ 0.0002 & 0.0037 $\pm$ 0.0001 \\
+0.7 & 0.9841 $\pm$ 0.0002 & 0.0021 $\pm$ 0.0001 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Scalability and Baseline Comparisons}
-We benchmarked HIF against the \textbf{SHAP Distance} semantic fidelity metric \cite{yu2025shap}, which serves as a state-of-the-art baseline for explainability-aware evaluation. Although the SHAP Distance effectively identifies semantic drift, it suffers from severe scalability bottlenecks. Auditing $N$ records with HIF scales linearly, $O(N \cdot K)$, where $K$ is the number of hubs. In our empirical trials, auditing 100,000 synthetic records with LSE (5 hubs) took $\approx 1.2$ min on a single CPU core. In contrast, SHAP-based methods require $O(N \cdot D \cdot 2^D)$ operations or expensive approximations, taking several hours for the same volume of data. Thus, HIF provides comparable detection accuracy while maintaining the necessary computational efficiency to scale to high-cardinality datasets with millions of rows of data.
+We benchmarked HIF against the \textbf{SHAP Distance} semantic fidelity metric \cite{yu2025shap}, which serves as a state-of-the-art baseline for explainability-aware evaluation. Although the SHAP Distance effectively identifies semantic drift, it suffers from severe scalability bottlenecks. HIF auditing scales linearly, $O(N \cdot K)$, where $K$ is the number of hubs. In our benchmark (\texttt{scripts/11\_scalability\_benchmark.py}), fitting the 5-hub LSE auditor on 2,000 real records took $9.7$\,s, after which scoring 10,000 synthetic records took $1.50 \pm 0.15$\,s and scoring 100,000 records took $10.6 \pm 0.5$\,s on commodity multi-core hardware (fit amortized once; wall-clock averaged over three repeats). The score-only cost of $\approx 1.1$\,s per 10,000 rows confirms the linear scaling. In contrast, SHAP-based methods require $O(N \cdot D \cdot 2^D)$ operations or expensive approximations, taking several hours for the same volume of data. Thus, HIF provides comparable detection accuracy while maintaining the necessary computational efficiency to scale to high-cardinality datasets with millions of rows of data.
 
-\subsection{Privacy-Fidelity Trade-off (TAMIS)}
-Using the TAMIS Privacy Oracle, we confirmed that the HIF-filtered records did not increase membership inference vulnerability. In fact, by removing outlier records that often serve as unique linkage fingerprints, HIF filtering marginally improves the privacy profile of synthetic cohorts.
+\subsection{Privacy-Fidelity Trade-off (TAMIS)}\label{app:privacy}
+Using the TAMIS Privacy Oracle, we audited membership-inference risk on Census ACS CTGAN cohorts ($N=3$ seeds). The HIF Oracle retained $66.7\%$ of synthetic records, and the MIA AUC remained at chance level relative to the full cohort ($0.499 \pm 0.024$ vs.\ $0.490 \pm 0.015$, both consistent with random guessing), with zero exact copies detected across all variants. HIF filtering is therefore privacy-neutral under the TAMIS audit: removing logically inconsistent rows does not increase membership-inference vulnerability.
 
 \subsection{Cross-Architecture Violation Frontiers}
 

@@ -1,26 +1,34 @@
 """
-Experiment: Hyperparameter Sensitivity Analysis.
+Experiment: Hyperparameter Sensitivity Analysis (ported to current API).
 
-Q:"Is HIF sensitive to hyperparameter choices or robust across settings?"
+Q: "Is HIF sensitive to hyperparameter choices or robust across settings?"
 
 Sweeps three HIF hyperparameters on Census ACS data:
   1. Hub count K:          {1, 3, 5, 10, 15}
   2. Confidence percentile: {1, 3, 5, 10}
   3. Violation threshold:   {0.3, 0.5, 0.7}
 
-Uses N=10 seeds per configuration and reports mean +/- SEM.
+Uses N seeds per configuration and reports mean +/- SEM.
+
+Run:
+    python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --seeds 5
 """
 
+from __future__ import annotations
+
+import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from tabular_polygraph.dataset import load_dataset
-from tabular_polygraph.fidelity import hif_score
-from tabular_polygraph.utils import set_seed
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# ruff: noqa: E402
+from _exp_utils import audit_hif, load_real
 
 
 def run_single_config(
@@ -31,15 +39,13 @@ def run_single_config(
     violation_threshold: float,
     seed: int,
 ) -> dict:
-    set_seed(seed)
-    res = hif_score(
+    res = audit_hif(
         real_df,
         syn_df,
+        seed=seed,
         hif_hubs=hif_hubs,
         confidence_percentile=confidence_percentile,
         violation_threshold=violation_threshold,
-        random_state=seed,
-        verbose=False,
     )
     return {
         "hif_score": res["hif_score"],
@@ -70,27 +76,41 @@ def make_corrupted_synthetic(
     return syn_df
 
 
-if __name__ == "__main__":
-    N_SEEDS = 5
-    BASE_SEED = 42
-    N_RECORDS = 2000
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Hyperparameter sensitivity sweep")
+    parser.add_argument("--dataset", type=str, default="census_acs")
+    parser.add_argument("--records", type=int, default=2000)
+    parser.add_argument("--seeds", type=int, default=5)
+    parser.add_argument("--output-dir", default="outputs")
+    args = parser.parse_args()
 
-    print("[Sensitivity] Loading Census ACS data...")
-    real_df = load_dataset("census_acs", n=N_RECORDS).dropna()
-    syn_df = make_corrupted_synthetic(real_df, p_hallucination=0.05, seed=BASE_SEED)
-    print(f"[Sensitivity] Real: {real_df.shape}, Synthetic: {syn_df.shape}")
+    N_SEEDS = args.seeds
+    BASE_SEED = 42
+
+    print(f"[Sensitivity] Loading {args.dataset} data...")
+    real_df = load_real(args.dataset, n=args.records).dropna()
+    print(f"[Sensitivity] Real: {real_df.shape}")
 
     hub_counts = [1, 3, 5, 10, 15]
     percentiles = [1, 3, 5, 10]
     thresholds = [0.3, 0.5, 0.7]
 
-    all_results = []
+    all_results: list[dict] = []
+
+    # Each seed regenerates both the 5% corruption pattern and the sentinel
+    # fits, so the reported mean/SEM reflect the true run-to-run variance.
+    def per_seed_data(s: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+        syn_df = make_corrupted_synthetic(
+            real_df, p_hallucination=0.05, seed=BASE_SEED + s
+        )
+        return real_df, syn_df
 
     # Sweep 1: Hub count K
     print("\n[Sweep 1] Hub count K...")
     for k in hub_counts:
         scores, rates = [], []
         for s in range(N_SEEDS):
+            _, syn_df = per_seed_data(s)
             r = run_single_config(real_df, syn_df, k, 5.0, 0.5, BASE_SEED + s)
             scores.append(r["hif_score"])
             rates.append(r["violation_rate"])
@@ -114,6 +134,7 @@ if __name__ == "__main__":
     for p in percentiles:
         scores, rates = [], []
         for s in range(N_SEEDS):
+            _, syn_df = per_seed_data(s)
             r = run_single_config(real_df, syn_df, 5, float(p), 0.5, BASE_SEED + s)
             scores.append(r["hif_score"])
             rates.append(r["violation_rate"])
@@ -137,6 +158,7 @@ if __name__ == "__main__":
     for t in thresholds:
         scores, rates = [], []
         for s in range(N_SEEDS):
+            _, syn_df = per_seed_data(s)
             r = run_single_config(real_df, syn_df, 5, 5.0, t, BASE_SEED + s)
             scores.append(r["hif_score"])
             rates.append(r["violation_rate"])
@@ -156,8 +178,13 @@ if __name__ == "__main__":
         )
 
     df = pd.DataFrame(all_results)
-    out_path = PROJECT_ROOT / "outputs" / "hyperparameter_sensitivity.csv"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "hyperparameter_sensitivity.csv"
     df.to_csv(out_path, index=False)
     print(f"\n[Done] Results saved to {out_path}")
     print(df.to_string(index=False))
+
+
+if __name__ == "__main__":
+    main()
