@@ -146,7 +146,10 @@ class BaseGenerator(ABC):
             from sdv.sampling import Condition
 
         if seed is not None:
-            self._model.set_random_state(seed)
+            try:
+                self._model.set_random_state(seed)
+            except AttributeError:
+                self._model._set_random_state(seed)
 
         if not filters:
             with warnings.catch_warnings():

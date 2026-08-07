@@ -263,7 +263,9 @@ class VineCopulaGenerator(BaseGenerator):
                     f"Generation timed out after {_max_time_sec:.1f}s: "
                     f"filters are too strict. Collected {collected}/{n} rows."
                 )
-            U_syn = self._vine.simulate(batch_size, seeds=seed)
+            U_syn = self._vine.simulate(
+                batch_size, seeds=[seed] if seed is not None else []
+            )
             U_syn = np.clip(U_syn, 1e-4, 1 - 1e-4)
 
             records = {}

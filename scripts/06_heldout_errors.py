@@ -1,33 +1,23 @@
 """
-Experiment: Held-Out Error Types & Outlier Baseline Comparison.
+Experiment: Held-Out Error Types & Outlier Baseline Comparison (current API).
 
 Tests whether HIF detects error types it was NOT designed for, and compares
 against standard outlier detectors (Isolation Forest, LOF).
 
-Addresses:
-  - Q1: "Does the method detect errors other than the dependency
-    violations it was tuned for?"
-  - Q2: "How does HIF compare against standard unsupervised anomaly detectors?"
-
 Run:
-    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5
+    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 \
+      --seeds 42,43,44 --levels 0.4
 """
 
 from __future__ import annotations
 
 import argparse
-
-# ruff: noqa: E402
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.stats import sem
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
-
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import (
     average_precision_score,
@@ -39,48 +29,40 @@ from sklearn.metrics import (
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from tabular_polygraph.dataset import load_dataset
-from tabular_polygraph.fidelity import hif_score
-from tabular_polygraph.generators import GaussianCopulaGenerator
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# ---------------------------------------------------------------------------
-# Held-out corruption strategies (NOT what HIF was designed for)
-# ---------------------------------------------------------------------------
+# ruff: noqa: E402
+from _exp_utils import audit_hif, generate, load_real
 
 
 def corrupt_random_injection(
     syn: pd.DataFrame, real: pd.DataFrame, level: float, rng: np.random.Generator
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Replace random cells with random values from the column's domain.
-    Breaks marginals AND dependencies — a generic, non-targeted corruption."""
+    """Replace random cells with random values from the column's domain."""
     out = syn.copy()
-    n_rows, n_cols = out.shape
+    n_rows = len(out)
     labels = np.zeros(n_rows, dtype=bool)
-
     n_corrupt = max(1, int(n_rows * level))
     row_idx = rng.choice(n_rows, size=n_corrupt, replace=False)
     labels[row_idx] = True
-
     for col in out.columns:
         pool = real[col].dropna().values
         if len(pool) == 0:
             continue
         replacements = rng.choice(pool, size=n_corrupt, replace=True)
         out.iloc[row_idx, out.columns.get_loc(col)] = replacements
-
     return out, labels
 
 
 def corrupt_row_duplication(
     syn: pd.DataFrame, level: float, rng: np.random.Generator
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Duplicate random rows with small Gaussian noise on numerics.
-    Tests near-duplicate / memorization detection."""
+    """Duplicate random rows with small Gaussian noise on numerics."""
     n_corrupt = max(1, int(len(syn) * level))
     source_idx = rng.choice(len(syn), size=n_corrupt, replace=True)
     duplicated = syn.iloc[source_idx].copy().reset_index(drop=True)
-
-    # Add small noise to numeric columns
     num_cols = [
         c for c in duplicated.columns if pd.api.types.is_numeric_dtype(duplicated[c])
     ]
@@ -94,32 +76,25 @@ def corrupt_row_duplication(
                 )
             else:
                 duplicated[col] = duplicated[col] + noise
-
-    # Replace tail of synthetic with duplicated rows
     out = syn.copy()
     replace_idx = rng.choice(len(out), size=n_corrupt, replace=False)
     labels = np.zeros(len(out), dtype=bool)
     labels[replace_idx] = True
-
     for i, idx in enumerate(replace_idx):
         out.iloc[idx] = duplicated.iloc[i]
-
     return out, labels
 
 
 def corrupt_feature_dropout(
     syn: pd.DataFrame, real: pd.DataFrame, level: float, rng: np.random.Generator
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Set random features to column mode/median, simulating missing data.
-    Tests whether HIF catches records with suspiciously uniform values."""
+    """Set random features to column mode/median, simulating missing data."""
     out = syn.copy()
     n_rows = len(out)
     n_corrupt = max(1, int(n_rows * level))
     row_idx = rng.choice(n_rows, size=n_corrupt, replace=False)
     labels = np.zeros(n_rows, dtype=bool)
     labels[row_idx] = True
-
-    # For each corrupted row, blank out ~50% of its features
     for idx in row_idx:
         cols_to_blank = rng.choice(
             out.columns.tolist(),
@@ -135,38 +110,32 @@ def corrupt_feature_dropout(
                     if not real[col].mode().empty
                     else out.iloc[idx][col]
                 )
-
     return out, labels
 
 
 def corrupt_covariate_shift(
     syn: pd.DataFrame, real: pd.DataFrame, level: float, rng: np.random.Generator
 ) -> tuple[pd.DataFrame, np.ndarray]:
-    """Replace fraction of rows with samples from a biased subset of real data.
-    Tests distribution shift detection (not row-level logic)."""
+    """Replace a fraction of rows with samples from a biased real subset."""
     out = syn.copy()
     n_corrupt = max(1, int(len(out) * level))
     row_idx = rng.choice(len(out), size=n_corrupt, replace=False)
     labels = np.zeros(len(out), dtype=bool)
     labels[row_idx] = True
-
-    # Create biased subset: take only top-quartile of the first numeric column
     num_cols_list = [c for c in real.columns if pd.api.types.is_numeric_dtype(real[c])]
     if num_cols_list:
         bias_col = num_cols_list[0]
         threshold = real[bias_col].quantile(0.75)
         biased = real[real[bias_col] >= threshold]
         if len(biased) < n_corrupt:
-            biased = real  # fallback
+            biased = real
     else:
         biased = real
-
     replacements = biased.sample(
         n=n_corrupt, replace=True, random_state=int(rng.integers(1000000))
     )
     for i, idx in enumerate(row_idx):
         out.iloc[idx] = replacements.iloc[i]
-
     return out, labels
 
 
@@ -175,13 +144,9 @@ def corrupt_semantic_hallucination(
 ) -> tuple[pd.DataFrame, np.ndarray]:
     """Inject dependency violations that preserve marginals.
 
-    For each corrupted row, find the most correlated numeric column pair
-    (c1, c2) and replace c2 with a value drawn from real rows where c1 is in
-    the *opposite* half — e.g., row has high c1 but gets a c2 value typical of
-    low-c1 rows.  Each individual feature value still comes from the real
-    domain (marginals intact), but the cross-feature relationship is broken.
-    LOF/IF, which flag geometric outliers in feature space, should be blind to
-    this; only HIF, which models inter-feature dependencies, should detect it.
+    Replaces the second-most-correlated numeric feature of a fraction of rows
+    with a value drawn from real rows in the *opposite* half of the
+    most-correlated feature.
     """
     out = syn.copy()
     n_rows = len(out)
@@ -191,39 +156,26 @@ def corrupt_semantic_hallucination(
     labels[row_idx] = True
 
     num_cols = [c for c in out.columns if pd.api.types.is_numeric_dtype(out[c])]
-
     if len(num_cols) < 2:
-        # No numeric column pair to exploit — return as-is
         return out, labels
 
-    # Find the most strongly correlated numeric pair in real data
     corr_matrix = real[num_cols].corr().abs()
     np.fill_diagonal(corr_matrix.values, 0)
-    c1, c2 = corr_matrix.stack().idxmax()  # type: ignore[assignment]
+    c1, c2 = corr_matrix.stack().idxmax()
     c1, c2 = str(c1), str(c2)
-
     median_c1 = float(real[c1].median())
 
-    # Pre-compute value pools for the two halves
-    pool_low_c2 = (
-        real[real[c1] < median_c1][c2].dropna().values
-    )  # c1 low → typical c2 low
-    pool_high_c2 = (
-        real[real[c1] >= median_c1][c2].dropna().values
-    )  # c1 high → typical c2 high
+    pool_low_c2 = real[real[c1] < median_c1][c2].dropna().values
+    pool_high_c2 = real[real[c1] >= median_c1][c2].dropna().values
     fallback = real[c2].dropna().values
 
     for idx in row_idx:
         row_id = out.index[idx]
         current_c1 = float(out.at[row_id, c1])
-
         if current_c1 >= median_c1:
-            # Row has high c1 → inject c2 value from the *low*-c1 half (breaks correlation)
             pool = pool_low_c2 if len(pool_low_c2) > 0 else fallback
         else:
-            # Row has low c1 → inject c2 value from the *high*-c1 half
             pool = pool_high_c2 if len(pool_high_c2) > 0 else fallback
-
         new_c2 = rng.choice(pool)
         if pd.api.types.is_integer_dtype(out[c2]):
             new_c2 = int(np.round(float(new_c2)))
@@ -232,30 +184,20 @@ def corrupt_semantic_hallucination(
     return out, labels
 
 
-# ---------------------------------------------------------------------------
-# Baseline outlier detectors
-# ---------------------------------------------------------------------------
-
-
 def _encode_for_outlier_detection(
     real: pd.DataFrame, syn: pd.DataFrame
 ) -> tuple[np.ndarray, np.ndarray]:
-    """One-hot encode categorical + scale numeric for IF/LOF."""
     cat_cols = [c for c in real.columns if not pd.api.types.is_numeric_dtype(real[c])]
     num_cols_list = [c for c in real.columns if pd.api.types.is_numeric_dtype(real[c])]
-
     parts_real, parts_syn = [], []
-
     if num_cols_list:
         scaler = StandardScaler()
         parts_real.append(scaler.fit_transform(real[num_cols_list].fillna(0)))
         parts_syn.append(scaler.transform(syn[num_cols_list].fillna(0)))
-
     if cat_cols:
         enc = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         parts_real.append(enc.fit_transform(real[cat_cols].astype(str)))
         parts_syn.append(enc.transform(syn[cat_cols].astype(str)))
-
     X_real = np.hstack(parts_real) if parts_real else np.zeros((len(real), 1))
     X_syn = np.hstack(parts_syn) if parts_syn else np.zeros((len(syn), 1))
     return X_real, X_syn
@@ -264,7 +206,6 @@ def _encode_for_outlier_detection(
 def detect_isolation_forest(
     real: pd.DataFrame, syn: pd.DataFrame, contamination: float = 0.2
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (preds, scores) using Isolation Forest."""
     X_real, X_syn = _encode_for_outlier_detection(real, syn)
     clf = IsolationForest(contamination=contamination, random_state=42, n_jobs=-1)
     clf.fit(X_real)
@@ -276,7 +217,6 @@ def detect_isolation_forest(
 def detect_lof(
     real: pd.DataFrame, syn: pd.DataFrame, contamination: float = 0.2
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (preds, scores) using Local Outlier Factor."""
     X_real, X_syn = _encode_for_outlier_detection(real, syn)
     clf = LocalOutlierFactor(n_neighbors=20, contamination=contamination, novelty=True)
     clf.fit(X_real)
@@ -288,17 +228,10 @@ def detect_lof(
 def detect_hif(
     real: pd.DataFrame, syn: pd.DataFrame, seed: int = 42
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (preds, scores) using HIF (H(x) > 0.5 = anomaly)."""
-    cols = real.columns.intersection(syn.columns).tolist()
-    result = hif_score(real, syn, columns=cols, random_state=seed, verbose=False)
+    result = audit_hif(real, syn, seed=seed)
     scores = result["row_penalties"]
     preds = (scores > 0.5).astype(int)
     return preds, scores
-
-
-# ---------------------------------------------------------------------------
-# Main experiment
-# ---------------------------------------------------------------------------
 
 
 def run_experiment(
@@ -309,18 +242,9 @@ def run_experiment(
     output_dir: Path,
 ):
     print(f"Loading dataset: {dataset_id}")
-    real = load_dataset(dataset_id, n=n_rows)
-    for col in real.columns:
-        if pd.api.types.is_integer_dtype(real[col]):
-            real[col] = real[col].astype("int64")
-        elif pd.api.types.is_float_dtype(real[col]):
-            real[col] = real[col].astype("float64")
+    real = load_real(dataset_id, n=n_rows)
 
-    # Generate clean synthetic baseline
     print("Generating clean synthetic baseline (Gaussian Copula)...")
-    gen = GaussianCopulaGenerator()
-    gen.fit(real)
-
     corruption_strategies = {
         "random_injection": corrupt_random_injection,
         "semantic_hallucination": corrupt_semantic_hallucination,
@@ -330,19 +254,13 @@ def run_experiment(
     }
 
     all_results = []
-
     for seed_i in range(n_seeds):
         seed = 42 + seed_i
         rng = np.random.default_rng(seed)
-        print(f"\n{'=' * 60}")
-        print(f"Seed {seed} ({seed_i + 1}/{n_seeds})")
-        print(f"{'=' * 60}")
+        print(f"\n{'=' * 60}\nSeed {seed} ({seed_i + 1}/{n_seeds})\n{'=' * 60}")
 
-        syn_clean = gen.generate(n_rows, seed=seed)
-        syn_clean = syn_clean.drop(columns=["syn_id"], errors="ignore")
-        # Align columns
-        common_cols = real.columns.intersection(syn_clean.columns).tolist()
-        syn_clean = syn_clean[common_cols]
+        syn_clean = generate(real, n_rows, seed, "gaussian_copula")
+        syn_clean = syn_clean[real.columns.intersection(syn_clean.columns).tolist()]
 
         for strategy_name, corrupt_fn in corruption_strategies.items():
             for level in corruption_levels:
@@ -351,14 +269,11 @@ def run_experiment(
                     end="",
                     flush=True,
                 )
-
-                # Apply corruption
                 if strategy_name == "row_duplication":
-                    corrupted, true_labels = corrupt_fn(syn_clean, level, rng)  # type: ignore[operator]
+                    corrupted, true_labels = corrupt_fn(syn_clean, level, rng)
                 else:
-                    corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)  # type: ignore[operator]
+                    corrupted, true_labels = corrupt_fn(syn_clean, real, level, rng)
 
-                # Detect with each method
                 try:
                     hif_preds, hif_scores = detect_hif(real, corrupted, seed=seed)
                 except Exception as e:
@@ -384,7 +299,6 @@ def run_experiment(
                     lof_preds = np.zeros(len(corrupted), dtype=int)
                     lof_scores = np.zeros(len(corrupted))
 
-                # Compute metrics
                 for method_name, preds, scores in [
                     ("HIF", hif_preds, hif_scores),
                     ("IsolationForest", if_preds, if_scores),
@@ -406,7 +320,6 @@ def run_experiment(
                             if len(np.unique(true_labels)) > 1
                             else np.nan
                         )
-
                     all_results.append(
                         {
                             "seed": seed,
@@ -422,15 +335,12 @@ def run_experiment(
                             "n_true_errors": int(true_labels.sum()),
                         }
                     )
-
                 print(" Done.")
 
-    # Save results
     output_dir.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame(all_results)
     df.to_csv(output_dir / "heldout_errors_raw.csv", index=False)
 
-    # Generate summary table
     summary = (
         df.groupby(["error_type", "corruption_level", "method"])
         .agg(
@@ -449,7 +359,6 @@ def run_experiment(
     print("\n\n" + "=" * 80)
     print("Held-Out Error Detection (F1 / ROC-AUC / PR-AUC)")
     print("=" * 80)
-
     for level in corruption_levels:
         print(f"\n### Corruption Level = {level}")
         print(
@@ -464,41 +373,15 @@ def run_experiment(
                 d = r_df[r_df["method"] == m_name]
                 if d.empty:
                     return "—"
-                f1_val = d["f1_mean"].values[0]
-                roc_val = d["roc_auc_mean"].values[0]
-                pr_val = d["pr_auc_mean"].values[0]
-                return f"{f1_val:.3f} ({roc_val:.3f} / {pr_val:.3f})"
+                return (
+                    f"{d['f1_mean'].values[0]:.3f} "
+                    f"({d['roc_auc_mean'].values[0]:.3f} / {d['pr_auc_mean'].values[0]:.3f})"
+                )
 
             print(
-                f"| {etype} | {get_str('HIF', row_data)} | {get_str('IsolationForest', row_data)} | {get_str('LOF', row_data)} |"
+                f"| {etype} | {get_str('HIF', row_data)} | "
+                f"{get_str('IsolationForest', row_data)} | {get_str('LOF', row_data)} |"
             )
-
-    # Write markdown summary
-    with open(output_dir / "heldout_errors_summary.md", "w") as f:
-        f.write("# Held-Out Error Type Detection\n\n")
-        f.write("Tests HIF on error types it was NOT designed for.\n\n")
-        for level in corruption_levels:
-            f.write(f"\n## Corruption Level = {level}\n\n")
-            f.write(
-                "| Error Type | HIF F1 (ROC-AUC / PR-AUC) | IF F1 (ROC / PR) | LOF F1 (ROC / PR) |\n"
-            )
-            f.write("|---|---|---|---|\n")
-            sub = summary[summary["corruption_level"] == level]
-            for etype in corruption_strategies:
-                row_data = sub[sub["error_type"] == etype]
-
-                def get_md_str(m_name: str, r_df: pd.DataFrame) -> str:
-                    d = r_df[r_df["method"] == m_name]
-                    if d.empty:
-                        return "—"
-                    f1_val = d["f1_mean"].values[0]
-                    roc_val = d["roc_auc_mean"].values[0]
-                    pr_val = d["pr_auc_mean"].values[0]
-                    return f"{f1_val:.3f} ({roc_val:.3f} / {pr_val:.3f})"
-
-                f.write(
-                    f"| {etype} | {get_md_str('HIF', row_data)} | {get_md_str('IsolationForest', row_data)} | {get_md_str('LOF', row_data)} |\n"
-                )
 
     print(f"\nResults saved to {output_dir}")
 
@@ -507,9 +390,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Held-out error type experiment")
     parser.add_argument("--dataset", default="census_acs")
     parser.add_argument("--rows", type=int, default=2000)
-    parser.add_argument("--seeds", type=int, default=5)
-    parser.add_argument("--corruption-levels", default="0.1,0.2,0.4")
-    parser.add_argument("--output-dir", default="outputs/")
+    parser.add_argument("--seeds", type=int, default=3)
+    parser.add_argument("--corruption-levels", default="0.4")
+    parser.add_argument("--output-dir", default="outputs/regenerated")
     args = parser.parse_args()
 
     levels = [float(x) for x in args.corruption_levels.split(",")]
