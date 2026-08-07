@@ -4,16 +4,15 @@ We provide a formal analysis of Hybrid Integrity Framework (HIF) score propertie
 
 \subsection{Proof of Intersection Soundness}
 
-\textbf{Theorem 1.} The HIF score $H(\mathbf{x})$ defines a membership certificate for the intersection of semantic manifolds $\mathcal{M}_{total} = \bigcap_{l} \mathcal{M}_l$.
+\textbf{Theorem 1.} The HIF score $H(\mathbf{x})$ defines a membership certificate for the intersection of semantic manifolds $\mathcal{M}_{total} = \bigcap_{l} \mathcal{M}_l$. Under the idealization that each component validity satisfies $\mathcal{C}_l(\mathbf{x}) = 1$ iff $\mathbf{x} \in \mathcal{M}_l$ and $\mathcal{C}_l(\mathbf{x}) \in [0, 1)$ otherwise, $H(\mathbf{x})$ attains its maximum value $1$ exactly on $\mathcal{M}_{total}$:
 \begin{equation}
-    H(\mathbf{x}) \le \prod_{l} \mathbb{1}[\mathbf{x} \in \mathcal{M}_l]
+    \mathbb{1}[H(\mathbf{x}) = 1] = \prod_{l} \mathbb{1}[\mathbf{x} \in \mathcal{M}_l]
 \end{equation}
-where $L$ is the number of auditing layers in the model.
- By definition, $\mathcal{C}_l(\mathbf{x}) = 1$ if $\mathbf{x} \in \mathcal{M}_l$ and $\mathcal{C}_l(\mathbf{x}) \in [0, 1)$ otherwise.
+where $L$ is the number of auditing layers and $H(\mathbf{x}) = \left( \prod_l \mathcal{C}_l(\mathbf{x}) \right)^{1/L}$ is the geometric mean of the component validities, matching the implementation in Algorithm~\ref{alg:audit}.
 \begin{enumerate}
-    \item \textbf{Completeness:} If $\mathbf{x} \in \mathcal{M}_{total}$, then $\mathbf{x} \in \mathcal{M}_l$ for all $l$. Thus, $\mathcal{C}_l(\mathbf{x}) = 1$ for all $l$, and $H(\mathbf{x}) = \prod_l 1 = 1$.
-    \item \textbf{Soundness (Non-Compensatory Property):} Suppose $\mathbf{x} \notin \mathcal{M}_{total}$. Then, there exists at least one $l^*$ such that $\mathbf{x} \notin \mathcal{M}_{l^*}$, implying $\mathcal{C}_{l^*}(\mathbf{x}) < 1$. Because $0 \le \mathcal{C}_l(\mathbf{x}) \le 1$ for all $l$, the multiplicative product $H(\mathbf{x}) = \mathcal{C}_{l^*}(\mathbf{x}) \cdot \prod_{l \neq l^*} \mathcal{C}_l(\mathbf{x}) < 1$.
-    \item \textbf{Strict Convergence:} If $\mathbf{x}$ exhibits an ``Absolute Violation'' in any layer ($\mathcal{P}_{l^*} \to 1 \implies \mathcal{C}_{l^*} \to 0$), the product $H(\mathbf{x}) \to 0$ regardless of the performance in other layers.
+    \item \textbf{Completeness:} If $\mathbf{x} \in \mathcal{M}_{total}$, then $\mathbf{x} \in \mathcal{M}_l$ for all $l$. Thus, $\mathcal{C}_l(\mathbf{x}) = 1$ for all $l$, and $H(\mathbf{x}) = \left( \prod_l 1 \right)^{1/L} = 1$.
+    \item \textbf{Soundness (Non-Compensatory Property):} Suppose $\mathbf{x} \notin \mathcal{M}_{total}$. Then, there exists at least one $l^*$ such that $\mathbf{x} \notin \mathcal{M}_{l^*}$, implying $\mathcal{C}_{l^*}(\mathbf{x}) < 1$. Because $0 \le \mathcal{C}_l(\mathbf{x}) \le 1$ for all $l$, the geometric mean satisfies $H(\mathbf{x}) = \left( \mathcal{C}_{l^*}(\mathbf{x}) \cdot \prod_{l \neq l^*} \mathcal{C}_l(\mathbf{x}) \right)^{1/L} < 1$.
+    \item \textbf{Strict Convergence:} If $\mathbf{x}$ exhibits an ``Absolute Violation'' in any layer ($\mathcal{P}_{l^*} \to 1 \implies \mathcal{C}_{l^*} \to 0$), then $H(\mathbf{x}) \to 0$ regardless of the performance in other layers.
 \end{enumerate}
 Under the assumptions above, this confirms that $H(\mathbf{x})$ behaves as a conservative diagnostic for joint satisfaction of latent manifold constraints.
 
