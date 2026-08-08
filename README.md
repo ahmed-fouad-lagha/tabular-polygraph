@@ -92,9 +92,9 @@ tabular-polygraph evaluate <real_data_path> <synthetic_data_path> \
 
 ```python
 import pandas as pd
+from tabular_polygraph import hif_score  # one-liner row-level audit
 from tabular_polygraph.dataset import load_dataset
 from tabular_polygraph.fidelity import fidelity_report
-from tabular_polygraph.fidelity.hif import hif_score
 
 # 1. Load Data
 real = load_dataset("census_acs")

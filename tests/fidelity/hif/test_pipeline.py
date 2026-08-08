@@ -1,7 +1,16 @@
 import numpy as np
 import pandas as pd
 
+from tabular_polygraph import hif_score as top_level_hif_score
 from tabular_polygraph.fidelity.hif import hif_score
+
+
+def test_hif_score_exported_at_top_level():
+    real = pd.DataFrame({"a": [0] * 50 + [1] * 50, "b": [10, 20] * 50})
+    syn = real.copy()
+    result = top_level_hif_score(real, syn, verbose=False, hif_epochs=2)
+    assert "hif_score" in result
+    assert 0.0 <= result["hif_score"] <= 1.0
 
 
 def test_hif_handles_single_category_feature():

@@ -8,6 +8,7 @@ Quick start:
 from ._version import __version__
 from .dataset import get_dataset_info, list_datasets, load_dataset
 from .fidelity import fidelity_report, format_report
+from .fidelity.hif import hif_score
 from .generators import (
     BaseGenerator,
     CTGANGenerator,
@@ -35,4 +36,5 @@ __all__ = [
     "validate",
     "privacy_audit",
     "format_audit",
+    "hif_score",
 ]
