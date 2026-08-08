@@ -63,6 +63,8 @@ def run_benchmark(
             print(f"  SKIP (load error: {e})")
             continue
 
+        real = real_full.reset_index(drop=True)
+
         for gen_name in generator_names:
             print(f"\n  -- {gen_name} --")
             for seed_i in range(n_seeds):
@@ -73,10 +75,6 @@ def run_benchmark(
                     end="",
                     flush=True,
                 )
-
-                real = real_full.sample(
-                    min(n_rows, len(real_full)), random_state=seed
-                ).reset_index(drop=True)
 
                 try:
                     syn = generate(real, len(real), seed, gen_name)

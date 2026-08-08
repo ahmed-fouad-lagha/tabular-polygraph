@@ -61,7 +61,14 @@ def generate(
     generator: str,
     epochs: int | None = None,
 ) -> pd.DataFrame:
-    """Fit a generator on ``real`` and draw ``n`` synthetic rows (no syn_id)."""
+    """Fit a generator on ``real`` and draw ``n`` synthetic rows (no syn_id).
+
+    Seeds the global RNG *before fitting* so stochastic generators (CTGAN,
+    TVAE) train deterministically for a given ``seed``.
+    """
+    from tabular_polygraph._utils import set_seed
+
+    set_seed(seed)
     cls = GENERATORS[generator]
     if generator == "ctgan":
         gen = CTGANGenerator(epochs=epochs) if epochs else CTGANGenerator()
