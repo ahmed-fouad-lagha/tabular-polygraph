@@ -121,10 +121,10 @@ The empirical results and tables in the manuscript are produced by the scripts i
 Sensitivity of HIF to semantic corruption under `permutation` and `conditional_swap` corruption strategies, and the associated calibration curves.
 
 ```bash
-python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
+python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 3 \
   --levels 0,0.1,0.2,0.4,0.6 --strategy permutation --generator ctgan
 
-python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
+python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 3 \
   --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator ctgan
 ```
 
@@ -132,37 +132,38 @@ python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
 Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity and utility metrics, including a real-data ground-truth baseline.
 
 ```bash
-python scripts/10_full_benchmark.py --rows 2000 --seeds 10 --generators gaussian_copula,vine,ctgan,tvae
+python scripts/03_cross_architecture_benchmark.py --rows 2000 --seeds 10 \
+  --generators gaussian_copula,vine,ctgan,tvae
 ```
 
-### 3. Ablation Study (Table 4)
+### 3. Downstream Utility Filtering (Table 2)
+Paired tests comparing downstream F1 under HIF filtering vs no filtering (binary median-split `household_income` target) across all dataset--generator combinations.
+
+```bash
+python scripts/04_downstream_utility_significance.py --dataset census_acs \
+  --target household_income --rows 2000 --seeds 10 --generator gaussian_copula
+
+python scripts/04_downstream_utility_significance.py --dataset census_acs \
+  --target household_income --rows 2000 --seeds 10 --generator ctgan
+```
+
+### 4. Held-Out Error Benchmarks (Table 3)
+Validates HIF on held-out error families HIF was not engineered to detect, comparing against Isolation Forest and LOF baselines; `05_heldout_matched_threshold.py` additionally reports HIF F1 at an operating point matched to the baselines' `contamination` setting.
+
+```bash
+python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
+  --seeds 10 --corruption-levels 0.4
+
+python scripts/05_heldout_matched_threshold.py --dataset census_acs --rows 2000 \
+  --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
+```
+
+### 5. Component Ablation Study (Table 4)
 Isolates each HIF component (LSE, NIC, rule audit) and each aggregation scheme to measure its contribution to violation detection.
 
 ```bash
-python scripts/08_ablation_study.py --dataset census_acs --target household_income \
-  --rows 2000 --seeds 5 --generator ctgan
-```
-
-### 4. Statistical Significance (Section 4.2)
-Paired tests comparing downstream F1 under HIF filtering vs no filtering (binary median-split `household_income` target).
-
-```bash
-python scripts/03_statistical_significance.py --dataset census_acs --target household_income \
-  --rows 2000 --seeds 10 --generator gaussian_copula
-
-python scripts/03_statistical_significance.py --dataset census_acs --target household_income \
-  --rows 2000 --seeds 10 --generator ctgan
-```
-
-### 5. Utility Recovery through HIF Filtering (Table 2)
-Shows that retaining high-integrity synthetic records recovers predictive performance lost during generation.
-
-```bash
-python scripts/08_ablation_study.py --dataset census_acs --target household_income \
-  --rows 2000 --seeds 10 --generator gaussian_copula
-
-python scripts/08_ablation_study.py --dataset census_acs --target household_income \
-  --rows 2000 --seeds 10 --generator ctgan
+python scripts/06_component_ablation_study.py --dataset census_acs \
+  --target household_income --rows 2000 --seeds 5 --generator ctgan
 ```
 
 ### 6. Hyperparameter Sensitivity (Appendix)
@@ -170,14 +171,6 @@ Demonstrates HIF's stability across hub counts, confidence percentiles, and viol
 
 ```bash
 python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
-```
-
-### 7. Held-Out Error Benchmarks (Table 3)
-Validates HIF on held-out synthetic cohorts across corruption levels.
-
-```bash
-python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 --seeds 5 \
-  --corruption-levels 0,0.1,0.2,0.4,0.6
 ```
 
 ## License
