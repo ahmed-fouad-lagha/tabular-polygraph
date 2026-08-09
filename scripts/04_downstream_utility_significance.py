@@ -6,7 +6,7 @@ Q: "Are the observed utility gains statistically significant (p < 0.05)?"
 Re-runs utility filtering with N seeds and computes paired statistical tests.
 
 Run:
-    python scripts/03_statistical_significance.py \
+    python scripts/04_downstream_utility_significance.py \
       --dataset census_acs --rows 2000 --seeds 10 --generator gaussian_copula
 """
 

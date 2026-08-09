@@ -5,7 +5,7 @@ Tests each HIF component individually and compares against the full ensemble,
 plus arithmetic vs geometric aggregation.
 
 Run:
-    python scripts/08_ablation_study.py --dataset census_acs --rows 2000 \
+    python scripts/06_component_ablation_study.py --dataset census_acs --rows 2000 \
       --seeds 5 --generator gaussian_copula
 """
 

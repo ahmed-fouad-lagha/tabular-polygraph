@@ -7,7 +7,7 @@ beta-recall (coverage), JCD, moment-matching, and HIF metrics plus downstream
 utility (full vs HIF-filtered).
 
 Run:
-    python scripts/10_full_benchmark.py --rows 2000 --seeds 3 \
+    python scripts/03_cross_architecture_benchmark.py --rows 2000 --seeds 3 \
       --generators gaussian,vine
 """
 

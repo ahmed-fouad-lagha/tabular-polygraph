@@ -9,7 +9,7 @@ The auditor is fitted once on a fixed real cohort, then ``score`` is timed
 for each cohort size (the cost that grows with the number of synthetic rows).
 
 Run:
-    python scripts/11_scalability_benchmark.py --sizes 10000,100000
+    python scripts/08_scalability_benchmark.py --sizes 10000,100000
 """
 
 from __future__ import annotations

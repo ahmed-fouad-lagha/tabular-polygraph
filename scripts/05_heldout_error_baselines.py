@@ -5,7 +5,7 @@ Tests whether HIF detects error types it was NOT designed for, and compares
 against standard outlier detectors (Isolation Forest, LOF).
 
 Run:
-    python scripts/06_heldout_errors.py --dataset census_acs --rows 2000 \
+    python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
       --seeds 42,43,44 --levels 0.4
 """
 

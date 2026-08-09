@@ -13,7 +13,7 @@ Two protocols:
 Records HIF, JCD, moment-matching, KS, and rule-violation rate per level.
 
 Run:
-    python scripts/01_hif_validation.py --dataset census_acs --rows 2000 \
+    python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 \
       --seeds 42,43,44 --levels 0,0.1,0.2,0.4,0.6 --strategy permutation
 """
 
