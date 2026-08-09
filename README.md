@@ -27,7 +27,7 @@ The HIF Hybrid Integrity Framework provides:
 - **Algebraic Integrity Certificates** via the Multiplicative Integrity (MI) model.
 - **Neural-Symbolic Oracles (LSE)** for categorical manifold discovery and auditing.
 - **Neighbor-Invariant Continuity (NIC)** for verifying continuous manifold residuals.
-- Reporting alongside marginal, joint, stylized-facts, downstream, and TAMIS privacy metrics.
+- Reporting alongside marginal, joint, stylized-facts, and downstream utility metrics.
 
 #### Core workflow
 1. Learn structural regularities from real data using an unsupervised model
@@ -53,7 +53,6 @@ tabular-polygraph list
 ## Quick Start
 
 Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy.
-
 ```bash
 # 1. Download sample data (cached in ~/.tabular_polygraph/cache/)
 tabular-polygraph download census_acs
@@ -130,10 +129,10 @@ python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
 ```
 
 ### 2. Cross-Architecture Benchmark (Tables 2 & 5)
-Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity, utility, and privacy metrics, including a real-data ground-truth baseline.
+Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity and utility metrics, including a real-data ground-truth baseline.
 
 ```bash
-python scripts/10_full_benchmark.py --rows 2000 --seeds 3 --generators gaussian_copula,vine,ctgan,tvae
+python scripts/10_full_benchmark.py --rows 2000 --seeds 10 --generators gaussian_copula,vine,ctgan,tvae
 ```
 
 ### 3. Ablation Study (Table 1)
@@ -173,15 +172,7 @@ Demonstrates HIF's stability across hub counts, confidence percentiles, and viol
 python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
 ```
 
-### 7. Privacy under Filtering (App. A.3.3)
-TAMIS membership-inference and linkability audit showing HIF filtering does not increase privacy vulnerability.
-
-```bash
-python scripts/09_privacy_filtering.py --dataset supermarket_sales --generator ctgan \
-  --rows 500 --seeds 3 --epochs 50
-```
-
-### 8. Held-Out Error Benchmarks
+### 7. Held-Out Error Benchmarks
 Validates HIF on held-out synthetic cohorts across corruption levels.
 
 ```bash
