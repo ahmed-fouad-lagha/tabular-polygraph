@@ -158,6 +158,8 @@ def main() -> None:
         base_syn = generate(real, args.rows, seed, args.generator)
         base_syn = base_syn[real.columns.intersection(base_syn.columns).tolist()]
 
+        jcd_clean = aggregate_metrics(real, base_syn)["jcd"]
+
         for level in levels:
             rng = np.random.default_rng(seed * 1000 + int(round(level * 1000)))
 
@@ -175,7 +177,6 @@ def main() -> None:
                 if labels.sum()
                 else np.nan
             )
-            jcd_clean = aggregate_metrics(real, base_syn)["jcd"]
 
             rows.append(
                 {

@@ -58,6 +58,3 @@ real_*.csv
 *.synctex(busy)
 *.synctex.gz
 *.nav
-
-# output files
-outputs/

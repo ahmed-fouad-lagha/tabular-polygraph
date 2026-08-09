@@ -1,0 +1,3 @@
+dataset,generator,train_records,audit_records,fit_seconds,score_seconds_mean,score_seconds_sd,seconds_per_10k
+census_acs,gaussian,2000,10000,9.653,1.502,0.151,1.5024
+census_acs,gaussian,2000,100000,9.653,10.636,0.504,1.0636

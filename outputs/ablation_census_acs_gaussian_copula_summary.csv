@@ -1,0 +1,8 @@
+ablation,retention_mean,f1_mean,f1_sem,accuracy_mean,violation_rate_mean,hif_score_mean
+No filtering,100.0,0.94,0.0029,0.94,0.0,
+LSE-only,95.48,0.941,0.0031,0.941,0.0451,0.9026
+NIC-only,99.58,0.9413,0.0021,0.9413,0.0044,0.9568
+Rules-only,99.3,0.9393,0.0009,0.9393,0.0071,0.9929
+LSE + NIC,99.08,0.938,0.0029,0.938,0.0095,0.923
+Full HIF (arith.),99.9,0.939,0.0025,0.939,0.0012,0.9508
+Full HIF (geom.),99.2,0.934,0.0028,0.934,0.0082,0.9399

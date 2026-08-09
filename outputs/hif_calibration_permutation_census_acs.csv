@@ -1,0 +1,6 @@
+dataset,seed,corruption_level,hif_score,hif_violation_rate,jcd,mm,ks,rule_violation_rate,recall,jcd_delta
+census_acs,42,0.0,0.9431,0.0065,88.71,89.05,92.48,0.006,,0.0
+census_acs,42,0.1,0.8921,0.034,85.35,89.05,92.48,0.0095,,-3.36
+census_acs,42,0.2,0.8418,0.0635,80.38,89.05,92.48,0.0135,,-8.33
+census_acs,42,0.4,0.7625,0.1135,71.67,89.05,92.48,0.02,,-17.04
+census_acs,42,0.6,0.7096,0.165,64.62,89.05,92.48,0.022,,-24.09
