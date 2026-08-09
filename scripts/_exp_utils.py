@@ -1,10 +1,4 @@
-"""Shared helpers for experiment scripts, built against the current API.
-
-Replaces the pre-refactor imports that all legacy scripts used
-(``fidelity.hif_score``, ``fidelity.logical``, ``fidelity.downstream``,
-``tabular_polygraph.utils``) with the current metric classes and HIF
-orchestrator.
-"""
+"""Shared helpers for experiment scripts."""
 
 from __future__ import annotations
 

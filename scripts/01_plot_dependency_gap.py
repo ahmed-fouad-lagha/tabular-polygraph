@@ -220,8 +220,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(PROJECT_ROOT) / "manuscript" / "figures" / "dependency_gap.pdf",
-        help="Output PDF path (default: manuscript/figures/dependency_gap.pdf)",
+        default=Path(PROJECT_ROOT) / "outputs" / "dependency_gap.pdf",
+        help="Output PDF path (default: outputs/dependency_gap.pdf)",
     )
     args = parser.parse_args()
 
