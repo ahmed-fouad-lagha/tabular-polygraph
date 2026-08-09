@@ -238,7 +238,7 @@ Dataset & Generator & Retention (\%) & F1 (Full) & F1 (HIF Filtered) & $\Delta$ 
  & TVAE & 99.5 & 0.741 $\pm$ 0.016 & 0.738 $\pm$ 0.024 & -0.002 \\
  & Vine Copula & 84.1 & 0.459 $\pm$ 0.023 & 0.466 $\pm$ 0.021 & +0.007 \\
 \midrule
-\textbf{Census ACS} & CTGAN & 65.7 & 0.427 $\pm$ 0.090 & \textbf{0.531 $\pm$ 0.139} & \textbf{+0.104} \\
+\textbf{Census ACS} & CTGAN & 65.7 & 0.427 $\pm$ 0.090 & \textbf{0.532 $\pm$ 0.139} & \textbf{+0.104} \\
  & Gaussian Copula & 99.2 & 0.940 $\pm$ 0.006 & 0.937 $\pm$ 0.006 & -0.003 \\
  & TVAE & 98.5 & 0.928 $\pm$ 0.011 & 0.928 $\pm$ 0.010 & -0.001 \\
  & Vine Copula & 76.8 & 0.477 $\pm$ 0.039 & \textbf{0.672 $\pm$ 0.037} & \textbf{+0.195} \\
@@ -295,7 +295,7 @@ Covariate Shift & 0.289 & \textbf{0.490} & 0.211 & 0.007 & 0.163 & \textbf{0.398
 
 \subsection{Differential Diagnostic: Integrity vs. Loyalty}\label{sec:differential}
 
-To determine whether HIF provides unique utility over joint statistical metrics, we evaluated its response at low corruption levels ($p \le 0.1$) using a conditional-swap protocol that preserves marginal distributions (Census ACS, $N=3$ seeds). At these low rates, the HIF score decays monotonically with $p$ (Spearman $\rho = -1.0$; from $0.941$ at $p=0$ to $0.919$ at $p=0.1$), whereas the aggregate marginal metrics (Moment Matching, KS) remain static and the Joint Correlation Distance moves only marginally ($88.8 \to 87.9$, relative shift $<1.2\%$). The small absolute JCD change reflects dilution: a few thousand corrupted rows contribute negligibly to a cohort-averaged correlation statistic. Because HIF emits a per-record penalty, it localizes exactly which rows carry the corrupted conditional relationships---a capability no aggregate metric provides. This reading is complementary, not adversarial: under the broad, high-rate permutation protocol described earlier (which destroys pairwise correlations), the JCD decays sharply in lockstep with the HIF score. The two tools therefore address related but distinct failure modes: the JCD is a sensitive dataset-level drift detector, while HIF provides record-level attribution of conditional dependency violations.
+To determine whether HIF provides unique utility over joint statistical metrics, we evaluated its response at low corruption levels ($p \le 0.1$) using a conditional-swap protocol that preserves marginal distributions (Census ACS, $N=3$ seeds). At these low rates, the HIF score decays monotonically with $p$ (Spearman $\rho = -1.0$; from $0.940$ at $p=0$ to $0.919$ at $p=0.1$), whereas the aggregate marginal metrics (Moment Matching, KS) remain static and the Joint Correlation Distance moves only marginally ($88.8 \to 87.9$, relative shift $<1.2\%$). The small absolute JCD change reflects dilution: the injected rows ($\le 10\%$ of the 2,000-row cohort) contribute negligibly to a cohort-averaged correlation statistic. Because HIF emits a per-record penalty, it localizes exactly which rows carry the corrupted conditional relationships---a capability no aggregate metric provides. This reading is complementary, not adversarial: under the broad, high-rate permutation protocol described earlier (which destroys pairwise correlations), the JCD decays sharply in lockstep with the HIF score. The two tools therefore address related but distinct failure modes: the JCD is a sensitive dataset-level drift detector, while HIF provides record-level attribution of conditional dependency violations.
 
 \subsection{Component Ablation Study}\label{sec:ablation}
 
