@@ -69,6 +69,7 @@ class HIFAuditor:
             max_depth=cfg.depth,
             random_state=cfg.random_state,
             confidence_percentile=cfg.confidence_percentile,
+            config=cfg.lse,
         )
         self.oracle.fit(
             real_f,

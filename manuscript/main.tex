@@ -33,7 +33,7 @@
 
 \raggedbottom
 
-\title[Row-Level Structural Fidelity Diagnostics]{Row-Level Structural Fidelity Diagnostics for Synthetic Tabular Data}
+\title[Row-Level Structural Integrity Diagnostics]{Row-Level Structural Integrity Diagnostics for Synthetic Tabular Data}
 
 \author*[1]{\fnm{Ahmed Fouad} \sur{Lagha}}\email{ahmed.lagha@inf.elte.hu}
 
@@ -238,8 +238,8 @@ Dataset & Generator & Variant & Retention (\%) & F1 ($\pm$ SD) & Accuracy ($\pm$
                       & CTGAN & Full synthetic & 100.0 & 0.427 $\pm$ 0.090 & 0.518 $\pm$ 0.058 \\
                       & CTGAN & \textbf{HIF Filtered} & \textbf{65.7} & \textbf{0.532} $\pm$ 0.139 & \textbf{0.601} $\pm$ 0.090 \\
 \midrule
-\textbf{Purchases}    & Gaussian Copula & Full synthetic & 100.0 & 0.977 $\pm$ 0.010 & -- \\
-                      & Gaussian Copula & \textbf{HIF Filtered} & \textbf{59.7} & 0.968 $\pm$ 0.024 & -- \\
+\textbf{Purchases}    & Gaussian Copula & Full synthetic & 100.0 & 0.977 $\pm$ 0.010 & 0.977 $\pm$ 0.010 \\
+                      & Gaussian Copula & \textbf{HIF Filtered} & \textbf{59.7} & 0.968 $\pm$ 0.024 & 0.968 $\pm$ 0.024 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -336,9 +336,6 @@ Our empirical results on Census ACS and transaction benchmarks show monotonic HI
 
 \section*{Code and Data Availability}
 The complete open-source implementation, experimental benchmarks, and dataset configurations are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
-
-\section*{Acknowledgements}
-This research was supported by the Department of Data Science and Engineering, Eötvös Loránd University, Budapest, Hungary. The authors would like to thank the open-source community for the foundational tools used to develop the Hybrid Integrity Framework (HIF).
 
 \section*{Declarations}
 

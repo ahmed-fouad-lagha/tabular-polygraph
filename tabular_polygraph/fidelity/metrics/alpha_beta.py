@@ -67,16 +67,16 @@ class AlphaBeta(Metric):
     name = "alpha_beta"
 
     def validate(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> str | None:
-        if len(real) != len(synthetic):
-            return f"Row count mismatch: real={len(real)}, synthetic={len(synthetic)}"
         if len(real) < DEFAULT_ALPHA_BETA_MIN_ROWS:
-            return f"Too few rows: {len(real)} < {DEFAULT_ALPHA_BETA_MIN_ROWS}"
+            return f"Too few real rows: {len(real)} < {DEFAULT_ALPHA_BETA_MIN_ROWS}"
+        if len(synthetic) < DEFAULT_ALPHA_BETA_MIN_ROWS:
+            return f"Too few synthetic rows: {len(synthetic)} < {DEFAULT_ALPHA_BETA_MIN_ROWS}"
         return None
 
     def compute(
         self, real: pd.DataFrame, synthetic: pd.DataFrame, columns: list[str]
     ) -> dict:
-        n_min = min(len(real), DEFAULT_ALPHA_BETA_MAX_ROWS)
+        n_min = min(len(real), len(synthetic), DEFAULT_ALPHA_BETA_MAX_ROWS)
         if n_min < DEFAULT_ALPHA_BETA_MIN_ROWS:
             return {"alpha_precision": None, "beta_recall": None, "authenticity": None}
 

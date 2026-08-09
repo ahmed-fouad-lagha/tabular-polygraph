@@ -335,11 +335,10 @@ def aggregate_metrics(real: pd.DataFrame, synthetic: pd.DataFrame) -> dict:
     except Exception:
         pass
     try:
-        if len(real) == len(synthetic):
-            res = AlphaBeta().compute(real, synthetic, columns)
-            out["alpha_precision"] = res.get("alpha_precision", np.nan)
-            out["beta_recall"] = res.get("beta_recall", np.nan)
-            out["authenticity"] = res.get("authenticity", np.nan)
+        res = AlphaBeta().compute(real, synthetic, columns)
+        out["alpha_precision"] = res.get("alpha_precision", np.nan)
+        out["beta_recall"] = res.get("beta_recall", np.nan)
+        out["authenticity"] = res.get("authenticity", np.nan)
     except Exception:
         pass
     return out

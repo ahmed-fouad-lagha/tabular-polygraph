@@ -31,7 +31,11 @@ ABLATION_CONFIGS = [
     {"name": "NIC-only", "ablation_mode": "nic_only", "aggregation": "geometric"},
     {"name": "Rules-only", "ablation_mode": "rules_only", "aggregation": "geometric"},
     {"name": "LSE + NIC", "ablation_mode": "lse_nic", "aggregation": "geometric"},
-    {"name": "Full HIF (geom.)", "ablation_mode": "full", "aggregation": "geometric"},
+    {
+        "name": "Full HIF (multiplicative)",
+        "ablation_mode": "full",
+        "aggregation": "geometric",
+    },
     {"name": "Full HIF (arith.)", "ablation_mode": "full", "aggregation": "arithmetic"},
 ]
 
@@ -134,6 +138,7 @@ def run_ablation(
             f1_mean=("f1", "mean"),
             f1_sem=("f1", sem),
             accuracy_mean=("accuracy", "mean"),
+            accuracy_sem=("accuracy", sem),
             violation_rate_mean=("violation_rate", "mean"),
             hif_score_mean=("hif_score", "mean"),
         )
@@ -148,7 +153,7 @@ def run_ablation(
         "Rules-only",
         "LSE + NIC",
         "Full HIF (arith.)",
-        "Full HIF (geom.)",
+        "Full HIF (multiplicative)",
     ]
     summary["order"] = summary["ablation"].map({o: i for i, o in enumerate(order)})
     summary = summary.sort_values("order").drop(columns="order")
@@ -168,7 +173,7 @@ def run_ablation(
         print(
             f"| {row['ablation']} | {row['retention_mean']:.1f} | "
             f"{row['f1_mean']:.3f} ± {row['f1_sem']:.3f} | "
-            f"{row['accuracy_mean']:.3f} ± {row['f1_sem']:.3f} | "
+            f"{row['accuracy_mean']:.3f} ± {row['accuracy_sem']:.3f} | "
             f"{row['violation_rate_mean'] * 100:.1f}% |"
         )
 

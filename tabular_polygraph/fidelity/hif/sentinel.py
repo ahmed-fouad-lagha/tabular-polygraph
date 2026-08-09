@@ -21,7 +21,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import OneHotEncoder
 
-from tabular_polygraph._config import DEFAULT_LSE_MIN_SAMPLES_LEAF
+from tabular_polygraph._config import DEFAULT_LSE_MIN_SAMPLES_LEAF, LSEConfig
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,9 @@ class LogicalSentinelEnsemble:
         max_depth: int = 12,
         random_state: int = 42,
         confidence_percentile: float = 5.0,
+        config: LSEConfig | None = None,
     ) -> None:
+        self.config = config or LSEConfig()
         self.top_n_hubs = top_n_hubs
         self.max_depth = max_depth
         self.random_state = random_state
@@ -120,11 +122,11 @@ class LogicalSentinelEnsemble:
                 continue
 
             clf = RandomForestClassifier(
-                n_estimators=25,
-                max_depth=8,
-                min_samples_leaf=LSE_MIN_SAMPLES_LEAF,
+                n_estimators=self.config.n_estimators_discovery,
+                max_depth=self.config.max_depth_discovery,
+                min_samples_leaf=self.config.min_samples_leaf,
                 random_state=self.random_state,
-                max_features="sqrt",
+                max_features=self.config.max_features_discovery,
             )
             n_splits = min(5, n_unique)
             try:
@@ -200,9 +202,9 @@ class LogicalSentinelEnsemble:
             clf = RandomForestClassifier(
                 n_estimators=n_trees,
                 max_depth=self.max_depth,
-                min_samples_leaf=LSE_MIN_SAMPLES_LEAF,
+                min_samples_leaf=self.config.min_samples_leaf,
                 random_state=self.random_state,
-                max_features="log2",
+                max_features=self.config.max_features_train,
                 oob_score=True,
             )
             clf.fit(X, y)

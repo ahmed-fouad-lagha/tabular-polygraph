@@ -43,7 +43,7 @@ def _min_dist_to_synthetic(
 
 
 def _auc_from_scores(member_scores: np.ndarray, nonmember_scores: np.ndarray) -> float:
-    """Compute AUC: P(member score < non-member score). Vectorized O(n log n)."""
+    """Compute AUC: P(member score < non-member score) with Mann-Whitney U tie handling."""
     n_m = len(member_scores)
     n_nm = len(nonmember_scores)
     if n_m == 0 or n_nm == 0:
@@ -51,11 +51,11 @@ def _auc_from_scores(member_scores: np.ndarray, nonmember_scores: np.ndarray) ->
     # Sort both arrays
     member_sorted = np.sort(member_scores)
     nonmember_sorted = np.sort(nonmember_scores)
-    # Vectorized: for each non-member score, count how many member scores are smaller
-    # Using searchsorted for O(n log n) instead of O(n²)
-    ranks = np.searchsorted(member_sorted, nonmember_sorted, side="left")
-    wins = ranks.sum()
-    return round(wins / (n_m * n_nm), 4)
+    # Handle ties by averaging left and right searchsorted ranks (Mann-Whitney U statistic)
+    left_ranks = np.searchsorted(member_sorted, nonmember_sorted, side="left")
+    right_ranks = np.searchsorted(member_sorted, nonmember_sorted, side="right")
+    wins = (left_ranks + right_ranks) / 2.0
+    return round(float(wins.sum() / (n_m * n_nm)), 4)
 
 
 def membership_inference_risk(
