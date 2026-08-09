@@ -117,7 +117,7 @@ print(hallucinations)
 
 The empirical results and tables in the manuscript are produced by the scripts in `scripts/`, which write to `outputs/` by default. Each section below maps a manuscript result to its reproducing command.
 
-### 1. HIF Validation & Calibration (Fig. 2)
+### 1. HIF Validation & Calibration (Section 4.4)
 Sensitivity of HIF to semantic corruption under `permutation` and `conditional_swap` corruption strategies, and the associated calibration curves.
 
 ```bash
@@ -128,14 +128,14 @@ python scripts/01_hif_validation.py --dataset census_acs --rows 2000 --seeds 5 \
   --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator ctgan
 ```
 
-### 2. Cross-Architecture Benchmark (Tables 2 & 5)
+### 2. Cross-Architecture Benchmark (Table 1)
 Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity and utility metrics, including a real-data ground-truth baseline.
 
 ```bash
 python scripts/10_full_benchmark.py --rows 2000 --seeds 10 --generators gaussian_copula,vine,ctgan,tvae
 ```
 
-### 3. Ablation Study (Table 1)
+### 3. Ablation Study (Table 4)
 Isolates each HIF component (LSE, NIC, rule audit) and each aggregation scheme to measure its contribution to violation detection.
 
 ```bash
@@ -143,7 +143,7 @@ python scripts/08_ablation_study.py --dataset census_acs --target household_inco
   --rows 2000 --seeds 5 --generator ctgan
 ```
 
-### 4. Statistical Significance (Table 3)
+### 4. Statistical Significance (Section 4.2)
 Paired tests comparing downstream F1 under HIF filtering vs no filtering (binary median-split `household_income` target).
 
 ```bash
@@ -154,7 +154,7 @@ python scripts/03_statistical_significance.py --dataset census_acs --target hous
   --rows 2000 --seeds 10 --generator ctgan
 ```
 
-### 5. Utility Recovery through HIF Filtering (Table 4)
+### 5. Utility Recovery through HIF Filtering (Table 2)
 Shows that retaining high-integrity synthetic records recovers predictive performance lost during generation.
 
 ```bash
@@ -165,14 +165,14 @@ python scripts/08_ablation_study.py --dataset census_acs --target household_inco
   --rows 2000 --seeds 10 --generator ctgan
 ```
 
-### 6. Hyperparameter Sensitivity (App. A.3.1)
+### 6. Hyperparameter Sensitivity (Appendix)
 Demonstrates HIF's stability across hub counts, confidence percentiles, and violation thresholds.
 
 ```bash
 python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
 ```
 
-### 7. Held-Out Error Benchmarks
+### 7. Held-Out Error Benchmarks (Table 3)
 Validates HIF on held-out synthetic cohorts across corruption levels.
 
 ```bash

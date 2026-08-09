@@ -1,4 +1,4 @@
-\section{Formal Results for the HIF Score Under Stated Assumptions}
+\section{Formal Results for the HIF Score Under Stated Assumptions}\label{app:formal_results}
 
 We provide a formal analysis of Hybrid Integrity Framework (HIF) score properties under the \textbf{structured drift-proof (SDP)} framework introduced by Shang et al. \cite{shang2026finetuning}. The results below should be interpreted as assumption-scoped statements rather than unconditional guarantees.
 
@@ -76,9 +76,11 @@ Algorithm~\ref{alg:calibration} summarizes the complete manifold calibration pro
 \end{algorithmic}
 \end{algorithm}
 
-\section{Logical Sentinel Ensemble (LSE) Implementation Details}
+\section{Logical Sentinel Ensemble (LSE) Implementation Details}\label{app:lse_details}
 
-On the U.S. Census ACS dataset, the Feature Dependency Score $S(h)$ identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{tenure}. The confidence floor $\delta_h$ is the 5th-percentile of the \emph{out-of-bag} probability mass that a sentinel assigns to the correct category in the ground-truth data (safety floor 0.01); out-of-bag predictions yield out-of-sample floors without a held-out split, reflecting generalization rather than memorized fit, and avoid the instability of 1st-percentile thresholds in sparse data \cite{karabulut2025neurosymbolic, long2025evaluating}.\section{Extended Results and Sensitivity Analysis}
+On the U.S. Census ACS dataset, the Feature Dependency Score $S(h)$ identified the following top-5 hubs: \texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, and \texttt{tenure}. The confidence floor $\delta_h$ is the 5th-percentile of the \emph{out-of-bag} probability mass that a sentinel assigns to the correct category in the ground-truth data (safety floor 0.01); out-of-bag predictions yield out-of-sample floors without a held-out split, reflecting generalization rather than memorized fit, and avoid the instability of 1st-percentile thresholds in sparse data \cite{karabulut2025neurosymbolic, long2025evaluating}.
+
+\section{Extended Results and Sensitivity Analysis}
 
 \subsection{Hyperparameter Sensitivity}\label{app:hyperparameters}
 
