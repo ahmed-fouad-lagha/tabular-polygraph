@@ -1,6 +1,6 @@
 \section{Formal Results for the HIF Score Under Stated Assumptions}\label{app:formal_results}
 
-We provide a formal analysis of Hybrid Integrity Framework (HIF) score properties under the \textbf{structured drift-proof (SDP)} framework introduced by Shang et al. \cite{shang2026finetuning}. The results below should be interpreted as assumption-scoped statements rather than unconditional guarantees.
+We provide a formal analysis of Hybrid Integrity Framework (HIF) score properties under the assumptions stated below. The results should be interpreted as assumption-scoped statements rather than unconditional guarantees.
 
 \textbf{Theorem 1 (Intersection Soundness).} The HIF score $H(\mathbf{x})$ defines a membership certificate for the intersection of semantic manifolds $\mathcal{M}_{total} = \bigcap_{l} \mathcal{M}_l$. Under the idealization that each component validity satisfies $\mathcal{C}_l(\mathbf{x}) = 1$ iff $\mathbf{x} \in \mathcal{M}_l$ and $\mathcal{C}_l(\mathbf{x}) \in [0, 1)$ otherwise, $H(\mathbf{x}) = \left( \prod_l \mathcal{C}_l(\mathbf{x}) \right)^{1/L}$ attains its maximum value $1$ exactly on $\mathcal{M}_{total}$:
 \begin{equation}
