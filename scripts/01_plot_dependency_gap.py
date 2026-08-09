@@ -138,7 +138,7 @@ def plot_empirical_gap(save_path):
     ax_marg_x_real.axis("off")
     ax_marg_y_real.axis("off")
     ax_marg_x_real.set_title(
-        "Real Supermarket Data\n(Strict Arithmetic Dependency)",
+        "(a) Real Supermarket Data\n(Ground-Truth Arithmetic Constraint)",
         pad=15,
         fontweight="bold",
     )
@@ -181,7 +181,7 @@ def plot_empirical_gap(save_path):
     ax_marg_x_syn.axis("off")
     ax_marg_y_syn.axis("off")
     ax_marg_x_syn.set_title(
-        f"Synthetic Data (Gaussian Copula)\n(KS: Qty {ks_x:.2f}, Total {ks_y:.2f}, but Broken Dependency)",
+        f"(b) Synthetic Data (Gaussian Copula)\n(Marginals: KS $\\geq$ {min(ks_x, ks_y):.2f}, Joint Violation)",
         pad=15,
         fontweight="bold",
     )
@@ -196,7 +196,7 @@ def plot_empirical_gap(save_path):
 
     # Add a custom text box pointing to the region
     ax_joint_syn.annotate(
-        "Dependency Violation:\nImpossible Total",
+        "Dependency Violation:\nImpossible Joint Combination",
         xy=(1.5, 400),
         xytext=(4.0, 700),
         fontsize=11,
