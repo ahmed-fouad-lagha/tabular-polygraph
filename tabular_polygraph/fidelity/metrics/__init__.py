@@ -30,7 +30,7 @@ from . import (
     correlation,  # noqa: F401
     downstream,  # noqa: F401
     hif,  # noqa: F401
-    ks_test,  # noqa: F401
+    ks,  # noqa: F401
     moment_matching,  # noqa: F401
     stylized_facts,  # noqa: F401
     tvd,  # noqa: F401

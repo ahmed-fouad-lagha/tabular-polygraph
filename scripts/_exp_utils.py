@@ -17,7 +17,7 @@ from tabular_polygraph.fidelity.hif.orchestrator import hif_score
 from tabular_polygraph.fidelity.hif.rules import rule_violation_score
 from tabular_polygraph.fidelity.metrics.alpha_beta import AlphaBeta
 from tabular_polygraph.fidelity.metrics.correlation import Correlation
-from tabular_polygraph.fidelity.metrics.ks_test import KSTest
+from tabular_polygraph.fidelity.metrics.ks import KSTest
 from tabular_polygraph.fidelity.metrics.moment_matching import MomentMatching
 from tabular_polygraph.fidelity.metrics.tvd import TVD
 from tabular_polygraph.generators import (

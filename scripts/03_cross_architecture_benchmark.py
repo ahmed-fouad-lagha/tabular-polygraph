@@ -127,38 +127,42 @@ def run_benchmark(
     summary = (
         df.groupby(["dataset", "generator"])
         .agg(
-            ks=("ks", "mean"),
-            alpha=("alpha_precision", "mean"),
-            beta=("beta_recall", "mean"),
-            hif_score=("hif_score", "mean"),
-            violation_rate=("violation_rate", "mean"),
-            f1_full=("f1_full", "mean"),
-            f1_hif=("f1_hif", "mean"),
-            f1_delta=(
-                "f1_hif",
-                lambda x: (
-                    x.mean() - df.loc[x.index, "f1_full"].mean() if len(x) else np.nan
-                ),
-            ),
-            retention=("retention_pct", "mean"),
+            ks_mean=("ks", "mean"),
+            ks_std=("ks", "std"),
+            alpha_mean=("alpha_precision", "mean"),
+            alpha_std=("alpha_precision", "std"),
+            beta_mean=("beta_recall", "mean"),
+            beta_std=("beta_recall", "std"),
+            hif_mean=("hif_score", "mean"),
+            hif_std=("hif_score", "std"),
+            viol_mean=("violation_rate", "mean"),
+            viol_std=("violation_rate", "std"),
+            f1_full_mean=("f1_full", "mean"),
+            f1_full_std=("f1_full", "std"),
+            f1_hif_mean=("f1_hif", "mean"),
+            f1_hif_std=("f1_hif", "std"),
+            retention_mean=("retention_pct", "mean"),
         )
         .round(4)
         .reset_index()
     )
     summary.to_csv(output_dir / "full_benchmark_summary.csv", index=False)
 
-    print("\n\n" + "=" * 90)
-    print("Full Benchmark (Mean over seeds)")
-    print("=" * 90)
+    print("\n\n" + "=" * 100)
+    print("Full Benchmark (Mean ± SD over seeds)")
+    print("=" * 100)
     print(
-        "| Dataset | Generator | KS | alpha | beta | HIF | Viol% | F1 full | F1 hif | F1 delta | Ret% |"
+        "| Dataset | Generator | KS (Mean ± SD) | alpha (Mean ± SD) | beta (Mean ± SD) | HIF (Mean ± SD) | Viol% (Mean ± SD) |"
     )
-    print("|---|---|---|---|---|---|---|---|---|---|---|")
+    print("|---|---|---|---|---|---|---|")
     for _, r in summary.iterrows():
         print(
-            f"| {r['dataset']} | {r['generator']} | {r['ks']:.3f} | {r['alpha']:.3f} | "
-            f"{r['beta']:.3f} | {r['hif_score']:.3f} | {r['violation_rate'] * 100:.1f} | "
-            f"{r['f1_full']:.3f} | {r['f1_hif']:.3f} | {r['f1_delta']:+.3f} | {r['retention']:.1f} |"
+            f"| {r['dataset']} | {r['generator']} | "
+            f"{r['ks_mean']:.3f} ± {r['ks_std']:.3f} | "
+            f"{r['alpha_mean']:.3f} ± {r['alpha_std']:.3f} | "
+            f"{r['beta_mean']:.3f} ± {r['beta_std']:.3f} | "
+            f"{r['hif_mean']:.3f} ± {r['hif_std']:.3f} | "
+            f"{r['viol_mean'] * 100:.1f} ± {r['viol_std'] * 100:.1f}% |"
         )
 
     print(f"\nResults saved to {output_dir}")

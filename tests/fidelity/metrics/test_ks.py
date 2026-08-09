@@ -1,6 +1,6 @@
 import pandas as pd
 
-from tabular_polygraph.fidelity.metrics.ks_test import KSTest
+from tabular_polygraph.fidelity.metrics.ks import KSTest
 
 
 def test_ks_non_numeric():

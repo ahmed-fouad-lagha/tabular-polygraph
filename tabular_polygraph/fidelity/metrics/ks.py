@@ -33,10 +33,10 @@ class KSTest(Metric):
             ks_stat, _ = stats.ks_2samp(r, s)
             if not np.isfinite(ks_stat):
                 ks_stat = 1.0
-            scores[col] = round(float(max(0.0, min(100.0, (1.0 - ks_stat) * 100.0))), 2)
+            scores[col] = float(max(0.0, min(1.0, 1.0 - ks_stat)))
 
         return {"column_scores": scores, "mean_score": self._mean(scores)}
 
     @staticmethod
     def _mean(scores: dict[str, float]) -> float:
-        return round(float(np.mean(list(scores.values()))), 2) if scores else 0.0
+        return float(np.mean(list(scores.values()))) if scores else 0.0
