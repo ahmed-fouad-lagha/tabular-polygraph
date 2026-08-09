@@ -24,7 +24,7 @@ class CTGANGenerator(BaseGenerator):
 
     def _init(
         self,
-        epochs: int = 50,
+        epochs: int = 300,
         batch_size: int = 500,
         verbose: bool = False,
         **kwargs,

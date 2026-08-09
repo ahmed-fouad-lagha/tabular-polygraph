@@ -225,23 +225,42 @@ The paired tests on Census ACS ($N=10$ seeds, binary median-split \texttt{househ
 
 \begin{table}[htbp]
 \centering
-\caption{Downstream utility filtering. Selecting records that satisfy the manifold laws maintains or improves predictive performance while pruning logically inconsistent records. All rows use $N=10$ seeds.}
+\caption{Downstream utility filtering across all configurations. Retained cohort size (Retention) dictates whether utility can be reliably estimated. $N=10$ seeds.}
 \label{tab:filtering}
 \footnotesize
-\setlength{\tabcolsep}{3pt}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}llcccc@{}}
 \toprule
-Dataset & Generator & Variant & Retention (\%) & F1 ($\pm$ SD) & Accuracy ($\pm$ SD) \\
+Dataset & Generator & Retention (\%) & F1 (Full) & F1 (HIF Filtered) & $\Delta$ F1 \\
 \midrule
-\textbf{ACS (Census)} & Gaussian Copula & Full synthetic & 100.0 & 0.940 $\pm$ 0.006 & 0.940 $\pm$ 0.006 \\
-                      & Gaussian Copula & \textbf{HIF Filtered} & \textbf{99.2} & 0.937 $\pm$ 0.006 & 0.937 $\pm$ 0.006 \\
-                      & CTGAN & Full synthetic & 100.0 & 0.427 $\pm$ 0.090 & 0.518 $\pm$ 0.058 \\
-                      & CTGAN & \textbf{HIF Filtered} & \textbf{65.7} & \textbf{0.532} $\pm$ 0.139 & \textbf{0.601} $\pm$ 0.090 \\
+\textbf{Adult} & CTGAN & 70.6 & 0.449 $\pm$ 0.014 & \textbf{0.455 $\pm$ 0.029} & \textbf{+0.006} \\
+ & Gaussian Copula & 89.4 & 0.588 $\pm$ 0.035 & 0.581 $\pm$ 0.034 & -0.007 \\
+ & TVAE & 99.5 & 0.741 $\pm$ 0.016 & 0.738 $\pm$ 0.024 & -0.002 \\
+ & Vine Copula & 84.1 & 0.459 $\pm$ 0.023 & \textbf{0.466 $\pm$ 0.021} & \textbf{+0.007} \\
 \midrule
-\textbf{Purchases}    & Gaussian Copula & Full synthetic & 100.0 & 0.977 $\pm$ 0.010 & 0.977 $\pm$ 0.010 \\
-                      & Gaussian Copula & \textbf{HIF Filtered} & \textbf{59.7} & 0.968 $\pm$ 0.024 & 0.968 $\pm$ 0.024 \\
+\textbf{Census ACS} & CTGAN & 65.7 & 0.427 $\pm$ 0.090 & \textbf{0.531 $\pm$ 0.139} & \textbf{+0.104} \\
+ & Gaussian Copula & 99.2 & 0.940 $\pm$ 0.006 & 0.937 $\pm$ 0.006 & -0.003 \\
+ & TVAE & 98.5 & 0.928 $\pm$ 0.011 & 0.928 $\pm$ 0.010 & -0.001 \\
+ & Vine Copula & 76.8 & 0.477 $\pm$ 0.039 & \textbf{0.672 $\pm$ 0.037} & \textbf{+0.195} \\
+\midrule
+\textbf{Credit} & CTGAN & 32.4 & 0.455 $\pm$ 0.021 & \textbf{0.463 $\pm$ 0.027} & \textbf{+0.008} \\
+ & Gaussian Copula & 69.5 & 0.485 $\pm$ 0.024 & 0.465 $\pm$ 0.027 & -0.021 \\
+ & TVAE & 86.5 & 0.573 $\pm$ 0.023 & 0.566 $\pm$ 0.031 & -0.007 \\
+ & Vine Copula & 44.3 & 0.439 $\pm$ 0.005 & 0.437 $\pm$ 0.004 & -0.002 \\
+\midrule
+\textbf{Purchases} & CTGAN & 15.1 & 0.372 $\pm$ 0.084 & \textbf{0.500 $\pm$ 0.163} & \textbf{+0.128} \\
+ & Gaussian Copula & 59.7 & 0.977 $\pm$ 0.010 & 0.968 $\pm$ 0.024 & -0.010 \\
+ & TVAE & 1.1 & 0.889 $\pm$ 0.046 & N/A\textsuperscript{*} & - \\
+ & Vine Copula & 13.8 & 0.478 $\pm$ 0.104 & \textbf{0.877 $\pm$ 0.097} & \textbf{+0.399} \\
+\midrule
+\textbf{Supermarket} & CTGAN & 0.0 & 0.390 $\pm$ 0.110 & N/A\textsuperscript{*} & - \\
+ & Gaussian Copula & 97.4 & 0.998 $\pm$ 0.002 & \textbf{0.998 $\pm$ 0.002} & \textbf{+0.000} \\
+ & TVAE & 0.0 & 0.959 $\pm$ 0.017 & N/A\textsuperscript{*} & - \\
+ & Vine Copula & 0.1 & 0.465 $\pm$ 0.066 & N/A\textsuperscript{*} & - \\
 \bottomrule
 \end{tabular}
+\vspace{1ex}
+\raggedright \scriptsize \textsuperscript{*} Retained cohort too small ($<2\%$) for reliable utility estimation.
 \end{table}
 
 To characterize when integrity filtering recovers utility across domains, we tested the paired F1 difference (HIF-filtered minus full synthetic) across all dataset--generator combinations of the cross-architecture benchmark with $N=10$ seeds. Significant utility recovery occurs in four configurations: Census ACS ($\Delta\text{F1} = +0.104$, $p = 0.002$ for CTGAN; $+0.195$, $p < 0.001$ for Vine Copula) and Online Purchases ($\Delta\text{F1} = +0.128$, $p = 0.037$ for CTGAN; $+0.399$, $p < 0.001$ for Vine Copula). Recovery is selective rather than a deterministic consequence of the violation rate: high-violation cohorts on Credit Default show no significant change despite 67.6\% and 55.7\% violation rates (CTGAN, $\Delta\text{F1} = +0.008$, $p = 0.29$; Vine Copula, $-0.002$, $p = 0.16$), and Online Purchases Gaussian Copula shows none at 40.3\% ($-0.010$, $p = 0.28$). Whether removing flagged records improves utility therefore depends on the strength of the association between the violated conditional structure and the downstream target, not on the violation rate alone. Conversely, most remaining configurations exhibit small, non-significant changes (e.g., Census ACS Gaussian Copula, $\Delta\text{F1} = -0.003$, $p = 0.13$; Adult TVAE, $-0.002$, $p = 0.48$; Adult Gaussian Copula, $-0.007$, $p = 0.22$), confirming that filtering does not penalize well-formed synthetic data. Only one configuration shows a small but significant degradation (Credit Gaussian Copula, $\Delta\text{F1} = -0.021$, $p = 0.013$), indicating that pruning can also discard flagged records that retain predictive signal for the target; this remains the exception rather than the rule. Finally, four transaction configurations (Supermarket Sales CTGAN/TVAE/Vine; Online Purchases TVAE) retain at most $\approx 2\%$ of records, leaving the retained cohort too small to estimate utility reliably, and their F1 deltas are consequently not reported. Together these results indicate that HIF-driven filtering is a targeted remediation: it recovers utility where structural errors degrade the target signal and is otherwise utility-neutral.

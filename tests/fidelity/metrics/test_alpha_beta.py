@@ -19,12 +19,12 @@ class TestAlphaPrecisionBetaRecall:
         result = AlphaBeta().compute(real, syn, real.columns.tolist())
         assert result["alpha_precision"] < 0.8
 
-    def test_mismatched_rows_raises(self):
+    def test_too_few_rows_raises(self):
         real = pd.DataFrame({"a": [1, 2, 3]})
         syn = pd.DataFrame({"a": [1, 2]})
         err = AlphaBeta().validate(real, syn)
         assert err is not None
-        assert "Row count mismatch" in err
+        assert "Too few real rows" in err
 
     def test_all_scores_in_range(self):
         rng = np.random.default_rng(7)

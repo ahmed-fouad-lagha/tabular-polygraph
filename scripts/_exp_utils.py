@@ -36,6 +36,8 @@ GENERATORS = {
     "tvae": TVAEGenerator,
 }
 
+PAPER_EPOCHS = 50
+
 
 def load_real(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     """Load cached real data, re-casting integer/float dtypes explicitly."""
@@ -58,16 +60,19 @@ def generate(
     """Fit a generator on ``real`` and draw ``n`` synthetic rows (no syn_id).
 
     Seeds the global RNG *before fitting* so stochastic generators (CTGAN,
-    TVAE) train deterministically for a given ``seed``.
+    TVAE) train deterministically for a given ``seed``. CTGAN/TVAE train for
+    ``PAPER_EPOCHS`` (50) epochs unless overridden, matching the configuration
+    the paper's reported results were generated with.
     """
     from tabular_polygraph._utils import set_seed
 
     set_seed(seed)
     cls = GENERATORS[generator]
+    effective_epochs = epochs if epochs is not None else PAPER_EPOCHS
     if generator == "ctgan":
-        gen = CTGANGenerator(epochs=epochs) if epochs else CTGANGenerator()
+        gen = CTGANGenerator(epochs=effective_epochs)
     elif generator == "tvae":
-        gen = TVAEGenerator(epochs=epochs) if epochs else TVAEGenerator()
+        gen = TVAEGenerator(epochs=effective_epochs)
     else:
         gen = cls()
     gen.fit(real)
