@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 
 import pandas as pd
 
@@ -36,15 +37,31 @@ def get_dataset_info(dataset_id: str) -> dict:
     return copy.deepcopy(DATASETS[dataset_id])
 
 
+def _snapshot_path(dataset_id: str) -> Path | None:
+    """Path to the repository-bundled dataset snapshot, if present.
+
+    The ``data/cache/*.parquet`` files are exact copies of the downloads that
+    produced every number in the manuscript. Bundling them means a fresh clone
+    reproduces the paper's results offline and independently of any upstream
+    source (e.g. the Census API) changing over time.
+    """
+    root = Path(__file__).resolve().parents[2]
+    p = root / "data" / "cache" / f"{dataset_id}.parquet"
+    return p if p.exists() else None
+
+
 def load_cached(dataset_id: str) -> pd.DataFrame | None:
     """Load cached real data if available, else return None.
+
+    The repository snapshot (``data/cache/``) is authoritative when present;
+    otherwise the local cache (``~/.tabular_polygraph/cache``) is used.
 
     Columns listed in ``drop_cols`` are silently removed so downstream
     consumers never see administrative / identifier columns.
     """
     from .downloader import cache_path
 
-    p = cache_path(dataset_id)
+    p = _snapshot_path(dataset_id) or cache_path(dataset_id)
     if p.exists():
         df = pd.read_parquet(p)
         drop_cols = DATASETS.get(dataset_id, {}).get("drop_cols", [])

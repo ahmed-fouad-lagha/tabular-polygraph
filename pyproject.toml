@@ -30,14 +30,14 @@ test = [
     "pytest-cov"
 ]
 vine = [
-    "pyvinecopulib>=0.6"
+    "pyvinecopulib==0.7.5"
 ]
 ctgan = [
-    "ctgan>=0.7.1",
+    "ctgan==0.11.1",
     "torch>=1.13"
 ]
 tvae = [
-    "sdv>=1.0",
+    "sdv==1.32.0",
     "torch>=1.13"
 ]
 lint = [

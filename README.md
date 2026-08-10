@@ -53,6 +53,12 @@ tabular-polygraph list
 ## Quick Start
 
 Evaluate synthetic data against real ground truth. The evaluate command generates a 4-Pillar Scorecard covering Fidelity, Logic (Integrity), Utility, and Privacy.
+
+> **Reproducibility:** the exact datasets behind every number in the manuscript are
+> bundled in `data/cache/*.parquet`. `load_dataset` uses these snapshots by default, so
+> a fresh clone reproduces all paper results offline, independent of the live Census
+> API / UCI sources. Delete `data/cache/` to instead use freshly downloaded data.
+
 ```bash
 # 1. Download sample data (cached in ~/.tabular_polygraph/cache/)
 tabular-polygraph download census_acs
