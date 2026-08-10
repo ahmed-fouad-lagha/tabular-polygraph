@@ -120,6 +120,8 @@ All inferential statistics (significance tests, held-out comparisons, calibratio
 9. **Example consistency:** the "14-year-old with a PhD" example sits in a Census ACS methodological context, but the Census hubs are income/housing/poverty/education/tenure; the example reads as a demographic-education constraint that better matches the Adult benchmark. If it is illustrative, say so.
 10. **Terminology audit:** "integrity," "fidelity," "validity," "plausibility" are used near-synonymously across sections; a short definitions paragraph (as done well for the frontier) would sharpen the whole paper.
 
+**Resolution for #6 and #10:** Hub selection is deterministic by construction (sentinel discovery uses a fixed `random_state=42` with non-shuffled CV folds — the `seed` argument to `hif_score` is not propagated to hub discovery), and the hub sets were verified identical across all 10 held-out seeds for every benchmark dataset; the appendix (§ LSE Implementation Details) now states this explicitly with the Census ACS and Online Purchases hub lists. A Terminology paragraph is added at the start of §4 (Mathematical Foundation) defining *fidelity* (aggregate), *integrity* (row-level, the audited property), *plausibility* (per-column marginal), and *validity* (ground-truth possibility), resolving the near-synonymy across sections. (#7 was already addressed earlier: "Integrity–Fidelity Decoupling" is now defined at its first substantive use in §4.1; #9 was already addressed by marking the PhD example as illustrative.)
+
 ---
 
 ## 6. Reproducibility Assessment (independently verified)
