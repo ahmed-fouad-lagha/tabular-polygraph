@@ -84,6 +84,8 @@ def run_experiment(
         syn_clean = generate(real, n_rows, seed, "gaussian_copula")
         syn_clean = syn_clean[real.columns.intersection(syn_clean.columns).tolist()]
 
+        gmm = heldout.fit_gmm(real, seed=seed)
+
         for strategy_name, corrupt_fn in CORRUPTION_STRATEGIES.items():
             for level in levels:
                 if strategy_name == "row_duplication":
@@ -92,8 +94,13 @@ def run_experiment(
                     corrupted, labels = corrupt_fn(syn_clean, real, level, rng)
 
                 hif_preds, hif_scores = heldout.detect_hif(real, corrupted, seed=seed)
+                gmm_preds, gmm_scores = heldout.detect_gmm(
+                    gmm, real, corrupted, contamination=level
+                )
                 f1_default = float(f1_score(labels, hif_preds, zero_division=0.0))
                 f1_matched = compute_matched_f1(hif_scores, labels, level)
+                gmm_f1_default = float(f1_score(labels, gmm_preds, zero_division=0.0))
+                gmm_f1_matched = compute_matched_f1(gmm_scores, labels, level)
 
                 comm = committed[
                     (committed["seed"] == seed)
@@ -114,6 +121,8 @@ def run_experiment(
                         "corruption_level": level,
                         "f1_threshold_default": f1_default,
                         "f1_matched_rate": f1_matched,
+                        "gmm_f1_threshold_default": gmm_f1_default,
+                        "gmm_f1_matched_rate": gmm_f1_matched,
                     }
                 )
 
@@ -127,6 +136,10 @@ def run_experiment(
             f1_threshold_sem=("f1_threshold_default", sem),
             f1_matched_mean=("f1_matched_rate", "mean"),
             f1_matched_sem=("f1_matched_rate", sem),
+            gmm_f1_threshold_mean=("gmm_f1_threshold_default", "mean"),
+            gmm_f1_threshold_sem=("gmm_f1_threshold_default", sem),
+            gmm_f1_matched_mean=("gmm_f1_matched_rate", "mean"),
+            gmm_f1_matched_sem=("gmm_f1_matched_rate", sem),
         )
         .round(3)
         .reset_index()
@@ -153,7 +166,9 @@ def run_experiment(
             f"{row['error_type']:<24} HIF@0.5: {row['f1_threshold_mean']:.3f} "
             f"| HIF@matched: {row['f1_matched_mean']:.3f} "
             f"| IF: {row.get('IsolationForest', float('nan')):.3f} "
-            f"| LOF: {row.get('LOF', float('nan')):.3f}"
+            f"| LOF: {row.get('LOF', float('nan')):.3f} "
+            f"| GMM@contam: {row.get('gmm_f1_threshold_mean', float('nan')):.3f} "
+            f"| GMM@matched: {row.get('gmm_f1_matched_mean', float('nan')):.3f}"
         )
 
     print(f"\nResults saved to {output_dir / 'heldout_errors_matched.csv'}")

@@ -26,6 +26,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -234,6 +235,51 @@ def detect_hif(
     return preds, scores
 
 
+def fit_gmm(real: pd.DataFrame, seed: int = 42) -> GaussianMixture:
+    """Fit a Gaussian Mixture density model on the encoded real data.
+
+    Component count is selected by BIC over ``k in [1, 6]``; ``reg_covar``
+    guards against singular covariance on sparse one-hot encodings.
+    """
+    X_real, _ = _encode_for_outlier_detection(real, real)
+    best_bic, best = np.inf, None
+    for k in range(1, 7):
+        m = GaussianMixture(
+            n_components=k,
+            covariance_type="full",
+            random_state=seed,
+            reg_covar=1e-4,
+            max_iter=300,
+            n_init=1,
+        )
+        m.fit(X_real)
+        bic = m.bic(X_real)
+        if bic < best_bic:
+            best_bic, best = bic, m
+    assert best is not None
+    return best
+
+
+def detect_gmm(
+    gmm: GaussianMixture,
+    real: pd.DataFrame,
+    syn: pd.DataFrame,
+    contamination: float = 0.2,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Learned-density baseline: score records by negative log-likelihood.
+
+    A synthetic record inconsistent with the joint distribution learned from
+    the real data receives low density, hence a high score. The F1 threshold is
+    the ``(1 - contamination)`` quantile of the *real* data's scores, mirroring
+    the oracle ``contamination`` calibration granted to IF and LOF.
+    """
+    X_real, X_syn = _encode_for_outlier_detection(real, syn)
+    scores = -gmm.score_samples(X_syn)
+    thr = np.quantile(-gmm.score_samples(X_real), 1.0 - contamination)
+    preds = (scores >= thr).astype(int)
+    return preds, scores
+
+
 def run_experiment(
     dataset_id: str,
     n_rows: int,
@@ -261,6 +307,9 @@ def run_experiment(
 
         syn_clean = generate(real, n_rows, seed, "gaussian_copula")
         syn_clean = syn_clean[real.columns.intersection(syn_clean.columns).tolist()]
+
+        print("  Fitting GMM density baseline on real data...", flush=True)
+        gmm = fit_gmm(real, seed=seed)
 
         for strategy_name, corrupt_fn in corruption_strategies.items():
             for level in corruption_levels:
@@ -299,10 +348,20 @@ def run_experiment(
                     lof_preds = np.zeros(len(corrupted), dtype=int)
                     lof_scores = np.zeros(len(corrupted))
 
+                try:
+                    gmm_preds, gmm_scores = detect_gmm(
+                        gmm, real, corrupted, contamination=level
+                    )
+                except Exception as e:
+                    print(f" GMM failed: {e}")
+                    gmm_preds = np.zeros(len(corrupted), dtype=int)
+                    gmm_scores = np.zeros(len(corrupted))
+
                 for method_name, preds, scores in [
                     ("HIF", hif_preds, hif_scores),
                     ("IsolationForest", if_preds, if_scores),
                     ("LOF", lof_preds, lof_scores),
+                    ("GMM", gmm_preds, gmm_scores),
                 ]:
                     if true_labels.sum() == 0:
                         f1 = prec = rec = roc_auc = pr_auc = 0.0
@@ -362,9 +421,10 @@ def run_experiment(
     for level in corruption_levels:
         print(f"\n### Corruption Level = {level}")
         print(
-            "| Error Type | HIF F1 (ROC-AUC / PR-AUC) | IF F1 (ROC / PR) | LOF F1 (ROC / PR) |"
+            "| Error Type | HIF F1 (ROC-AUC / PR-AUC) | IF F1 (ROC / PR) | "
+            "LOF F1 (ROC / PR) | GMM F1 (ROC / PR) |"
         )
-        print("|---|---|---|---|")
+        print("|---|---|---|---|---|")
         sub = summary[summary["corruption_level"] == level]
         for etype in corruption_strategies:
             row_data = sub[sub["error_type"] == etype]
@@ -380,7 +440,8 @@ def run_experiment(
 
             print(
                 f"| {etype} | {get_str('HIF', row_data)} | "
-                f"{get_str('IsolationForest', row_data)} | {get_str('LOF', row_data)} |"
+                f"{get_str('IsolationForest', row_data)} | {get_str('LOF', row_data)} | "
+                f"{get_str('GMM', row_data)} |"
             )
 
     print(f"\nResults saved to {output_dir}")

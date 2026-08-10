@@ -1,0 +1,6 @@
+error_type,corruption_level,f1_threshold_mean,f1_threshold_sem,f1_matched_mean,f1_matched_sem,gmm_f1_threshold_mean,gmm_f1_threshold_sem,gmm_f1_matched_mean,gmm_f1_matched_sem
+covariate_shift,0.4,0.011,0.002,0.058,0.004,0.294,0.006,0.124,0.01
+feature_dropout,0.4,0.624,0.006,0.575,0.005,0.591,0.003,0.736,0.007
+random_injection,0.4,0.694,0.006,0.68,0.007,0.606,0.002,0.72,0.008
+row_duplication,0.4,0.403,0.006,0.405,0.005,0.55,0.003,0.414,0.005
+semantic_hallucination,0.4,0.72,0.003,0.665,0.007,0.611,0.002,0.891,0.006

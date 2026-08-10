@@ -153,8 +153,8 @@ python scripts/04_downstream_utility_significance.py --dataset census_acs \
   --target household_income --rows 2000 --seeds 10 --generator ctgan
 ```
 
-### 4. Held-Out Error Benchmarks (Table 3)
-Validates HIF on held-out error families HIF was not engineered to detect, comparing against Isolation Forest and LOF baselines; `05_heldout_matched_threshold.py` additionally reports HIF F1 at an operating point matched to the baselines' `contamination` setting.
+### 4. Held-Out Error Benchmarks (Table 3 / Table 4)
+Validates HIF on held-out error families HIF was not engineered to detect, comparing against Isolation Forest, LOF, and a learned-density baseline (BIC-selected Gaussian Mixture Model scored by negative log-likelihood); `05_heldout_matched_threshold.py` additionally reports HIF and GMM F1 at operating points matched to the baselines' `contamination` setting. The same protocol is replicated on a second domain (Online Purchases) into `outputs/heldout_online_purchases/`.
 
 ```bash
 python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
@@ -162,9 +162,15 @@ python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
 
 python scripts/05_heldout_matched_threshold.py --dataset census_acs --rows 2000 \
   --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
+
+python scripts/05_heldout_error_baselines.py --dataset online_purchases --rows 664 \
+  --seeds 10 --corruption-levels 0.4
+
+python scripts/05_heldout_matched_threshold.py --dataset online_purchases --rows 664 \
+  --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
 ```
 
-### 5. Component Ablation Study (Table 4)
+### 5. Component Ablation Study (Table 5)
 Isolates each HIF component (LSE, NIC, rule audit) and each aggregation scheme to measure its contribution to violation detection.
 
 ```bash
