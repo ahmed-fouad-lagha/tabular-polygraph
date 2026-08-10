@@ -199,6 +199,13 @@ Sweeps the HIF filtering threshold (H ∈ {0.3, 0.5, 0.7}) on Census ACS CTGAN d
 python scripts/10_threshold_utility_sensitivity.py --seeds 10
 ```
 
+### 9. Sample-Complexity Floor at HIF's Configuration (§3, Appendix)
+Instantiates the identity-testing bounds cited in §3 at HIF's actual hub-conditioned sample sizes (2,000 rows, ≤10 features, 5 hubs per dataset).
+
+```bash
+python scripts/11_sample_complexity_bounds.py
+```
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.

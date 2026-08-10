@@ -1,0 +1,6 @@
+dataset,n_rows,n_hubs,hubs,median_n_cell,min_n_cell,median_s_cell,median_eps_cell,worst_eps_cell,s_joint,eps_joint
+census_acs,2000,5,"household_income, housing_cost, poverty_status, education, tenure",200.0,198.0,200.0,0.2659,0.2666,2000,0.1495
+adult,2000,5,"native_country, race, sex, income, marital_status",5.5,1.0,5.5,0.6538,1.0,1966,0.1489
+credit,2000,5,"pay_2, pay_3, pay_5, pay_4, pay_6",12.0,1.0,12.0,0.5373,1.0,2000,0.1495
+online_purchases,664,5,"quantity, item_total, item_subtotal, purchase_price, item_tax",66.0,1.0,48.0,0.3248,1.0,613,0.1931
+supermarket_sales,1000,5,"branch, city, tax_5pct, total, cogs",100.0,100.0,100.0,0.3158,0.3162,1000,0.1778

@@ -103,5 +103,30 @@ Threshold $H$ & Retained & F1 & $\Delta$F1 & Paired $t$ $p$ & Wilcoxon $p$ & 95\
 \end{tabular}
 \end{table}
 
+\subsection{Sample-Complexity Floor at HIF's Operating Configuration}\label{app:sample_complexity}
+
+These bounds are computable at HIF's operating configuration. The identity/uniformity-testing bound $m \gtrsim \sqrt{S}/\varepsilon^2$ \cite{paninski2008,valiant2014instance} inverted at the per-hub, per-category sample sizes HIF actually conditions on yields per-cell detectability floors $\varepsilon_{\text{cell}} = (S_{\text{cell}} / n_{\text{cell}}^2)^{1/4}$, where $n_{\text{cell}}$ is the number of real rows with hub value $c$ and $S_{\text{cell}}$ is the distinct joint configurations of the non-hub features in that cell. Table~\ref{tab:sample_complexity} reports these values for each benchmark dataset using the auditor's default configuration (5 hubs, 10 quantile bins for continuous features). The cohort-level analogue $\varepsilon_{\text{joint}} = (S_{\text{joint}} / n^2)^{1/4}$ with $S_{\text{joint}}$ distinct full-row configurations and $n=2000$ is also shown.
+
+\begin{table}[htbp]
+\centering
+\caption{Sample-Complexity Floor: per-cell detectability $\varepsilon_{\text{cell}}$ inverted from the identity-testing bound at HIF's actual hub-conditioned sample sizes (5 hubs per dataset, 10 quantile bins). The worst cell (smallest $n_{\text{cell}}$) drives the floor; aggregate $\varepsilon_{\text{joint}}$ assumes a global uniformity test on the full joint.}
+\label{tab:sample_complexity}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+Dataset & Rows & Med. $n_{\text{cell}}$ & Min $n_{\text{cell}}$ & Med. $\varepsilon_{\text{cell}}$ & Worst $\varepsilon_{\text{cell}}$ & $\varepsilon_{\text{joint}}$ \\
+\midrule
+Census ACS & 2000 & 200 & 198 & 0.266 & 0.267 & 0.150 \\
+Adult & 2000 & 5.5 & 1 & 0.654 & 1.000 & 0.149 \\
+Credit & 2000 & 12 & 1 & 0.537 & 1.000 & 0.150 \\
+Online Purchases & 664 & 66 & 1 & 0.325 & 1.000 & 0.193 \\
+Supermarket Sales & 1000 & 100 & 100 & 0.316 & 0.316 & 0.178 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The worst-case floors ($\varepsilon \approx 1.0$) occur where long-tail hub categories leave cells with $n_{\text{cell}} \le 12$ (Adult \texttt{native\_country}, Credit \texttt{pay\_*}, Online Purchases \texttt{quantity}). Census ACS, whose hubs (\texttt{household\_income}, \texttt{housing\_cost}, \texttt{poverty\_status}, \texttt{education}, \texttt{tenure}) all have balanced category counts ($n_{\text{cell}} \ge 198$), achieves $\varepsilon \approx 0.27$; Supermarket Sales' hubs are likewise balanced ($n_{\text{cell}} = 100$, $\varepsilon \approx 0.32$). The cohort-level analogue $\varepsilon_{\text{joint}} \approx 0.15$--$0.19$ is tighter because the full sample $n=2000$ is used without splitting, but it delivers no per-record attribution. HIF's row-level design therefore trades per-cell detectability for granularity; the multi-hub geometric aggregation and the confidence-floor safety minimum ($0.01$) are the design elements that dampen the long-tail cells' influence on the final score.
+
 \subsection{Scalability and Baseline Comparisons}\label{app:scalability}
 We benchmarked HIF against the \textbf{SHAP Distance} semantic fidelity metric \cite{yu2025shap}, which serves as a state-of-the-art baseline for explainability-aware evaluation. Although the SHAP Distance effectively identifies semantic drift, it suffers from severe scalability bottlenecks. HIF auditing scales linearly, $O(N \cdot K)$, where $K$ is the number of hubs. In our empirical scalability benchmark, fitting the 5-hub LSE auditor on 2,000 real records took $9.7$\,s, after which scoring 10,000 synthetic records took $1.50 \pm 0.15$\,s and scoring 100,000 records took $10.6 \pm 0.5$\,s on commodity multi-core hardware (fit amortized once; wall-clock averaged over three repeats). The marginal per-10,000-row cost at the 100,000-row scale ($10.6\,/\,10 \approx 1.1$\,s per 10k rows) confirms the linear scaling. In contrast, SHAP-based methods require $O(N \cdot D \cdot 2^D)$ operations or expensive approximations, which precludes exact evaluation at this volume. Thus, HIF provides comparable detection accuracy while maintaining the computational efficiency required to scale to high-cardinality datasets with millions of rows.
