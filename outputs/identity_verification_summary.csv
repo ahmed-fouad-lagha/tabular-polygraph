@@ -1,0 +1,9 @@
+dataset,generator,flag_rate,base_violation_rate,confirmation_rate_flagged,confirmation_rate_unflagged,median_severity_flagged,median_severity_unflagged,spearman_penalty_severity,spearman_sem
+online_purchases,ctgan,0.9648,0.9984,0.9994,0.984,226000006.8682,46000001.0366,0.0576,0.0198
+online_purchases,gaussian,0.5482,0.8672,0.9888,0.7199,0.4347,0.0766,0.4648,0.0081
+online_purchases,tvae,0.9998,1.0,1.0,1.0,0.418,3.0122,0.1788,0.0109
+online_purchases,vine,0.9722,1.0,1.0,1.0,1.011,0.2674,0.1205,0.0176
+supermarket_sales,ctgan,0.9982,1.0,1.0,1.0,2.4765,0.638,-0.0057,0.0271
+supermarket_sales,gaussian,0.3314,0.9973,1.0,0.996,0.4063,0.155,0.5354,0.0056
+supermarket_sales,tvae,0.9016,1.0,1.0,1.0,0.865,0.3602,0.4591,0.0063
+supermarket_sales,vine,0.9973,1.0,1.0,1.0,0.9045,0.3151,0.0867,0.0097

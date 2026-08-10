@@ -180,6 +180,8 @@ To evaluate the diagnostic utility of HIF across generative paradigms, we conduc
 
 \paragraph{1. Integrity-Fidelity Decoupling on Constrained Domains.} Across all four datasets, Vine Copulas achieve high marginal statistical fit ($\text{KS} \ge 0.969$). However, on datasets with cross-feature relational constraints (Supermarket Sales and Online Purchases), Vine Copulas exhibit severe joint dependency failures, with violation rates of \textbf{86.2\% to 99.9\%} ($\text{HIF} \le 0.271$); CTGAN and TVAE show similar deficits on transaction constraints ($\text{HIF} = 0.02\text{--}0.28$, violation rates 84.9\%--100\%). Marginal metrics (KS) report these models as high-fidelity, underscoring that aggregate fidelity metrics do not capture joint dependency ruptures. A qualitative audit on Supermarket Sales (Vine Copula) confirmed the mechanism: generators match each column's marginal distribution yet violate the arithmetic identity $\text{subtotal} = \text{unit\_price} \times \text{quantity} \times (1 + \text{tax})$, with HIF flagging essentially the entire cohort (violation rate 99.9\% across $N=10$ seeds; component rates 100.0\% LSE, 63.2\% rules, 0.0\% NIC)---while KS and joint-correlation metrics reported high fidelity. This identity is externally verifiable, independent of the auditor's learned models, and anchors the construct validity of the HIF penalty in a way that learned conditional improbability alone cannot (see the threats-to-validity discussion in Section~\ref{sec:results}).
 
+These violations are independently confirmable beyond the auditor's own learned models. Using arithmetic identities that hold to $\approx 10^{-13}$ relative error in the real data---$\text{Total} = \text{Unit Price} \times \text{Quantity} \times 1.05$ (equivalently $\text{Total} = \text{cogs} + \text{gross income}$) on Supermarket Sales, and $\text{item\_total} = \text{item\_subtotal} + \text{item\_tax}$ together with $\text{item\_subtotal} = \text{purchase\_price} \times \text{quantity}$ on Online Purchases---we verified every real generator cohort in this audit ($N=10$ seeds). Records flagged by HIF ($H < 0.5$) are independently confirmed as identity-violating in $\ge 98.9\%$ of cases across all eight dataset--generator configurations (1.000 in six of eight; Table~\ref{tab:identity_verification}). The constraints are violated wholesale (base violation rate $0.87$--$1.00$), so on these fully constrained domains the identity check confirms the Dependency Gap rather than discriminating among records: the cleanest discriminator is Gaussian Copula on Online Purchases, where unflagged records violate at 0.720 versus 0.989 among flagged, and the HIF penalty correlates with violation severity (Spearman $\rho = 0.47 \pm 0.01$; Table~\ref{tab:identity_verification}). Conversely, where HIF flags essentially the entire cohort (Vine and CTGAN on Supermarket Sales; Vine, CTGAN, and TVAE on Online Purchases), its penalty is only weakly monotone in arithmetic severity ($\rho \le 0.18$), because the cohort's failures are dominated by categorical-structure violations rather than continuous residuals---precisely the regime in which the learned-density baseline of Section~\ref{sec:heldout} is the sharper detector of the arithmetic constraint (GMM ROC-AUC 0.955 vs.\ 0.797 on Online Purchases). These numbers quantify the earlier qualitative audit: the flagged cohort is externally invalid at near-universal rates, while HIF's \emph{ranking} within arithmetic-constraint domains is limited---a boundary that motivates the complementary learned-density baseline reported in Section~\ref{sec:heldout}.
+
 \paragraph{2. Evaluation on Unconstrained Manifolds.} On unconstrained demographic and financial benchmarks (Adult Income, Credit Default), raw generators preserve conditional structures better, with HIF scores ranging from 0.33 to 0.98 (violation rates 0.5\%--67.6\%), providing a continuous gradient of structural integrity for comparing generator maturity. Notably, TVAE achieves the highest HIF on both Credit Default (0.827) and Adult Income (0.981), demonstrating that VAE-based architectures can excel at preserving joint dependencies on unconstrained domains.
 
 \paragraph{3. Quantitative Decoupling Evidence.} Pearson correlation analysis across all 16 dataset--generator configurations of the four audit benchmarks (Census ACS is held out as the calibration benchmark; Table~\ref{tab:architecture}) characterizes the decoupling precisely: HIF shows no linear relationship with marginal fidelity ($\rho(\text{HIF}, \text{KS}) = 0.038$) and only a weak relationship with support coverage ($\rho(\text{HIF}, \alpha) = 0.325$), but a strong positive correlation with joint correlation fidelity ($\rho(\text{HIF}, \text{JCD}) = +0.82$). HIF thus aligns with joint-dependency structure while being decoupled from per-column marginal metrics: high marginal fidelity (KS) does not imply high integrity, exactly the pattern observed for Vine Copulas on constrained domains.
@@ -217,6 +219,31 @@ Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparro
 \quad Vine Copula     & \textbf{0.981 $\pm$ 0.005} & \textbf{0.964 $\pm$ 0.008} & 0.799 $\pm$ 0.021 & 0.764 $\pm$ 0.004 & 15.9 $\pm$ 0.9\% \\
 \quad CTGAN           & 0.682 $\pm$ 0.086 & 0.794 $\pm$ 0.058 & 0.802 $\pm$ 0.029 & 0.659 $\pm$ 0.013 & 29.4 $\pm$ 1.8\% \\
 \quad TVAE            & 0.904 $\pm$ 0.019 & 0.701 $\pm$ 0.036 & 0.756 $\pm$ 0.017 & \textbf{0.981 $\pm$ 0.002} & \textbf{0.5 $\pm$ 0.2\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{External Verification of HIF-Flagged Records against Real-Data Arithmetic Identities ($N=10$ seeds, mean). Flagged records ($H < 0.5$) are independently confirmed as identity-violating at $\ge 98.9\%$ in every configuration, confirming that the HIF penalty targets genuinely invalid structure. Where both valid and invalid cohorts coexist (Gaussian Copula), unflagged records are markedly less likely to violate ($\mathbf{99.6\%}$ and $\mathbf{72.0\%}$ confirmed vs.\ 100\% among flagged) and the HIF penalty tracks identity severity (Spearman $\mathbf{0.54}$ and $\mathbf{0.47}$).}
+\label{tab:identity_verification}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+Dataset & Generator & Flagged & Base Viol. & Conf.\ @Flagged & Conf.\ @Unflagged & Spearman $\rho$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Supermarket Sales}} \\
+\quad & Gaussian Copula & 33.1\% & 99.7\% & 100.0\% & \textbf{99.6\%} & \textbf{0.535 $\pm$ 0.006} \\
+\quad & Vine Copula & 99.7\% & 100.0\% & 100.0\% & 100.0\% & 0.087 $\pm$ 0.010 \\
+\quad & CTGAN & 99.8\% & 100.0\% & 100.0\% & 100.0\% & -0.006 $\pm$ 0.027 \\
+\quad & TVAE & 90.2\% & 100.0\% & 100.0\% & 100.0\% & 0.459 $\pm$ 0.006 \\
+\midrule
+\multicolumn{7}{l}{\textbf{Online Purchases}} \\
+\quad & Gaussian Copula & 54.8\% & 86.7\% & 98.9\% & \textbf{72.0\%} & \textbf{0.465 $\pm$ 0.008} \\
+\quad & Vine Copula & 97.2\% & 100.0\% & 100.0\% & 100.0\% & 0.120 $\pm$ 0.018 \\
+\quad & CTGAN & 96.5\% & 99.8\% & 99.9\% & 98.4\% & 0.058 $\pm$ 0.020 \\
+\quad & TVAE & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 0.179 $\pm$ 0.011 \\
 \bottomrule
 \end{tabular}
 \end{table}

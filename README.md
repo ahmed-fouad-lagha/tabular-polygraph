@@ -185,6 +185,13 @@ Demonstrates HIF's stability across hub counts, confidence percentiles, and viol
 python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
 ```
 
+### 7. External Arithmetic-Identity Verification (§4.1, Table)
+Confirms HIF-flagged records against real-data arithmetic identities (Supermarket Sales, Online Purchases) across 10 seeds and 4 generators.
+
+```bash
+python scripts/09_arithmetic_identity_verification.py --seeds 10
+```
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
