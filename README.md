@@ -192,6 +192,13 @@ Confirms HIF-flagged records against real-data arithmetic identities (Supermarke
 python scripts/09_arithmetic_identity_verification.py --seeds 10
 ```
 
+### 8. Downstream-Utility Threshold Sensitivity (§5.1, Appendix)
+Sweeps the HIF filtering threshold (H ∈ {0.3, 0.5, 0.7}) on Census ACS CTGAN downstream F1 to confirm the utility-recovery effect is robust to the operating point.
+
+```bash
+python scripts/10_threshold_utility_sensitivity.py --seeds 10
+```
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
