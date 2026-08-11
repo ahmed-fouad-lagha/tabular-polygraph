@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tabular-polygraph"
-dynamic = ["version"]
+version = "0.1.0"
 description = "HIF: Hybrid Integrity Framework for Synthetic Tabular Data"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -55,9 +55,6 @@ tabular-polygraph = "tabular_polygraph.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["tabular_polygraph*"]
-
-[tool.setuptools.dynamic]
-version = {attr = "tabular_polygraph._version.__version__"}
 
 [tool.ruff]
 line-length = 88

@@ -5,7 +5,6 @@ Quick start:
     from tabular_polygraph.fidelity   import fidelity_report
 """
 
-from ._version import __version__
 from .dataset import get_dataset_info, list_datasets, load_dataset
 from .fidelity import fidelity_report, format_report
 from .fidelity.hif import hif_score
@@ -20,7 +19,6 @@ from .io import read, validate, write
 from .privacy import format_audit, privacy_audit
 
 __all__ = [
-    "__version__",
     "BaseGenerator",
     "CTGANGenerator",
     "GaussianCopulaGenerator",
