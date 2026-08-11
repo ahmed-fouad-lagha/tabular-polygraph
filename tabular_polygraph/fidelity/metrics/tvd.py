@@ -28,12 +28,12 @@ class TVD(Metric):
             if len(r) < DEFAULT_TVD_MIN_SAMPLES or len(s) < DEFAULT_TVD_MIN_SAMPLES:
                 continue
 
-            r_freq = r.value_counts(normalize=True)
-            s_freq = s.value_counts(normalize=True)
-            all_cats = set(r_freq.index).union(set(s_freq.index))
-            tvd = 0.5 * sum(
-                abs(r_freq.get(c, 0.0) - s_freq.get(c, 0.0)) for c in all_cats
-            )
+            r_raw = r.value_counts(normalize=True)
+            s_raw = s.value_counts(normalize=True)
+            all_cats = set(r_raw.index).union(set(s_raw.index))
+            r_freq = r_raw.reindex(all_cats, fill_value=0.0)
+            s_freq = s_raw.reindex(all_cats, fill_value=0.0)
+            tvd = 0.5 * float((r_freq - s_freq).abs().sum())
             score = max(0.0, min(100.0, (1.0 - tvd) * 100.0))
             scores[col] = round(float(score), 2)
 

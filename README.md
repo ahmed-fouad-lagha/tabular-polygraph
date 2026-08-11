@@ -35,7 +35,7 @@ The HIF Hybrid Integrity Framework provides:
 3. Aggregate violations into dataset-level quality diagnostics
 
 #### Performance
-- **Spearman Monotonicity ($\rho = -1.0$)**: Perfect monotonic response under targeted semantic corruption in both current Census and Adult validation runs.
+- **Spearman Monotonicity ($\rho = -0.98$)**: Strong monotonic response under targeted semantic corruption in the Census ACS calibration protocol.
 - **Utility Correlation is dataset-dependent**: Strong on Census ACS in current runs, weak on Adult under the same protocol.
 - **Hallucination Detection**: Identifies row-level logical consistency gaps that can be attenuated by aggregate KS/TVD-style summaries.
 
@@ -107,7 +107,7 @@ syn = pd.read_csv("synthetic.csv")
 
 # 2. Generate 4-Pillar Scorecard (Stats, Logic, Utility, Privacy)
 report = fidelity_report(real, syn, dataset_type="cross_sectional")
-print(f"Hybrid Integrity Score: {report['summary']['hybrid_integrity']}%")
+print(f"Hybrid Integrity Score: {report['summary']['logic_score']}%")
 
 # 3. Detect Row-Level Hallucinations
 # hif_score returns per-row penalty scores [0 = valid, 1 = hallucination]
