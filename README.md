@@ -5,7 +5,7 @@
 <img src="assets/logo.png" alt="Tabular Polygraph" width="20%"/>
 
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.txt)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.lock)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -127,15 +127,15 @@ The empirical results and tables in the manuscript are produced by the scripts i
 Sensitivity of HIF to semantic corruption under `permutation` and `conditional_swap` corruption strategies, and the associated calibration curves.
 
 ```bash
-python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 3 \
-  --levels 0,0.1,0.2,0.4,0.6 --strategy permutation --generator ctgan
+python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 42,43,44 \
+  --levels 0,0.1,0.2,0.4,0.6 --strategy permutation --generator gaussian_copula
 
-python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 3 \
-  --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator ctgan
+python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 42,43,44 \
+  --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator gaussian_copula
 ```
 
 ### 2. Cross-Architecture Benchmark (Table 1)
-Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts on the Census ACS demographic manifold across fidelity and utility metrics, including a real-data ground-truth baseline.
+Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts across fidelity and utility metrics. The real-data reference row of Table 1 is produced separately by script 14 (below).
 
 ```bash
 python scripts/03_cross_architecture_benchmark.py --rows 2000 --seeds 10 \
@@ -204,6 +204,20 @@ Instantiates the identity-testing bounds cited in §3 at HIF's actual hub-condit
 
 ```bash
 python scripts/11_sample_complexity_bounds.py
+```
+
+### 10. Real-Data Reference Floor (Table 1 reference row)
+Fits the HIF auditor on real rows and scores a genuine held-out real remainder for each dataset, establishing the framework's own error floor (genuine data flagged at 0.0–14.0% across domains) and exposing the framework-level overfitting signature (training rows score higher than fresh held-out rows).
+
+```bash
+python scripts/14_real_data_reference.py
+```
+
+### 11. Multiple-Comparisons Battery (Section: Downstream Utility)
+Recomputes the paired F1 difference, paired t-test, Wilcoxon signed-rank, 95% CI, and Cohen's d for all dataset–generator configurations from the committed per-seed rows in `outputs/full_benchmark.csv`, and applies a Bonferroni correction over the 16 configurations with estimable deltas (α = 0.0031).
+
+```bash
+python scripts/15_multiple_comparisons.py
 ```
 
 ## License
