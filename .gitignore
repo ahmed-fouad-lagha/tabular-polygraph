@@ -58,3 +58,4 @@ real_*.csv
 *.synctex(busy)
 *.synctex.gz
 *.nav
+logs/

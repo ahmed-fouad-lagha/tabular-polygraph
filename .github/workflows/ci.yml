@@ -23,12 +23,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.lock
 
       - name: Install lint dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade -e .[lint]
+          pip install --upgrade -e ".[lint,vine]"
 
       - name: Run pre-commit checks
         run: pre-commit run --all-files
@@ -45,12 +47,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.lock
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade -e .[test]
+          pip install --upgrade -e ".[test,vine,ctgan,tvae]"
 
       - name: Run tests
         run: |
