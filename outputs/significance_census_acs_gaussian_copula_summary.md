@@ -6,13 +6,13 @@ Generator: gaussian_copula | N seeds: 10 | Rows: 2000
 
 | Variant | Retention% | F1 (mean ± SEM) | Accuracy (mean ± SEM) |
 |---|---|---|---|
-| Full synthetic | 100.0% | 0.940 ± 0.002 | 0.940 ± 0.002 |
-| Rule-only | 99.1% | 0.937 ± 0.002 | 0.938 ± 0.002 |
-| **HIF Oracle** | **99.2%** | **0.937 ± 0.002** | **0.937 ± 0.002** |
+| Full synthetic | 100.0% | 0.942 ± 0.003 | 0.942 ± 0.003 |
+| Rule-only | 98.9% | 0.941 ± 0.003 | 0.941 ± 0.003 |
+| **HIF Oracle** | **98.7%** | **0.942 ± 0.003** | **0.942 ± 0.003** |
 
 ## Statistical Tests
 
-- **Paired t-test** (Full vs HIF): t=1.652, p=0.1330
-- **Wilcoxon signed-rank**: W=13.0, p=0.1602
-- **95% CI** for F1 difference (HIF - Full): [-0.0079, 0.0012]
-- **Mean F1 improvement**: -0.0033
+- **Paired t-test** (Full vs HIF): t=-0.130, p=0.8998
+- **Wilcoxon signed-rank**: W=18.0, p=0.6523
+- **95% CI** for F1 difference (HIF - Full): [-0.0028, 0.0032]
+- **Mean F1 improvement**: 0.0002

@@ -6,13 +6,13 @@ Generator: ctgan | N seeds: 10 | Rows: 2000
 
 | Variant | Retention% | F1 (mean ± SEM) | Accuracy (mean ± SEM) |
 |---|---|---|---|
-| Full synthetic | 100.0% | 0.427 ± 0.029 | 0.518 ± 0.018 |
-| Rule-only | 97.0% | 0.426 ± 0.029 | 0.521 ± 0.018 |
-| **HIF Oracle** | **65.7%** | **0.532 ± 0.044** | **0.601 ± 0.029** |
+| Full synthetic | 100.0% | 0.381 ± 0.020 | 0.507 ± 0.011 |
+| Rule-only | 92.9% | 0.367 ± 0.014 | 0.499 ± 0.008 |
+| **HIF Oracle** | **63.0%** | **0.441 ± 0.030** | **0.547 ± 0.015** |
 
 ## Statistical Tests
 
-- **Paired t-test** (Full vs HIF): t=-4.234, p=0.0022
+- **Paired t-test** (Full vs HIF): t=-3.423, p=0.0076
 - **Wilcoxon signed-rank**: W=0.0, p=0.0020
-- **95% CI** for F1 difference (HIF - Full): [0.0485, 0.1599]
-- **Mean F1 improvement**: 0.1042
+- **95% CI** for F1 difference (HIF - Full): [0.0203, 0.0993]
+- **Mean F1 improvement**: 0.0598
