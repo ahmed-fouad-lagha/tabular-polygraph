@@ -73,7 +73,9 @@ def load_cached(dataset_id: str) -> pd.DataFrame | None:
     return None
 
 
-def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
+def load_dataset(
+    dataset_id: str, n: int = 2000, random_state: int = 42
+) -> pd.DataFrame:
     """
     Load real data for a dataset via API downloader.
 
@@ -88,6 +90,7 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     Args:
         dataset_id: One of ["census_acs", "adult", "credit", "supermarket_sales", "online_purchases"]
         n: Max number of records to return (default 2000)
+        random_state: Seed for the downsampling draw (default 42)
 
     Returns:
         Sampled DataFrame of real data from cache or download
@@ -103,9 +106,9 @@ def load_dataset(dataset_id: str, n: int = 2000) -> pd.DataFrame:
     cached = load_cached(dataset_id)
     if cached is not None:
         if len(cached) >= 100:
-            return cached.sample(min(n, len(cached)), random_state=42).reset_index(
-                drop=True
-            )
+            return cached.sample(
+                min(n, len(cached)), random_state=random_state
+            ).reset_index(drop=True)
         raise ValueError(
             f"Dataset '{dataset_id}' has only {len(cached)} rows (need ≥100). "
             f"Cached data is too small for meaningful analysis."

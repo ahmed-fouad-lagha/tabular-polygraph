@@ -155,6 +155,7 @@ def main() -> None:
     rows: list[dict] = []
     for seed in seeds:
         print(f"\n[seed={seed}] generating base synthetic...", flush=True)
+        real = load_real(args.dataset, n=args.rows, seed=seed).reset_index(drop=True)
         base_syn = generate(real, args.rows, seed, args.generator)
         base_syn = base_syn[real.columns.intersection(base_syn.columns).tolist()]
 

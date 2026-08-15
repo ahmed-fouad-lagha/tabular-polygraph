@@ -56,7 +56,8 @@ class BaseGenerator(ABC):
         """
         Draw n synthetic rows.
 
-        Handles global seeding automatically before calling subclass _generate().
+        Subclass ``_generate()`` receives ``seed`` and must use it to seed its
+        own local random stream (no global RNG mutation).
         """
         if not self._fitted:
             raise RuntimeError(
@@ -65,11 +66,6 @@ class BaseGenerator(ABC):
 
         if n <= 0:
             return pd.DataFrame(columns=self._columns)
-
-        if seed is not None:
-            from tabular_polygraph._utils import set_seed
-
-            set_seed(seed)
 
         df = self._generate(n, filters=filters, seed=seed)
         return self._add_syn_id(df)
@@ -88,7 +84,7 @@ class BaseGenerator(ABC):
         ----------
         n       : number of rows to return
         filters : optional column constraints
-        seed    : random seed (already applied globally by generate())
+        seed    : random seed for this draw (seed a local stream with it)
 
         Returns a DataFrame without 'syn_id' (BaseGenerator adds it if needed).
         """

@@ -44,6 +44,7 @@ def hif_score(
         component_floor=component_floor,
         ablation_mode=ablation_mode,
         aggregation=aggregation,
+        random_state=random_state,
         rules=RulesConfig(
             min_confidence=rule_min_confidence,
             min_support=rule_min_support,

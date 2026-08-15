@@ -37,9 +37,7 @@ def run_significance_test(
     output_dir: Path,
 ):
     print(f"Loading dataset: {dataset_id}")
-    real = load_real(dataset_id, n=n_rows)
     print(f"Fitting generator: {generator_type}")
-    print(f"Real rows: {len(real)}")
 
     full_f1s: list[float] = []
     rule_f1s: list[float] = []
@@ -55,6 +53,8 @@ def run_significance_test(
         seed = 42 + seed_i
         print(f"\nSeed {seed} ({seed_i + 1}/{n_seeds})")
 
+        real = load_real(dataset_id, n=n_rows, seed=seed).reset_index(drop=True)
+        print(f"  Real rows: {len(real)}")
         syn = generate(real, n_rows, seed, generator_type)
         syn = syn[real.columns.intersection(syn.columns).tolist()]
 

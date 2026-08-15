@@ -120,7 +120,10 @@ class _CategoricalMarginal:
     def to_uniform(self, series: pd.Series) -> np.ndarray:
         if not self._cats:
             return np.full(len(series), 0.5)
-        mapping = {c: (i + 0.5) / len(self._cats) for i, c in enumerate(self._cats)}
+        cum = np.cumsum(self._probs)
+        left = np.concatenate([[0.0], cum[:-1]])
+        midpoints = np.clip((left + cum) / 2, 1e-6, 1 - 1e-6)
+        mapping = {c: float(midpoints[i]) for i, c in enumerate(self._cats)}
         return np.array([mapping.get(v, 0.5) if pd.notna(v) else 0.5 for v in series])
 
     def from_uniform(self, u: np.ndarray) -> list:

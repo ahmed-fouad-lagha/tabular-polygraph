@@ -25,8 +25,15 @@ class ConsoleFormatter:
         lines.append(
             f"  Moment matching : {s.get('moment_matching_score') or 0:>6.2f}%"
         )
-        lines.append(f"  KS distribution : {s.get('ks_score') or 0:>6.2f}%")
+        lines.append(f"  KS distribution : {100 * (s.get('ks_score') or 0):>6.2f}%")
+        lines.append(f"  TVD complement  : {s.get('tvd_score') or 0:>6.2f}%")
         lines.append(f"  Joint distance  : {s.get('joint_score') or 0:>6.2f}%")
+
+        failed = s.get("failed_metrics") or []
+        if failed:
+            lines.append(
+                f"  WARNING: metric(s) failed and report 0.0: {', '.join(failed)}"
+            )
 
         ap = s.get("alpha_precision")
         br = s.get("beta_recall")
@@ -63,8 +70,9 @@ class ConsoleFormatter:
             lines.append("")
             lines.append("  Per-column KS distribution scores:")
             for col, sc in ks_cols.items():
-                bar = "\u2588" * int(sc / 5) + "\u2591" * (20 - int(sc / 5))
-                lines.append(f"    {col:<26} {bar}  {sc}%")
+                sc100 = sc * 100
+                bar = "\u2588" * int(sc100 / 5) + "\u2591" * (20 - int(sc100 / 5))
+                lines.append(f"    {col:<26} {bar}  {sc100:.1f}%")
 
         ds = report.get("downstream")
         if ds:

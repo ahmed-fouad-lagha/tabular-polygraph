@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -42,87 +43,149 @@ DATASETS = [
 ]
 
 
+def _run_cell(
+    ds_id: str, target: str, task: str, gen_name: str, seed: int, n_rows: int
+) -> dict:
+    """Score a single dataset-generator-seed cell (picklable for the pool)."""
+    try:
+        real = load_real(ds_id, n=n_rows, seed=seed).reset_index(drop=True)
+    except Exception as e:
+        return {
+            "dataset": ds_id,
+            "generator": gen_name,
+            "seed": seed,
+            "error": f"load: {e}",
+        }
+
+    try:
+        syn = generate(real, len(real), seed, gen_name)
+    except Exception as e:
+        return {
+            "dataset": ds_id,
+            "generator": gen_name,
+            "seed": seed,
+            "error": f"generate: {e}",
+        }
+    syn = syn[real.columns.intersection(syn.columns).tolist()]
+
+    agg = aggregate_metrics(real, syn, seed)
+    hif_res = audit_hif(real, syn, seed=seed)
+
+    util_full = utility_metrics(real, syn, target, seed)
+    syn_filtered = syn[hif_res["row_penalties"] < 0.5]
+    util_hif = (
+        utility_metrics(real, syn_filtered, target, seed)
+        if len(syn_filtered) > 10
+        else {"f1": np.nan, "accuracy": np.nan, "trr": np.nan}
+    )
+    retention = len(syn_filtered) / len(syn) * 100
+
+    return {
+        "dataset": ds_id,
+        "target": target,
+        "task": task,
+        "generator": gen_name,
+        "seed": seed,
+        "n_rows": len(real),
+        "retention_pct": round(retention, 1),
+        "ks": agg.get("ks", np.nan),
+        "jcd": agg.get("jcd", np.nan),
+        "mm": agg.get("mm", np.nan),
+        "tvd": agg.get("tvd", np.nan),
+        "alpha_precision": agg.get("alpha_precision", np.nan),
+        "beta_recall": agg.get("beta_recall", np.nan),
+        "hif_score": hif_res["hif_score"],
+        "violation_rate": hif_res["violation_rate"],
+        "lse_violation_rate": hif_res["lse_violation_rate"],
+        "nic_violation_rate": hif_res.get("nic_violation_rate", 0.0),
+        "rule_violation_rate": hif_res.get("rule_violation_rate", 0.0),
+        "f1_full": util_full["f1"],
+        "f1_hif": util_hif["f1"],
+    }
+
+
+def _run_cell_tuple(cell: tuple) -> dict:
+    return _run_cell(*cell)
+
+
+def _done_cells(csv_path: Path) -> set[tuple]:
+    if not csv_path.exists():
+        return set()
+    try:
+        df = pd.read_csv(csv_path)
+        return {
+            (r.dataset, r.generator, int(r.seed))
+            for r in df.itertuples()
+            if "error" not in getattr(r, "_fields", [])
+        }
+    except Exception:
+        return set()
+
+
+def _write_row(csv_path: Path, row: dict) -> None:
+    pd.DataFrame([row]).to_csv(
+        csv_path, mode="a", header=not csv_path.exists(), index=False
+    )
+
+
 def run_benchmark(
     datasets: list[tuple[str, str, str]],
     generator_names: list[str],
     n_seeds: int,
     n_rows: int,
     output_dir: Path,
+    workers: int = 1,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
-    all_rows: list[dict] = []
+    csv_path = output_dir / "full_benchmark.csv"
+    cells = [
+        (ds_id, target, task, gen_name, 42 + seed_i, n_rows)
+        for ds_id, target, task in datasets
+        for gen_name in generator_names
+        for seed_i in range(n_seeds)
+    ]
+    already = _done_cells(csv_path)
+    cells = [c for c in cells if (c[0], c[3], c[4]) not in already]
+    if already:
+        print(
+            f"  resuming: {len(already)} cells already in {csv_path.name}", flush=True
+        )
 
-    total = len(datasets) * len(generator_names) * n_seeds
-    done = 0
-
-    for ds_id, target, task in datasets:
-        print(f"\n{'=' * 70}\n  Dataset: {ds_id} (target={target})\n{'=' * 70}")
-        try:
-            real_full = load_real(ds_id, n=n_rows)
-        except Exception as e:
-            print(f"  SKIP (load error: {e})")
-            continue
-
-        real = real_full.reset_index(drop=True)
-
-        for gen_name in generator_names:
-            print(f"\n  -- {gen_name} --")
-            for seed_i in range(n_seeds):
-                seed = 42 + seed_i
-                done += 1
+    if workers > 1 and len(cells) > 1:
+        results = []
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_run_cell_tuple, c) for c in cells]
+            for i, fut in enumerate(as_completed(futures), start=1):
+                r = fut.result()
+                results.append(r)
+                _write_row(csv_path, r)
                 print(
-                    f"    [{done}/{total}] {ds_id} | {gen_name} | seed={seed}: ...",
-                    end="",
+                    f"  [{i}/{len(cells)}] {r.get('dataset', '?')}/{r.get('generator', '?')} "
+                    f"seed={r.get('seed', '?')} {'ERR' if 'error' in r else 'ok'}",
                     flush=True,
                 )
+    else:
+        results = []
+        for i, c in enumerate(cells, start=1):
+            r = _run_cell(*c)
+            results.append(r)
+            _write_row(csv_path, r)
+            print(
+                f"  [{i}/{len(cells)}] {r.get('dataset', '?')}/{r.get('generator', '?')} "
+                f"seed={r.get('seed', '?')} {'ERR' if 'error' in r else 'ok'}",
+                flush=True,
+            )
 
-                try:
-                    syn = generate(real, len(real), seed, gen_name)
-                except Exception as e:
-                    print(f" generate failed: {e}")
-                    continue
-                syn = syn[real.columns.intersection(syn.columns).tolist()]
+    errors = [r for r in results if "error" in r]
+    for e in errors:
+        print(f"  cell failed: {e}")
+    all_rows = [r for r in results if "error" not in r]
+    if not all_rows:
+        print(f"  no new rows (cells remaining: {len(cells)})")
+        return
 
-                agg = aggregate_metrics(real, syn)
-                hif_res = audit_hif(real, syn, seed=seed)
-
-                util_full = utility_metrics(real, syn, target, seed)
-                syn_filtered = syn[hif_res["row_penalties"] < 0.5]
-                util_hif = (
-                    utility_metrics(real, syn_filtered, target, seed)
-                    if len(syn_filtered) > 10
-                    else {"f1": np.nan, "accuracy": np.nan, "trr": np.nan}
-                )
-                retention = len(syn_filtered) / len(syn) * 100
-
-                all_rows.append(
-                    {
-                        "dataset": ds_id,
-                        "target": target,
-                        "task": task,
-                        "generator": gen_name,
-                        "seed": seed,
-                        "n_rows": len(real),
-                        "retention_pct": round(retention, 1),
-                        "ks": agg.get("ks", np.nan),
-                        "jcd": agg.get("jcd", np.nan),
-                        "mm": agg.get("mm", np.nan),
-                        "tvd": agg.get("tvd", np.nan),
-                        "alpha_precision": agg.get("alpha_precision", np.nan),
-                        "beta_recall": agg.get("beta_recall", np.nan),
-                        "hif_score": hif_res["hif_score"],
-                        "violation_rate": hif_res["violation_rate"],
-                        "lse_violation_rate": hif_res["lse_violation_rate"],
-                        "nic_violation_rate": hif_res.get("nic_violation_rate", 0.0),
-                        "rule_violation_rate": hif_res.get("rule_violation_rate", 0.0),
-                        "f1_full": util_full["f1"],
-                        "f1_hif": util_hif["f1"],
-                    }
-                )
-                print(" done.")
-
-    df = pd.DataFrame(all_rows)
-    df.to_csv(output_dir / "full_benchmark.csv", index=False)
+    df = pd.read_csv(csv_path)
+    df = df.dropna(subset=["dataset", "generator", "seed"])
 
     summary = (
         df.groupby(["dataset", "generator"])
@@ -178,6 +241,7 @@ if __name__ == "__main__":
         help="Comma-separated: gaussian,vine,ctgan,tvae",
     )
     parser.add_argument("--output-dir", default="outputs")
+    parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
 
     run_benchmark(
@@ -186,4 +250,5 @@ if __name__ == "__main__":
         n_seeds=args.seeds,
         n_rows=args.rows,
         output_dir=Path(args.output_dir),
+        workers=args.workers,
     )

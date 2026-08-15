@@ -49,7 +49,6 @@ def run_ablation(
     output_dir: Path,
 ):
     print(f"Loading dataset: {dataset_id}")
-    real = load_real(dataset_id, n=n_rows)
     print(f"Fitting generator: {generator_type}")
 
     all_results = []
@@ -57,6 +56,7 @@ def run_ablation(
         seed = 42 + seed_i
         print(f"\n{'=' * 60}\nSeed {seed} ({seed_i + 1}/{n_seeds})\n{'=' * 60}")
 
+        real = load_real(dataset_id, n=n_rows, seed=seed).reset_index(drop=True)
         syn = generate(real, n_rows, seed, generator_type)
         syn = syn[real.columns.intersection(syn.columns).tolist()]
 

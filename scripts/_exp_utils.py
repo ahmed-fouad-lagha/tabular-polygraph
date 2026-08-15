@@ -39,9 +39,13 @@ GENERATORS = {
 PAPER_EPOCHS = 50
 
 
-def load_real(dataset_id: str, n: int = 2000) -> pd.DataFrame:
-    """Load cached real data, re-casting integer/float dtypes explicitly."""
-    real = load_dataset(dataset_id, n=n)
+def load_real(dataset_id: str, n: int = 2000, seed: int = 42) -> pd.DataFrame:
+    """Load cached real data, re-casting integer/float dtypes explicitly.
+
+    ``seed`` controls the real-data downsampling draw so per-seed loops include
+    real-data sampling variability in their spread.
+    """
+    real = load_dataset(dataset_id, n=n, random_state=seed)
     for col in real.columns:
         if pd.api.types.is_integer_dtype(real[col]):
             real[col] = real[col].astype("int64")
@@ -307,7 +311,9 @@ def utility_metrics(
     return {"f1": f1, "accuracy": acc, "trr": trr}
 
 
-def aggregate_metrics(real: pd.DataFrame, synthetic: pd.DataFrame) -> dict:
+def aggregate_metrics(
+    real: pd.DataFrame, synthetic: pd.DataFrame, seed: int = 42
+) -> dict:
     """JCD, mean moment-matching, mean KS, mean TVD from the current metric classes."""
     columns = real.columns.intersection(synthetic.columns).tolist()
     out: dict = {"jcd": np.nan, "mm": np.nan, "ks": np.nan, "tvd": np.nan}
@@ -334,7 +340,7 @@ def aggregate_metrics(real: pd.DataFrame, synthetic: pd.DataFrame) -> dict:
     except Exception:
         pass
     try:
-        res = AlphaBeta().compute(real, synthetic, columns)
+        res = AlphaBeta(random_state=seed).compute(real, synthetic, columns)
         out["alpha_precision"] = res.get("alpha_precision", np.nan)
         out["beta_recall"] = res.get("beta_recall", np.nan)
         out["authenticity"] = res.get("authenticity", np.nan)

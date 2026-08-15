@@ -15,7 +15,7 @@ F1 for HIF alongside the committed IF/LOF F1 at contamination = level.
 
 Run:
     python scripts/05_heldout_matched_threshold.py --dataset census_acs --rows 2000 \
-      --seeds 42 --levels 0.4
+      --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
 """
 
 from __future__ import annotations

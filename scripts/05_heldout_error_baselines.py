@@ -6,7 +6,7 @@ against standard outlier detectors (Isolation Forest, LOF).
 
 Run:
     python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
-      --seeds 42,43,44 --levels 0.4
+      --seeds 10 --corruption-levels 0.4
 """
 
 from __future__ import annotations
@@ -288,7 +288,6 @@ def run_experiment(
     output_dir: Path,
 ):
     print(f"Loading dataset: {dataset_id}")
-    real = load_real(dataset_id, n=n_rows)
 
     print("Generating clean synthetic baseline (Gaussian Copula)...")
     corruption_strategies = {
@@ -305,6 +304,7 @@ def run_experiment(
         rng = np.random.default_rng(seed)
         print(f"\n{'=' * 60}\nSeed {seed} ({seed_i + 1}/{n_seeds})\n{'=' * 60}")
 
+        real = load_real(dataset_id, n=n_rows, seed=seed).reset_index(drop=True)
         syn_clean = generate(real, n_rows, seed, "gaussian_copula")
         syn_clean = syn_clean[real.columns.intersection(syn_clean.columns).tolist()]
 

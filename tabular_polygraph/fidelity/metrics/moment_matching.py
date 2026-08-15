@@ -54,7 +54,7 @@ class MomentMatching(Metric):
                 kurt_s = 0.0
 
             eps = DEFAULT_MOMENT_EPS
-            mean_err = min(abs(mean_s - mean_r) / max(abs(mean_r), eps), 1.0)
+            mean_err = min(abs(mean_s - mean_r) / max(std_r, eps), 1.0)
             std_err = min(abs(std_s - std_r) / max(std_r, eps), 1.0)
             skew_err = min(abs(skew_s - skew_r) / (abs(skew_r) + 0.5), 1.0)
             kurt_err = min(abs(kurt_s - kurt_r) / (abs(kurt_r) + 1.0), 1.0)

@@ -43,11 +43,10 @@ def _correlation_ratio(categories: np.ndarray, measurements: np.ndarray) -> floa
     return float(np.sqrt(max(0.0, min(1.0, eta2))))
 
 
-def _association_matrix(df: pd.DataFrame) -> np.ndarray:
+def _association_matrix(df: pd.DataFrame, is_num: dict[str, bool]) -> np.ndarray:
     n = df.shape[1]
     cols = df.columns.tolist()
     mat = np.eye(n)
-    is_num = {c: pd.api.types.is_numeric_dtype(df[c]) for c in cols}
 
     for i in range(n):
         for j in range(i + 1, n):
@@ -59,15 +58,33 @@ def _association_matrix(df: pd.DataFrame) -> np.ndarray:
             xb = df.loc[mask, cb].values
 
             if is_num[ca] and is_num[cb]:
-                r, _ = spearmanr(xa.astype(float), xb.astype(float))
-                val = abs(r) if np.isfinite(r) else 0.0
+                xa = pd.to_numeric(xa, errors="coerce")
+                xb = pd.to_numeric(xb, errors="coerce")
+                keep = pd.notna(xa) & pd.notna(xb)
+                if keep.sum() < 2:
+                    val = 0.0
+                else:
+                    r, _ = spearmanr(xa[keep].astype(float), xb[keep].astype(float))
+                    val = r if np.isfinite(r) else 0.0
             elif not is_num[ca] and not is_num[cb]:
                 val = _cramers_v(xa, xb)
             else:
                 if is_num[ca]:
-                    val = _correlation_ratio(xb, xa.astype(float))
+                    xa = pd.to_numeric(xa, errors="coerce")
+                    keep = pd.notna(xa)
+                    val = (
+                        _correlation_ratio(xb[keep], xa[keep].astype(float))
+                        if keep.sum() >= 2
+                        else 0.0
+                    )
                 else:
-                    val = _correlation_ratio(xa, xb.astype(float))
+                    xb = pd.to_numeric(xb, errors="coerce")
+                    keep = pd.notna(xb)
+                    val = (
+                        _correlation_ratio(xa[keep], xb[keep].astype(float))
+                        if keep.sum() >= 2
+                        else 0.0
+                    )
             mat[i, j] = mat[j, i] = val
     return mat
 
@@ -85,10 +102,11 @@ class Correlation(Metric):
         if len(columns) < DEFAULT_JOINT_MIN_COLS:
             return {"correlation_distance_score": 100.0, "pairwise_deltas": {}}
 
-        R_real = _association_matrix(real[columns])
-        R_syn = _association_matrix(synthetic[columns])
+        is_num = {c: pd.api.types.is_numeric_dtype(real[c]) for c in columns}
+        R_real = _association_matrix(real[columns], is_num)
+        R_syn = _association_matrix(synthetic[columns], is_num)
 
-        max_possible = 1.0 * np.sqrt(len(columns) * (len(columns) - 1))
+        max_possible = 2.0 * np.sqrt(len(columns) * (len(columns) - 1))
         dist = np.linalg.norm(R_real - R_syn, "fro")
         score = max(0.0, 1 - float(dist) / max(float(max_possible), 1e-8)) * 100
 

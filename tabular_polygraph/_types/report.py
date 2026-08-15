@@ -68,6 +68,7 @@ class LogicalScore:
 class Summary:
     moment_matching_score: float = 0.0
     ks_score: float = 0.0
+    tvd_score: float = 0.0
     joint_score: float = 0.0
     alpha_precision: float | None = None
     beta_recall: float | None = None
@@ -78,6 +79,7 @@ class Summary:
     rows_real: int = 0
     rows_synthetic: int = 0
     elapsed_seconds: float = 0.0
+    failed_metrics: list[str] = field(default_factory=list)
 
 
 @dataclass

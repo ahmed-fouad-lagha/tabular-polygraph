@@ -25,8 +25,9 @@ from . import register
 class Downstream(Metric):
     name = "downstream"
 
-    def __init__(self, target_col: str | None = None):
+    def __init__(self, target_col: str | None = None, random_state: int = 42):
         self._target_col = target_col
+        self._random_state = random_state
 
     def required_column_types(self) -> set[str]:
         return {"all"}
@@ -103,7 +104,7 @@ class Downstream(Metric):
         preprocessor = ColumnTransformer(transformers)
         test_frac = DEFAULT_DOWNSTREAM_TEST_FRAC
         X_real_tr, X_test, y_real_tr, y_test = train_test_split(
-            X_real, y_real, test_size=test_frac, random_state=42
+            X_real, y_real, test_size=test_frac, random_state=self._random_state
         )
 
         # Fit preprocessor on training split only to avoid leakage from test split
@@ -126,10 +127,12 @@ class Downstream(Metric):
             y_syn_enc = le.transform(y_syn_str[known_mask])
 
             rf_tstr = RandomForestClassifier(
-                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
+                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS,
+                random_state=self._random_state,
             )
             rf_trr = RandomForestClassifier(
-                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
+                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS,
+                random_state=self._random_state,
             )
 
             rf_tstr.fit(X_syn_pre[known_mask], y_syn_enc)
@@ -150,10 +153,12 @@ class Downstream(Metric):
                 return {"error": "Regression target column must be numeric"}
 
             rf_tstr = RandomForestRegressor(
-                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
+                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS,
+                random_state=self._random_state,
             )
             rf_trr = RandomForestRegressor(
-                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS, random_state=42
+                n_estimators=DEFAULT_DOWNSTREAM_N_ESTIMATORS,
+                random_state=self._random_state,
             )
             rf_tstr.fit(X_syn_pre, y_syn_num)
             rf_trr.fit(X_real_pre, y_real_tr_num)

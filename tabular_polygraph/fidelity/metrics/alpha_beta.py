@@ -66,6 +66,9 @@ def _encode(real: pd.DataFrame, syn: pd.DataFrame) -> tuple[np.ndarray, np.ndarr
 class AlphaBeta(Metric):
     name = "alpha_beta"
 
+    def __init__(self, random_state: int = 42):
+        self._random_state = random_state
+
     def validate(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> str | None:
         if len(real) < DEFAULT_ALPHA_BETA_MIN_ROWS:
             return f"Too few real rows: {len(real)} < {DEFAULT_ALPHA_BETA_MIN_ROWS}"
@@ -80,8 +83,12 @@ class AlphaBeta(Metric):
         if n_min < DEFAULT_ALPHA_BETA_MIN_ROWS:
             return {"alpha_precision": None, "beta_recall": None, "authenticity": None}
 
-        real_s = real.sample(n_min, random_state=42).reset_index(drop=True)
-        syn_s = synthetic.sample(n_min, random_state=42).reset_index(drop=True)
+        real_s = real.sample(n_min, random_state=self._random_state).reset_index(
+            drop=True
+        )
+        syn_s = synthetic.sample(n_min, random_state=self._random_state).reset_index(
+            drop=True
+        )
 
         X, X_syn = _encode(real_s, syn_s)
         n = len(X)
@@ -93,16 +100,17 @@ class AlphaBeta(Metric):
         Radii = np.quantile(np.sqrt(np.sum((X - emb_center) ** 2, axis=1)), alphas)
         synth_to_center = np.sqrt(np.sum((X_syn - emb_center) ** 2, axis=1))
 
-        nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=None, p=2).fit(X)
-        real_to_real = nbrs_real.kneighbors(X)[0][:, 1].reshape(-1)
+        nbrs_real = NearestNeighbors(n_neighbors=1, n_jobs=None, p=2).fit(X)
+        synth_to_real_d = nbrs_real.kneighbors(X_syn)[0][:, 0]
 
-        nbrs_synth = NearestNeighbors(n_neighbors=1, n_jobs=None, p=2).fit(X_syn)
-        real_synth_idx = nbrs_synth.kneighbors(X, return_distance=False).reshape(-1)
-        real_synth_closest = X_syn[real_synth_idx]
+        nbrs_synth = NearestNeighbors(n_neighbors=2, n_jobs=None, p=2).fit(X_syn)
+        synth_to_synth_d = nbrs_synth.kneighbors(X_syn)[0][:, 1]
+
+        nbrs_synth_idx = NearestNeighbors(n_neighbors=1, n_jobs=None, p=2).fit(X_syn)
+        real_synth_idx = nbrs_synth_idx.kneighbors(X, return_distance=False).reshape(-1)
         real_synth_closest_d = np.sqrt(
-            np.sum((real_synth_closest - emb_center) ** 2, axis=1)
+            np.sum((X_syn[real_synth_idx] - emb_center) ** 2, axis=1)
         )
-        real_to_synth_d = np.sqrt(np.sum((real_synth_closest - X) ** 2, axis=1))
 
         precision_curve = [(synth_to_center <= r).mean() for r in Radii]
         coverage_curve = [(real_synth_closest_d <= r).mean() for r in Radii]
@@ -114,7 +122,7 @@ class AlphaBeta(Metric):
         beta_recall = max(
             0, 1 - np.sum(np.abs(alphas - np.array(coverage_curve))) / denom
         )
-        authenticity = float((real_to_synth_d < real_to_real).mean())
+        authenticity = float((synth_to_real_d < synth_to_synth_d).mean())
 
         return {
             "alpha_precision": float(alpha_precision),

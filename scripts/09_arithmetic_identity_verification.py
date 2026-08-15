@@ -92,13 +92,13 @@ def run_experiment(n_seeds: int, output_dir: Path):
     rows: list[dict] = []
 
     for ds_id, spec in DATASET_IDENTITIES.items():
-        real = load_real(ds_id, n=spec["n"])
         cols = spec["cols"]
         print(f"\n{'=' * 70}\nDataset: {ds_id}\n{'=' * 70}")
 
         for gen in GENERATORS:
             for seed_i in range(n_seeds):
                 seed = 42 + seed_i
+                real = load_real(ds_id, n=spec["n"], seed=seed).reset_index(drop=True)
                 syn = generate(real, spec["n"], seed, gen)
                 syn = syn[cols].reset_index(drop=True)
 

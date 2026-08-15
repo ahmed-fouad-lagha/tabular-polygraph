@@ -5,9 +5,14 @@ Q: "How sensitive are the utility-recovery conclusions to the H < 0.5
     threshold choice (the appendix shows score-level insensitivity on
     Census ACS — is that also true for downstream F1)?"
 
-Re-runs the integrity-filtered downstream F1 protocol at thresholds
-H in {0.3, 0.5, 0.7} on the significant utility-recovery case (Census ACS,
-CTGAN, N=10 seeds): filtering keeps rows with row_penalty <= threshold.
+Re-runs the integrity-filtered downstream F1 protocol on the significant
+utility-recovery case (Census ACS, CTGAN, N=10 seeds).  Filtering keeps rows
+with ``row_penalty <= threshold``, and ``row_penalty == 1 - H``, so the sweep
+``threshold in {0.3, 0.5, 0.7}`` corresponds to the retention frontiers
+``H >= {0.7, 0.5, 0.3}``.  The ``threshold`` column of the output CSVs is the
+penalty threshold; ``retention_frontier`` is the equivalent H bound and is what
+should be quoted in prose.  Larger frontier => stricter filter => lower
+retention.
 
 Run:
     python scripts/10_threshold_utility_sensitivity.py --seeds 10
@@ -57,6 +62,7 @@ def summarize(df: pd.DataFrame) -> pd.DataFrame:
         summary_rows.append(
             {
                 "threshold": thr,
+                "retention_frontier": round(1.0 - thr, 2),
                 "filtered_f1": sub["filtered_f1"].mean(),
                 "retention": sub["retention"].mean(),
                 "delta_f1": diffs.mean() if len(diffs) else np.nan,
@@ -77,13 +83,13 @@ def run_threshold_sensitivity(
     generator_type: str,
     output_dir: Path,
 ):
-    real = load_real(dataset_id, n=n_rows)
     print(f"Dataset: {dataset_id} | Generator: {generator_type} | Rows: {n_rows}")
 
     rows: list[dict] = []
 
     for seed_i in range(n_seeds):
         seed = 42 + seed_i
+        real = load_real(dataset_id, n=n_rows, seed=seed).reset_index(drop=True)
         syn = generate(real, n_rows, seed, generator_type)
         syn = syn[real.columns.intersection(syn.columns).tolist()]
 
@@ -95,6 +101,11 @@ def run_threshold_sensitivity(
         pen = hif_result["row_penalties"]
 
         for thr in THRESHOLDS:
+            # NOTE: ``thr`` is a *penalty* threshold. ``pen == 1 - H``
+            # (auditor.py), so ``pen <= thr`` retains rows with H >= 1 - thr.
+            # thr=0.3 is therefore the STRICTEST arm (retains H >= 0.7) and
+            # thr=0.7 the loosest (retains H >= 0.3).  Report results against
+            # the retention frontier ``1 - thr``, not against ``thr``.
             mask = pen <= thr
             retention = float(mask.mean())
             util = (
@@ -106,6 +117,7 @@ def run_threshold_sensitivity(
                 {
                     "seed": seed,
                     "threshold": thr,
+                    "retention_frontier": round(1.0 - thr, 2),
                     "full_f1": util_full["f1"],
                     "rule_f1": util_rule["f1"],
                     "filtered_f1": util["f1"],
@@ -115,7 +127,7 @@ def run_threshold_sensitivity(
         print(
             f"  seed {seed}: full_f1={util_full['f1']:.3f} "
             + " ".join(
-                f"| H={thr}: f1={next(r['filtered_f1'] for r in rows if r['seed'] == seed and r['threshold'] == thr):.3f} "
+                f"| H>={round(1 - thr, 2)}: f1={next(r['filtered_f1'] for r in rows if r['seed'] == seed and r['threshold'] == thr):.3f} "
                 f"ret={next(r['retention'] for r in rows if r['seed'] == seed and r['threshold'] == thr):.0f}%"
                 for thr in THRESHOLDS
             )
@@ -134,7 +146,7 @@ def run_threshold_sensitivity(
     print("Downstream-F1 Threshold Sensitivity (mean over seeds)")
     print("=" * 90)
     print(
-        f"{'threshold':>10} | {'F1':>6} | {'retention':>9} | "
+        f"{'H >=':>10} | {'F1':>6} | {'retention':>9} | "
         f"{'delta_F1':>8} | {'p(ttest)':>8} | {'p(wilcox)':>9} | {'95% CI':>16}"
     )
     for _, r in summary.iterrows():
@@ -144,7 +156,7 @@ def run_threshold_sensitivity(
             else "N/A"
         )
         print(
-            f"{r['threshold']:>10} | {r['filtered_f1']:>6.3f} | {r['retention']:>8.1f}% | "
+            f"{r['retention_frontier']:>10} | {r['filtered_f1']:>6.3f} | {r['retention']:>8.1f}% | "
             f"{r['delta_f1']:>+8.3f} | {r['p_ttest']:>8.4f} | {r['p_wilcoxon']:>9.4f} | {ci:>16}"
         )
     full_f1 = df["full_f1"].dropna().mean()

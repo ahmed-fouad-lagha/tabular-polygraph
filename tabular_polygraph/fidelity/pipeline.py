@@ -72,6 +72,7 @@ _OLD_TO_NEW: dict[str, str] = {
 def _build_summary(report: FidelityReport) -> Summary:
     mm = report.moment_matching
     ks = report.distribution_fit
+    tvd = report.categorical_tvd
     jt = report.joint
     cv = report.coverage
     lg = report.logical
@@ -84,6 +85,7 @@ def _build_summary(report: FidelityReport) -> Summary:
     return Summary(
         moment_matching_score=mm.mean if mm else 0.0,
         ks_score=ks.mean if ks else 0.0,
+        tvd_score=tvd.mean if tvd else 0.0,
         joint_score=jt.correlation_distance_score if jt else 0.0,
         alpha_precision=cv.alpha_precision if cv else None,
         beta_recall=cv.beta_recall if cv else None,
@@ -270,9 +272,11 @@ def format_report(report: dict, width: int = 60) -> str:
 class FidelityPipeline:
     def __init__(self, config: FidelityConfig | None = None):
         self.config = config or FidelityConfig()
+        self._metric_failures: list[str] = []
 
     def run(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> FidelityReport:
         t0 = time.time()
+        self._metric_failures = []
         cols = _shared_columns(real, synthetic, self.config.columns)
         real = real[cols].copy()
         syn = synthetic[cols].copy()
@@ -290,7 +294,10 @@ class FidelityPipeline:
                 continue
             cls = _metrics.get_metric_cls(name)
             if name == "downstream":
-                inst = cls(target_col=self.config.target_col)  # type: ignore[call-arg]
+                inst = cls(  # type: ignore[call-arg]
+                    target_col=self.config.target_col,
+                    random_state=self.config.random_state,
+                )
             elif name == "hif":
                 if (
                     self.config.progress_callback is not None
@@ -298,6 +305,8 @@ class FidelityPipeline:
                 ):
                     self.config.hif.progress_callback = self.config.progress_callback
                 inst = cls(config=self.config.hif)  # type: ignore[call-arg]
+            elif name == "alpha_beta":
+                inst = cls(random_state=self.config.random_state)  # type: ignore[call-arg]
             else:
                 inst = cls()
 
@@ -323,6 +332,7 @@ class FidelityPipeline:
         report.summary.rows_real = len(real)
         report.summary.rows_synthetic = len(syn)
         report.summary.elapsed_seconds = round(time.time() - t0, 3)
+        report.summary.failed_metrics = list(self._metric_failures)
 
         return report
 
@@ -341,6 +351,7 @@ class FidelityPipeline:
                 self._assign_result(report, inst.name, result)
             except Exception as e:
                 logger.warning("Metric '%s' failed: %s", inst.name, e)
+                self._metric_failures.append(inst.name)
 
     def _run_parallel(
         self,
@@ -364,6 +375,7 @@ class FidelityPipeline:
                 except Exception as e:
                     logger.warning("Metric '%s'.fit() failed: %s", inst.name, e)
                     failed_fit.add(inst.name)
+                    self._metric_failures.append(inst.name)
 
             # Submit compute tasks with independent copies per metric
             compute_futures = {}
@@ -386,6 +398,7 @@ class FidelityPipeline:
                         self._assign_result(report, inst.name, result)
                 except Exception as e:
                     logger.warning("Metric '%s'.compute() failed: %s", inst.name, e)
+                    self._metric_failures.append(inst.name)
 
     def _assign_result(
         self, report: FidelityReport, metric_name: str, result: dict

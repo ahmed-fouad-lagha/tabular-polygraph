@@ -18,17 +18,21 @@ def _tail_integrity(r: np.ndarray, s: np.ndarray) -> float:
     p_high, p_low = DEFAULT_STYLIZED_TAIL_PERCENTILES
     r_p99, r_p50 = np.percentile(r, [p_high, p_low])
     s_p99, s_p50 = np.percentile(s, [p_high, p_low])
-    r_tail = r_p99 / max(abs(r_p50), 1e-9)
-    s_tail = s_p99 / max(abs(s_p50), 1e-9)
+    r_spread = np.percentile(r, 75) - np.percentile(r, 25)
+    s_spread = np.percentile(s, 75) - np.percentile(s, 25)
+    r_tail = (r_p99 - r_p50) / max(r_spread, 1e-9)
+    s_tail = (s_p99 - s_p50) / max(s_spread, 1e-9)
     return max(0.0, 100.0 - abs(r_tail - s_tail) / max(abs(r_tail), 1e-9) * 100)
 
 
-def _predictive_parity(real: pd.DataFrame, syn: pd.DataFrame, cols: list[str]) -> float:
+def _predictive_parity(
+    real: pd.DataFrame, syn: pd.DataFrame, cols: list[str]
+) -> float | None:
     r_corr = real[cols].corr(method="spearman")
     s_corr = syn[cols].corr(method="spearman")
     common = r_corr.index.intersection(s_corr.index)
     if len(common) < 2:
-        return 100.0
+        return None
     r_vals = r_corr.loc[common, common].values[
         np.triu_indices_from(r_corr.loc[common, common], k=1)
     ]
@@ -37,7 +41,7 @@ def _predictive_parity(real: pd.DataFrame, syn: pd.DataFrame, cols: list[str]) -
     ]
     rank_match, _ = stats.spearmanr(r_vals, s_vals)
     if np.isnan(rank_match):
-        return 100.0
+        return None
     return max(0.0, float(rank_match) * 100)
 
 
