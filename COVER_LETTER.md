@@ -127,7 +127,36 @@ report the changed claims explicitly:
   shows the highest marginal fit (KS ≥ 0.97) alongside pervasive dependency
   violations.
 
-## 5. Reproducibility
+## 5. Additional disclosures (this revision)
+
+In response to the review's concern that HIF can be "gamed", we have added
+explicit, quantified disclosures to the manuscript (no numbers changed):
+
+- **Mode collapse is not caught everywhere.** A degenerate generator emitting
+  one real row 2,000 times scores HIF 1.000 with 0.0% violations on Census ACS,
+  Adult, and Credit Default — a necessary-but-not-sufficient boundary we now
+  state as a dedicated limitation, with the same construction caught at 100%
+  violations on the transaction domains by the mined arithmetic rule layer.
+  TVAE's Adult cohort (HIF 0.990, α-Precision 0.350) is used as the concrete
+  worked example, and we recommend reading HIF jointly with a support-coverage
+  diagnostic.
+- **NIC is scoped as a categorical-context check.** We now state explicitly that
+  NIC conditions only on the categorical manifold and cannot detect
+  continuous–continuous arithmetic identities by construction, crediting the
+  rule layer and LSE for that detection where it occurs.
+- **NIC threshold calibration.** NIC calibrates its thresholds on in-sample
+  residuals; we disclose that a 50/50 held-out re-calibration yields thresholds
+  0.96×–1.54× looser on our benchmarks (≤ 1.05× on Census ACS), reporting the
+  current measured effect rather than the larger gap observed on the
+  pre-regeneration code.
+- **Rule-layer hard application.** The 0.95-confidence mined rules are applied
+  as hard penalties; the union false-positive rate on valid data is disclosed,
+  and the formal union bound in Remark 1 now carries the rule-layer term.
+- **TSTR protocol.** The TSTR holdout is carved from rows the generators were
+  fitted on; we disclose that absolute TSTR levels are optimistically biased,
+  while the paired filtering comparisons are protected.
+
+## 6. Reproducibility
 
 All results are reproducible from the committed repository: scripts `02`–`15`,
 committed outputs, golden-value tests, the pip-compiled lockfile, and a

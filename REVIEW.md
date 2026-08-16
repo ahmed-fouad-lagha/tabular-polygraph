@@ -635,6 +635,16 @@ constructs this counterexample in ten minutes; better that you state it first.
 This also explains why TVAE tops the HIF column on Adult and Credit while
 scoring poorly on α-precision — and it is why §3's β-Recall saturation matters.
 
+**Resolution (text-only pass, 2026-08-16).** Now stated explicitly as the
+"Seventh" limitation in §Limitations and Failure Regimes. Measured control
+(seed 42, 2,000 copies of one real row): Census ACS / Adult / Credit all score
+HIF 1.000 with 0.0% violations (auditor is blind to collapsed support); Online
+Purchases / Supermarket Sales are caught at 100% violations (H = 0.0464 =
+(1e-4)^(1/3)) because the duplicated row violates a mined arithmetic rule —
+so the rule layer partially mitigates mode collapse where deterministic
+constraints exist. TVAE Adult (HIF 0.990, α-Prec 0.350) used as the concrete
+worked example. No headline numbers changed.
+
 ### §12 NIC audits the wrong columns on the datasets that motivate the paper **[measured]**
 
 `auditor.py:54-57` splits columns by pandas dtype: `_valid_cols` = non-numeric,
@@ -674,6 +684,14 @@ integer-coded nominal/ordinal variables regressed as real numbers and
 thresholded on `|residual|`. The dtype-driven split is the root cause; an
 explicit schema or cardinality heuristic would fix it.
 
+**Resolution (text-only pass, 2026-08-16).** Reconciled in the NIC subsection
+of §Mathematical Foundation: NIC is now explicitly scoped as a
+categorical-context continuity check — it conditions only on φ(x_cat), cannot
+detect continuous–continuous arithmetic identities by construction, and those
+are credited to the rule layer + LSE-on-binned-numerics (the Supermarket
+identity detection, with NIC's 0.0% component rate, is cited as the evidence).
+Figure 1's motivating example is discussed in that light. No code change.
+
 ### §13 NIC calibrates thresholds in-sample; LSE deliberately does not **[measured]**
 
 `nic.py:136-150` fits the regressor and computes residuals on the same rows:
@@ -700,6 +718,15 @@ training"). Fix with `cross_val_predict` or a calibration split; expect reported
 HIF scores to rise and violation rates to fall, which strengthens the
 specificity story.
 
+**Resolution (text-only pass, 2026-08-16).** Code fix declined — it would shift
+every reported number and force a full 2–4 h regeneration. The sensitivity is
+now disclosed in the NIC subsection with freshly measured ratios (50/50
+held-out re-calibration, all five datasets): thresholds come out
+0.96×–1.54× looser than in-sample (Census ACS ≤ 1.05×; Adult/Credit up to
+1.54×). The reviewer-era ~2× ratio does NOT reproduce on the current pipeline —
+disclosed honestly as the smaller measured effect, framed as "mild upper bounds,
+second-order relative to the LSE signal". No headline numbers changed.
+
 ### §14 The rule layer treats 0.95-confidence rules as hard constraints
 
 Rules are mined at `min_confidence=0.95` (`rules.py:152`) but applied as a binary
@@ -718,6 +745,14 @@ penalty to `1 − confidence`.
 Note also that `component_floor = 1e-4` bounds `H` below at ≈0.046, so
 Theorem 1's "`H(x) → 0`" is never attained in the implementation.
 
+**Resolution (text-only pass, 2026-08-16).** Disclosed in the rule-layer
+paragraph of §Mathematical Foundation (mining thresholds, hard 0/1 application,
+union-of-exception-classes consequence tied to the measured 0.0–14.0% held-out
+flag rate, and the 0.046 floor as the mechanism the mode-collapse control
+exploits). **Remark 1's union bound now carries the rule term**: the false-
+rejection bound is Σ_h α_h + Σ_y β_y + γ_rule, with γ_rule the hard-filter
+false-rejection rate of valid records. No code change.
+
 ### §15 TSTR is leaky; TRR is not
 
 `scripts/03:80` and `scripts/04:57` fit the generator on **all** of `real`, then
@@ -727,6 +762,13 @@ the TRR baseline is clean. Paired *differences* are largely protected because
 both arms share the leak, but absolute TSTR levels and any TSTR-vs-TRR
 comparison are optimistically biased. Standard TSTR fits the generator on the
 real train split only.
+
+**Resolution (text-only pass, 2026-08-16).** Disclosed in a "Protocol
+disclosure" paragraph in §Alignment with Downstream Utility: generators fitted
+on the full real cohort, 30% holdout carved from the same rows, absolute TSTR
+levels optimistically biased; paired ΔF1 differences protected (both arms share
+the leak) and cross-architecture conclusions TSTR-independent. TRR remains
+clean. No code change.
 
 ### §16 Census ACS is not "categorical-heavy" **[measured]**
 

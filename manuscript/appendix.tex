@@ -20,8 +20,9 @@ None of the statements below is a conformal coverage guarantee. The confidence f
 
 \textbf{Remark 1 (Type I Error Bound \& Cohort-Purity Approximation).} Let $\mathbf{x} \sim P_{real}$ be a valid record on the ground-truth manifold $\mathcal{M}_{real}$ (including rare tail outliers). Under quantile calibration ($\delta_h = Q_{\alpha}$ and continuous tolerance bandwidth $\gamma_y = Q_{1-\beta}$), the false-rejection probability is upper-bounded by the Union Bound:
 \begin{equation}
-    P\left( H(\mathbf{x}) < 0.5 \;\middle|\; \mathbf{x} \in \mathcal{M}_{real} \right) \le \sum_{h \in \mathcal{H}} \alpha_h + \sum_{y} \beta_y
+    P\left( H(\mathbf{x}) < 0.5 \;\middle|\; \mathbf{x} \in \mathcal{M}_{real} \right) \le \sum_{h \in \mathcal{H}} \alpha_h + \sum_{y} \beta_y + \gamma_{rule}
 \end{equation}
+where $\gamma_{rule}$ is the rule-layer false-rejection rate of valid records under hard application of the mined implication rules (Section~\ref{sec:math}); it is nonzero in practice because each rule holds on only $\ge 95\%$ of real records by construction, and its empirical counterpart is the held-out violation rate quantified at the end of this remark.
 Furthermore, let a generative model produce a noisy mixture $P_{syn} = (1 - \eta) P_{real} + \eta P_{hallucinated}$, where $\eta \in [0, 1]$ is the structural hallucination rate. Rejection filtering with threshold $H \ge 0.5$ yields an approximate retained-cohort purity:
 \begin{equation}
     \text{Purity}(H \ge 0.5) = \frac{(1 - \eta)(1 - \alpha)}{(1 - \eta)(1 - \alpha) + \eta \beta_{hallucination}}
