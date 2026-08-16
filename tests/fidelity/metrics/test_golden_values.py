@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from tabular_polygraph.fidelity.metrics.alpha_beta import AlphaBeta
 from tabular_polygraph.fidelity.metrics.correlation import Correlation
@@ -34,7 +35,7 @@ def test_ks_shifted_golden_value():
     r = np.linspace(0, 1, 100)
     s = np.linspace(0.1, 1.1, 100)
     res = KSTest().compute(pd.DataFrame({"a": r}), pd.DataFrame({"a": s}), ["a"])
-    assert res["column_scores"]["a"] == 0.9
+    assert res["column_scores"]["a"] == pytest.approx(0.9, abs=1e-9)
 
 
 def test_tvd_hand_computed_golden_value():
