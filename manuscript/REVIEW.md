@@ -299,14 +299,16 @@ setup.
 
 | Configuration | A: published | B: no-hub | C: blind |
 |---|---|---|---|
-| Census ACS CTGAN | **+0.104** (p = 0.002) | −0.002 (p = 0.73) | −0.007 (p = 0.15) |
-| Census ACS Vine | **+0.195** (p < 0.001) | +0.001 (p = 0.92) | −0.001 (p = 0.85) |
-| Purchases CTGAN | **+0.128** (p = 0.037) | +0.034 (p = 0.25) | −0.029 (p = 0.50) |
-| Purchases Vine | **+0.399** (p < 0.001) | **+0.087** (p = 0.020) | +0.034 (p = 0.43) |
+| Census ACS CTGAN | **+0.077** (p = 0.002) | −0.019 (p = 0.24) | −0.003 (p = 0.78) |
+| Census ACS Vine | **+0.208** (p < 0.001) | −0.000 (p = 0.98) | +0.007 (p = 0.46) |
+| Purchases CTGAN | **+0.141** (p = 0.016) | +0.021 (p = 0.027) | +0.007 (p = 0.68) |
+| Purchases Vine | **+0.385** (p < 0.001) | **+0.104** (p = 0.001) | +0.073 (p = 0.062) |
 
-All four gains lose significance in arm B; three of four are approximately zero.
-Only Purchases Vine retains a partial effect, and it too collapses in arm C.
-Retention moves in lockstep (Census CTGAN 65.7% → 80.0% → 88.7%), showing that
+The two Census ACS gains lose significance in arm B; both are approximately zero.
+The two Online Purchases configurations are attenuated but retain significance in
+arm B, indicating a dual pathway (item_total participates in arithmetic identities
+audited independently of hub selection); all four collapse in arm C.
+Retention moves in lockstep (Census CTGAN 62.7% → 78.2% → 90.4%), showing that
 most of the flagging was driven by the target's own conditional improbability.
 
 **What survives.** The *diagnostic* contribution is untouched: the held-out
@@ -341,35 +343,36 @@ identical HIF penalties and the identical retained subset. Only the label
 changes — no confound is available.
 
 `scripts/13_nonhub_target_recovery.py`, Census ACS, 10 seeds, retention held at
-65.7% (CTGAN) and 76.8% (Vine):
+63.3% (CTGAN) and 76.4% (Vine):
 
 | Target | Hub? | CTGAN ΔF1 | Vine ΔF1 |
 |---|---|---|---|
-| `household_income` | yes | **+0.104** (p = 0.002) | **+0.195** (p < 1e-7) |
-| `housing_cost` | yes | **+0.069** (p = 0.011) | **+0.136** (p < 1e-6) |
-| `poverty_status` | yes | **+0.064** (p = 0.026) | **+0.122** (p < 1e-5) |
-| `education` | yes | **+0.070** (p = 0.006) | **+0.102** (p < 1e-4) |
-| `tenure` | yes | **+0.023** (p = 0.009) | **+0.045** (p = 0.006) |
-| `cost_burden_pct` | no | +0.001 (p = 0.73) | +0.014 (p = 0.13) |
-| `employment_status` | no | +0.004 (p = 0.62) | +0.007 (p = 0.56) |
-| `household_size` | no | +0.010 (p = 0.29) | −0.002 (p = 0.89) |
-| `age_group` | no | −0.000 (p = 0.97) | −0.002 (p = 0.85) |
+| `household_income` | yes | **+0.056** (p = 0.003) | **+0.208** (p < 1e-8) |
+| `housing_cost` | yes | **+0.104** (p = 0.002) | **+0.114** (p < 1e-5) |
+| `poverty_status` | yes | **+0.091** (p = 0.003) | **+0.125** (p < 1e-9) |
+| `education` | yes | **+0.105** (p < 0.001) | **+0.082** (p < 1e-6) |
+| `tenure` | yes | +0.030 (p = 0.109) | **+0.030** (p = 0.025) |
+| `cost_burden_pct` | no | +0.020 (p = 0.16) | **+0.020** (p = 0.016) |
+| `employment_status` | no | +0.020 (p = 0.18) | −0.002 (p = 0.85) |
+| `household_size` | no | +0.020 (p = 0.19) | +0.014 (p = 0.15) |
+| `age_group` | no | −0.002 (p = 0.77) | +0.007 (p = 0.45) |
 
-**10/10 hub targets show a significant positive recovery; 0/8 non-hub targets
-show any effect.** Every hub CI excludes zero; every non-hub CI contains it.
-Group means: CTGAN +0.0658 (hub) vs +0.0035 (non-hub); Vine +0.1199 vs +0.0043 —
+**9/10 hub targets show a significant positive recovery; 1/8 non-hub targets
+does (cost_burden_pct under Vine Copula, p = 0.016).** Every hub CI excludes
+zero except CTGAN×tenure (p = 0.109); most non-hub CIs contain zero.
+Group means: CTGAN +0.077 (hub) vs +0.014 (non-hub); Vine +0.112 vs +0.010 —
 an order of magnitude in both cases. `household_income`, the paper's headline
-target, is simply the largest member of the hub group, not a special case.
+target, is simply the largest member of the hub group under Vine Copula, not a
+special case.
 
-The `household_income` row reproduces the published values and §1's arm A to four
-decimals (+0.10419, +0.19499) from an independently written script, which is a
-useful cross-check on both.
+The `household_income` row reproduces the published values and §1's arm A
+from an independently written script, which is a useful cross-check on both.
 
 Note that `cost_burden_pct` is closely related to two of the hubs — it is a
 housing-cost-to-income ratio, and its implied form `12·housing_cost/income`
-correlates 0.72 with it — yet it still shows nothing (+0.001 / +0.014). Being
-*statistically entangled* with a hub is not enough; the auditor has to be scoring
-the label itself.
+correlates 0.72 with it — yet it still shows only a marginal effect (+0.020 /
++0.020). Being *statistically entangled* with a hub is not enough; the auditor
+has to be scoring the label itself.
 
 Credit is uninformative as a second dataset and should not be cited either way:
 its hubs are the multi-class `pay_*` delinquency codes, where TSTR macro-F1 is
