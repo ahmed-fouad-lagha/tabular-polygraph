@@ -1,0 +1,11 @@
+dataset,split,n_train,n_test,hif_score,violation_rate
+adult,held_out,2000,2000,0.9229,0.043
+adult,replay_train,2000,2000,0.9774,0.002
+credit,held_out,2000,2000,0.8232,0.14
+credit,replay_train,2000,2000,0.8862,0.081
+census_acs,held_out,2000,462,0.9642,0.013
+census_acs,replay_train,2000,2000,0.9853,0.0035
+online_purchases,held_out,531,133,0.9175,0.0677
+online_purchases,replay_train,531,531,0.9664,0.0113
+supermarket_sales,held_out,800,200,0.9802,0.0
+supermarket_sales,replay_train,800,800,0.9959,0.0
