@@ -190,7 +190,7 @@ def plot_empirical_gap(save_path):
     # Real max for Q=1 is ~100, Q=2 is ~200. Anything > 250 is impossible here.
     ax_joint_syn.add_patch(
         plt.Rectangle(
-            (0.5, 250), 2.0, 750, fill=False, edgecolor="black", linestyle="--", lw=2
+            (0.5, 250), 2.0, 550, fill=False, edgecolor="black", linestyle="--", lw=2
         )
     )
 
