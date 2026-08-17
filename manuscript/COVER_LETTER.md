@@ -88,14 +88,14 @@ report the changed claims explicitly:
 - **The utility-recovery result is label-conditional, not structural.**
   Integrity filtering improves downstream utility precisely when the auditor's
   selected dependency hubs include the prediction target. On Census ACS the
-  regenerated gains are **+12.6 F1 points for CTGAN** (paired t-test p = 0.001;
-  95% CI [+0.068, +0.185]) and **+17.9 points for the Vine Copula** (p < 0.001;
-  CI [+0.144, +0.214]), while on a largely error-free cohort (Gaussian Copula)
+  regenerated gains are **+6.0 F1 points for CTGAN** (paired t-test p = 0.008;
+  95% CI [+0.020, +0.099]) and **+21.4 points for the Vine Copula** (p < 0.001;
+  CI [+0.189, +0.238]), while on a largely error-free cohort (Gaussian Copula)
   filtering is utility-neutral (p = 0.90). Two controlled experiments isolate
   the mechanism: across nine Census ACS targets, **9 of the 10 hub
   target–generator pairs recover significantly** (the sole exception is
-  CTGAN×tenure, p = 0.080), whereas **only 1 of 8 non-hub pairs does** on
-  identical retained cohorts (Vine Copula×cost_burden_pct, p = 0.022); and
+  CTGAN×tenure, p = 0.109), whereas **only 1 of 8 non-hub pairs does** on
+  identical retained cohorts (Vine Copula×cost_burden_pct, p = 0.016); and
   withholding the target from hub selection eliminates the gain. We therefore
   present the effect as conditional label curation rather than generic
   structural repair.

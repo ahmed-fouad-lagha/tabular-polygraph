@@ -129,13 +129,29 @@ estimate: a focused week, mostly writing rather than computing.
        4.3/6.8/13.9%). README:138 fixed (script 03 does NOT emit a real-data
        baseline; script 14 documented). Note: §10's ad-hoc census 0.906/4.1% not
        reproduced (1.3% here) — canonical values supersede. Clean rebuild 38 pages.
-- [ ] **§11** Add a "necessary but not sufficient" limitation with the
-      mode-collapse numbers.
-- [ ] **§12** Reconcile NIC's predictor set with Figure 1's motivating example.
-- [ ] **§13** Fix NIC's in-sample threshold calibration.
-- [ ] **§14** Disclose the rule layer's 0.95-confidence behaviour; add a rule term
-      to Theorem 3.
-- [ ] **§15** Disclose the TSTR leak, or refit generators on the train split.
+ - [x] **§11** Add a "necessary but not sufficient" limitation with the
+       mode-collapse numbers. **Done** — Seventh limitation in §6.2: 2,000 copies
+       of one real row score HIF 1.000/0.0% on Census ACS, Adult, Credit; caught at
+       100% violations on Online Purchases/Supermarket (H = 0.0464 = (1e-4)^(1/3));
+       TVAE Adult (0.990 vs α-Prec 0.350) as the worked example. No headline numbers
+       changed.
+ - [x] **§12** Reconcile NIC's predictor set with Figure 1's motivating example.
+       **Done** — NIC subsection now scopes NIC as a categorical-context continuity
+       check (conditions only on φ(x_cat), cannot see continuous–continuous
+       identities by construction); detection credited to rule layer + LSE
+       (Supermarket NIC component rate 0.0% cited). No code change.
+ - [x] **§13** Fix NIC's in-sample threshold calibration. **Done (disclosure
+       only)** — code fix declined (would shift every reported number); sensitivity
+       disclosed with freshly measured 50/50 ratios 0.96×–1.54× looser (Census
+       ACS ≤ 1.05×); the review-era ~2× does not reproduce on the current pipeline.
+ - [x] **§14** Disclose the rule layer's 0.95-confidence behaviour; add a rule term
+       to Theorem 3. **Done** — mining thresholds + hard 0/1 application +
+       ε-floor disclosed in the rule-layer paragraph; **Remark 1** (the demoted
+       Theorem 3) union bound now carries the γ_rule term.
+ - [x] **§15** Disclose the TSTR leak, or refit generators on the train split.
+       **Done (disclosure only)** — "Protocol disclosure" paragraph in §5.2:
+       absolute TSTR levels optimistically biased, paired ΔF1 protected, TRR clean;
+       refit declined (would invalidate committed outputs).
  - [x] **§16** Correct the "categorical-heavy Census ACS" framing and the GMM
        explanation. **Done** — verified Census ACS = 9 numeric + `state` (51 levels), all five
        hubs (`household_income`, `housing_cost`, `poverty_status`, `education`, `tenure`)

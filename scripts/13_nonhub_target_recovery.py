@@ -19,6 +19,10 @@ identical HIF penalties, identical retained subset.  Only the label changes.
 If Delta-F1 is positive for hub targets and null for non-hub targets on the
 same retained cohort, the recovery is label-conditioned rather than structural.
 
+Following the canonical protocol of scripts 03--04, each seed draws its own
+real-data sample (seed-specific `load_real`); within a seed, one generator fit
+and one audit serve every candidate target on identical synthetic rows.
+
 Run:
     python scripts/13_nonhub_target_recovery.py --seeds 10
 """
@@ -127,18 +131,61 @@ def paired_stats(full: np.ndarray, filtered: np.ndarray) -> dict:
     }
 
 
+def _save_checkpoint(output_dir: Path, rows: list[dict]) -> pd.DataFrame:
+    """Write the raw CSV (overwrite) and derive the summary."""
+    raw = pd.DataFrame(rows)
+    raw.to_csv(output_dir / "nonhub_target_recovery_raw.csv", index=False)
+
+    summary = []
+    for (ds_id, gen_name, tgt), grp in raw.groupby(
+        ["dataset", "generator", "target"], sort=False
+    ):
+        summary.append(
+            {
+                "dataset": ds_id,
+                "generator": gen_name,
+                "target": tgt,
+                "target_is_hub": bool(grp["target_is_hub"].iloc[0]),
+                "retention": float(grp["retention"].mean()),
+                **paired_stats(
+                    grp["f1_full"].to_numpy(dtype=float),
+                    grp["f1_filtered"].to_numpy(dtype=float),
+                ),
+            }
+        )
+    summ = pd.DataFrame(summary)
+    summ.to_csv(output_dir / "nonhub_target_recovery_summary.csv", index=False)
+    return summ
+
+
+def _completed_combos(output_dir: Path) -> set[tuple]:
+    """Return the set of (dataset, generator, seed) already in the raw CSV."""
+    raw_path = output_dir / "nonhub_target_recovery_raw.csv"
+    if not raw_path.exists():
+        return set()
+    df = pd.read_csv(raw_path)
+    return set(zip(df["dataset"], df["generator"], df["seed"].astype(int), strict=True))
+
+
 def run(n_seeds: int, output_dir: Path) -> None:
     rows: list[dict] = []
+    done = _completed_combos(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     for ds_id, n_rows, targets in CONFIGS:
-        real = load_real(ds_id, n=n_rows).reset_index(drop=True)
-        usable = [t for t in targets if t in real.columns and real[t].nunique() >= 2]
-
         for gen_name in GENERATORS:
             print(f"\n{'=' * 70}\n  {ds_id} | {gen_name}\n{'=' * 70}", flush=True)
 
             for seed_i in range(n_seeds):
                 seed = 42 + seed_i
+                if (ds_id, gen_name, seed) in done:
+                    print(f"    seed={seed} -- skipped (checkpoint)", flush=True)
+                    continue
+
+                real = load_real(ds_id, n=n_rows, seed=seed).reset_index(drop=True)
+                usable = [
+                    t for t in targets if t in real.columns and real[t].nunique() >= 2
+                ]
                 syn = generate(real, len(real), seed, gen_name)
                 syn = syn[real.columns.intersection(syn.columns).tolist()]
 
@@ -171,35 +218,15 @@ def run(n_seeds: int, output_dir: Path) -> None:
                             "f1_filtered": filt["f1"],
                         }
                     )
+                # checkpoint after each seed
+                _save_checkpoint(output_dir, rows)
                 print(
                     f"    seed={seed} retention={retention:5.1f}% "
                     f"({len(usable)} targets scored)",
                     flush=True,
                 )
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw = pd.DataFrame(rows)
-    raw.to_csv(output_dir / "nonhub_target_recovery_raw.csv", index=False)
-
-    summary = []
-    for (ds_id, gen_name, tgt), grp in raw.groupby(
-        ["dataset", "generator", "target"], sort=False
-    ):
-        summary.append(
-            {
-                "dataset": ds_id,
-                "generator": gen_name,
-                "target": tgt,
-                "target_is_hub": bool(grp["target_is_hub"].iloc[0]),
-                "retention": float(grp["retention"].mean()),
-                **paired_stats(
-                    grp["f1_full"].to_numpy(dtype=float),
-                    grp["f1_filtered"].to_numpy(dtype=float),
-                ),
-            }
-        )
-    summ = pd.DataFrame(summary)
-    summ.to_csv(output_dir / "nonhub_target_recovery_summary.csv", index=False)
+    summ = _save_checkpoint(output_dir, rows)
 
     pd.set_option("display.width", 240)
     print(f"\n{'=' * 70}\n  PER-TARGET RESULTS\n{'=' * 70}")

@@ -24,6 +24,12 @@ three arms differ only in what the auditor is allowed to see:
 Arm C is the decisive control: if the Delta-F1 gain survives when the auditor
 is blind to the label, the remediation claim is structural.
 
+Following the canonical protocol of scripts 03--04, each seed draws its own
+real-data sample (seed-specific `load_real`), so within each seed the auditor,
+the synthetic cohort, and the retained subset match the published per-seed
+configuration; arm A therefore reproduces the retention and Delta-F1 of the
+corresponding row in Table 3.
+
 Run:
     python scripts/12_target_leakage_control.py --seeds 10
 """
@@ -151,10 +157,10 @@ def run(n_seeds: int, output_dir: Path) -> None:
 
     for ds_id, target, gen_name, n_rows in CONFIGS:
         print(f"\n{'=' * 70}\n  {ds_id} | {gen_name} | target={target}\n{'=' * 70}")
-        real = load_real(ds_id, n=n_rows).reset_index(drop=True)
 
         for seed_i in range(n_seeds):
             seed = 42 + seed_i
+            real = load_real(ds_id, n=n_rows, seed=seed).reset_index(drop=True)
             syn = generate(real, len(real), seed, gen_name)
             syn = syn[real.columns.intersection(syn.columns).tolist()]
 
