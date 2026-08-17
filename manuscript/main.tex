@@ -315,24 +315,22 @@ Under a Bonferroni correction ($\alpha = 0.05/16 \approx 0.003$), the two Vine C
 
 The four recoveries above share a property that the violation rate does not explain: in each case the median-split prediction target is itself one of the auditor's five selected hubs (\texttt{household\_income} on Census ACS, \texttt{item\_total} on Online Purchases). Because a sentinel trained on that hub scores each record by how probable its target value is given the remaining features, low-$H$ records are enriched for rows whose \emph{label} is atypical, not only for rows whose feature geometry is atypical. Pruning them would then improve TSTR F1 through conditional label curation rather than through structural repair. We ran two experiments to determine whether this is what drives the effect.
 
-\paragraph{Experiment 1: varying the target at fixed cohort.} We held the target-sweep retained cohorts fixed and swept the downstream target across nine Census ACS columns---the five selected hubs and four non-hubs---so that the filter, the retained rows, and the retention rate are byte-identical across all conditions and only the label changes (Table~\ref{tab:label_conditional}). Nine of the ten hub target--generator pairs recover significantly (the sole exception is CTGAN$\times$tenure, $p = 0.109$), with group-mean gains of $+0.077$ (CTGAN) and $+0.112$ (Vine Copula). Seven of the eight non-hub pairs show no detectable effect (the exception is Vine Copula$\times$cost\_burden\_pct, $p = 0.016$), with group means of $+0.014$ and $+0.010$---an order of magnitude smaller. Among the significant pairs every hub confidence interval excludes zero, and among the non-hub pairs only the cost\_burden\_pct interval does. Because the retained cohort is fixed, this contrast cannot be attributed to which records the auditor removed; it is entirely a property of which column is being predicted.
+\paragraph{Experiment 1: varying the target at fixed cohort.} We held the target-sweep retained cohorts fixed and swept the downstream target across nine Census ACS columns---the five selected hubs and four non-hubs---so that the filter, the retained rows, and the retention rate are byte-identical across all conditions and only the label changes (Table~\ref{tab:label_conditional_sweep}). Nine of the ten hub target--generator pairs recover significantly (the sole exception is CTGAN$\times$tenure, $p = 0.109$), with group-mean gains of $+0.077$ (CTGAN) and $+0.112$ (Vine Copula). Seven of the eight non-hub pairs show no detectable effect (the exception is Vine Copula$\times$cost\_burden\_pct, $p = 0.016$), with group means of $+0.014$ and $+0.010$---an order of magnitude smaller. Among the significant pairs every hub confidence interval excludes zero, and among the non-hub pairs only the cost\_burden\_pct interval does. Because the retained cohort is fixed, this contrast cannot be attributed to which records the auditor removed; it is entirely a property of which column is being predicted.
 
 Notably, \texttt{cost\_burden\_pct} is statistically entangled with two hubs---it correlates $0.72$ with $12 \cdot \texttt{housing\_cost} / \texttt{household\_income}$---yet shows no recovery under CTGAN ($+0.020$, $p = 0.16$) and only a small marginal one under the Vine Copula ($+0.020$, $p = 0.016$), an order of magnitude below the hub-driven gains. Proximity to an audited hub is not sufficient; the target must be audited directly.
 
-\paragraph{Experiment 2: withholding the target from the auditor.} We then re-ran the four recovery settings under two interventions (Table~\ref{tab:label_conditional}): arm A is the rerun baseline, arm B removes the target from the hub candidate set so the auditor still sees every column but no sentinel predicts the target, and arm C removes the target column from the auditor entirely. Retention rises in every arm, as expected once the target can no longer contribute penalties. Under arm B, the two Census ACS recoveries become non-significant ($p \ge 0.24$) and collapse to within $\pm 0.019$ F1 of zero, while the two Online Purchases configurations are attenuated but retain significance (CTGAN: $+0.021$, $p = 0.027$, an $85\%$ attenuation; Vine: $+0.104$, $p = 0.001$, a $73\%$ attenuation). Under arm C, no configuration retains a significant gain ($p \ge 0.062$), and the two Census ACS effects collapse to within $\pm 0.007$ F1 of zero. The residual arm-B effects on Online Purchases indicate that on that dataset a second pathway contributes---\texttt{item\_total} participates in arithmetic identities that the NIC and rule layers audit independently of hub selection---so the mechanism is dominant rather than exclusive there.
+\paragraph{Experiment 2: withholding the target from the auditor.} We then re-ran the four recovery settings under two interventions (Table~\ref{tab:label_conditional_withheld}): the Baseline re-runs the original audits, Target Excluded removes the target from the hub candidate set so the auditor still sees every column but no sentinel predicts the target, and Target Hidden removes the target column from the auditor entirely. Retention rises in every arm, as expected once the target can no longer contribute penalties. Under Target Excluded, the two Census ACS recoveries become non-significant ($p \ge 0.24$) and collapse to within $\pm 0.019$ F1 of zero, while the two Online Purchases configurations are attenuated but retain significance (CTGAN: $+0.021$, $p = 0.027$, an $85\%$ attenuation; Vine: $+0.104$, $p = 0.001$, a $73\%$ attenuation). Under Target Hidden, no configuration retains a significant gain ($p \ge 0.062$), and the two Census ACS effects collapse to within $\pm 0.007$ F1 of zero. The residual Target Excluded effects on Online Purchases indicate that on that dataset a second pathway contributes---\texttt{item\_total} participates in arithmetic identities that the NIC and rule layers audit independently of hub selection---so the mechanism is dominant rather than exclusive there.
 
 \paragraph{Interpretation.} Taken together, the two experiments identify a necessary condition rather than a correlate: integrity filtering recovers downstream utility when the auditor models the conditional structure of the target, and not otherwise. We therefore describe contribution (ii) as \emph{label-conditional curation}. This is a narrower claim than generic structural remediation, and it partially overlaps with conditional label-noise cleaning, a connection we make explicit in Section~\ref{sec:limitations}. It is also more actionable: the precondition is the intersection of the auditor's hub set with the intended prediction target, which a practitioner can check from calibration output alone, before committing to a filtering policy and without consulting downstream labels. The diagnostic contribution (i) is unaffected---HIF's detection of dependency ruptures in Sections~\ref{sec:cross_arch} and~\ref{sec:heldout} involves no downstream target at all.
 
 \begin{table}[htbp]
 \centering
-\caption{The recovery effect is label-conditional. A: downstream target swept across nine Census ACS columns at fixed retained cohorts ($N=10$ seeds; retention $63.3\%$ CTGAN, $76.4\%$ Vine Copula, identical in every row). B: the four recovery settings re-run with the target withheld from the auditor---arm A is the rerun baseline, arm B removes the target from the hub candidate set, arm C hides the target column from the auditor entirely. Bold $\Delta$F1 values are significant at $p < 0.05$ (paired $t$-test).}
-\label{tab:label_conditional}
+\caption{Target sweep across Census ACS columns at fixed retained cohorts ($N=10$ seeds). Retention rates are identical in every row (63.3\% CTGAN, 76.4\% Vine Copula). The integrity filter is unchanged; only the downstream prediction target varies. Bold $\Delta$F1 values are significant at $p < 0.05$ (paired $t$-test).}
+\label{tab:label_conditional_sweep}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{6pt}
 \begin{tabular}{@{}llcccc@{}}
 \toprule
-\multicolumn{6}{@{}l}{A. Target sweep at fixed cohort (Census ACS)} \\
-\midrule
 Target & Hub? & \multicolumn{2}{c}{CTGAN} & \multicolumn{2}{c}{Vine Copula} \\
 \cmidrule(lr){3-4}\cmidrule(lr){5-6}
  &  & $\Delta$F1 & $p$ & $\Delta$F1 & $p$ \\
@@ -350,35 +348,44 @@ Target & Hub? & \multicolumn{2}{c}{CTGAN} & \multicolumn{2}{c}{Vine Copula} \\
 \midrule
 Hub group mean & & $+0.077$ & & $+0.112$ & \\
 Non-hub group mean & & $+0.014$ & & $+0.010$ & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{The recovery effect vanishes when the target is withheld from the auditor ($N=10$ seeds). Experiment re-runs the four configurations under three conditions: Baseline (auditor sees the target), Target Excluded (target removed from hub candidates but column visible to auditor), and Target Hidden (target column removed entirely). Retention rates increase as expected once the target can no longer contribute penalties. Bold $\Delta$F1 values are significant at $p < 0.05$ (paired $t$-test).}
+\label{tab:label_conditional_withheld}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llllccc@{}}
+\toprule
+Configuration & Condition & Retained (\%) & $\Delta$F1 & $p$ \\
 \midrule
-\multicolumn{6}{@{}l}{B. Withholding the target from the auditor} \\
-\midrule
-Configuration & Arm & Retained (\%) & $\Delta$F1 & $p$ & \\
-\midrule
-Census ACS CTGAN & A & 62.7 & \textbf{+0.077} & 0.002 & \\
- & B & 78.2 & $-0.019$ & 0.24 & \\
- & C & 90.4 & $-0.003$ & 0.78 & \\
+\multirow{3}{*}{Census ACS CTGAN} & Baseline & 62.7 & \textbf{+0.077} & 0.002 \\
+ & Target Excluded & 78.2 & $-0.019$ & 0.24 \\
+ & Target Hidden & 90.4 & $-0.003$ & 0.78 \\
 \addlinespace
-Census ACS Vine & A & 76.4 & \textbf{+0.208} & $<0.001$ & \\
- & B & 88.3 & $-0.000$ & 0.98 & \\
- & C & 93.7 & +0.007 & 0.46 & \\
+\multirow{3}{*}{Census ACS Vine} & Baseline & 76.4 & \textbf{+0.208} & $<0.001$ \\
+ & Target Excluded & 88.3 & $-0.000$ & 0.98 \\
+ & Target Hidden & 93.7 & +0.007 & 0.46 \\
 \addlinespace
-Purchases CTGAN & A & 19.1 & \textbf{+0.141} & 0.016 & \\
- & B & 30.3 & +0.021 & 0.027 & \\
- & C & 17.6 & +0.007 & 0.68 & \\
+\multirow{3}{*}{Online Purchases CTGAN} & Baseline & 19.1 & \textbf{+0.141} & 0.016 \\
+ & Target Excluded & 30.3 & +0.021 & 0.027 \\
+ & Target Hidden & 17.6 & +0.007 & 0.68 \\
 \addlinespace
-Purchases Vine & A & 13.9 & \textbf{+0.385} & $<0.001$ & \\
- & B & 25.5 & +0.104 & 0.001 & \\
- & C & 15.9 & +0.073 & 0.062 & \\
+\multirow{3}{*}{Online Purchases Vine} & Baseline & 13.9 & \textbf{+0.385} & $<0.001$ \\
+ & Target Excluded & 25.5 & +0.104 & 0.001 \\
+ & Target Hidden & 15.9 & +0.073 & 0.062 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Comparison with Outlier Detection and Learned-Density Baselines}\label{sec:heldout}
 
-A natural question is whether standard outlier detection methods---Isolation Forest (IF) \cite{liu2008isolation} and Local Outlier Factor (LOF) \cite{breunig2000lof}---or a learned-density baseline can serve as alternatives to HIF. Table~\ref{tab:heldout} compares detection performance across five error types on Census ACS at 40\% corruption ($N=10$ seeds); Table~\ref{tab:heldout_purchases} replicates the identical protocol on Online Purchases. LOF and IF are configured with a \texttt{contamination} parameter set to the known corruption rate (0.4), giving them a tuned decision threshold for F1 in this stress-test setup, whereas HIF uses its fixed non-parametric default frontier, flagging records with $H < 0.5$. As a learned-density baseline we fit a Gaussian Mixture Model (GMM) on the real data with component count selected by the Bayesian information criterion \cite{schwarz1978estimating} and score synthetic records by negative log-likelihood; its F1 threshold is the $(1-0.4)$ quantile of the real-data scores, the density analogue of the oracle \texttt{contamination} calibration granted to IF and LOF. For a like-for-like comparison we additionally report HIF$^{\dagger}$ and GMM$^{\dagger}$, which flag the top 40\% of records by their respective scores, matching the calibration granted to the baselines; in practice the baselines flag a comparable fraction of records (IF $\approx 40\%$ on average, $35$--$46\%$ across error families; LOF $\approx 79\%$, $63$--$87\%$; GMM $\approx 72\%$, $60$--$83\%$), so the matched HIF operating point is not laxer than theirs.
+A natural question is whether standard outlier detection methods---Isolation Forest (IF) \cite{liu2008isolation} and Local Outlier Factor (LOF) \cite{breunig2000lof}---or a learned-density baseline can serve as alternatives to HIF. Tables~\ref{tab:heldout_roc} and~\ref{tab:heldout_f1} compare detection performance across five error types on Census ACS at 40\% corruption ($N=10$ seeds); Table~\ref{tab:heldout_purchases} replicates the identical protocol on Online Purchases. LOF and IF are configured with a \texttt{contamination} parameter set to the known corruption rate (0.4), giving them a tuned decision threshold for F1 in this stress-test setup, whereas HIF uses its fixed non-parametric default frontier, flagging records with $H < 0.5$. As a learned-density baseline we fit a Gaussian Mixture Model (GMM) on the real data with component count selected by the Bayesian information criterion \cite{schwarz1978estimating} and score synthetic records by negative log-likelihood; its F1 threshold is the $(1-0.4)$ quantile of the real-data scores, the density analogue of the oracle \texttt{contamination} calibration granted to IF and LOF. For a like-for-like comparison we additionally report HIF$^{\dagger}$ and GMM$^{\dagger}$, which flag the top 40\% of records by their respective scores, matching the calibration granted to the baselines; in practice the baselines flag a comparable fraction of records (IF $\approx 40\%$ on average, $35$--$46\%$ across error families; LOF $\approx 79\%$, $63$--$87\%$; GMM $\approx 72\%$, $60$--$83\%$), so the matched HIF operating point is not laxer than theirs.
 
-Under threshold-independent ROC-AUC on Census ACS, HIF strongly outperforms the geometric baselines on \textit{Conditional Dependency Violations} (ROC-AUC = 0.824, PR-AUC = 0.776), whereas Isolation Forest is near-random on marginal-preserving dependency swaps (ROC-AUC = 0.514) and LOF achieves lower ranking quality (ROC-AUC = 0.717, PR-AUC = 0.655). A learned-density baseline is competitive with HIF on this family (GMM ROC-AUC = 0.819, PR-AUC = 0.802) but trails HIF at the matched operating point (F1 0.710 vs.\ 0.719; Table~\ref{tab:heldout}). The F1 comparison is markedly more favorable to HIF once operating points are matched: flagging the top 40\% of records by HIF penalty yields the highest F1 in three of five error families---F1 = 0.719 on dependency violations (vs.\ 0.594 for LOF, 0.438 for IF, and 0.710 for GMM$^{\dagger}$), F1 = 0.542 on feature dropout (vs.\ 0.521 for LOF), and F1 = 0.790 on random noise injection (vs.\ 0.616 for LOF)---despite flagging only 40\% of records to LOF's $\approx 86\%$. HIF also maintains high sensitivity on random noise (ROC-AUC = 0.890) because breaking marginals simultaneously disrupts conditional dependencies. The PR-AUC results are consistent with ROC-AUC across the five families (Table~\ref{tab:heldout}): HIF leads on dependency violations and feature dropout, and the learned-density baseline is competitive on random noise injection.
+Under threshold-independent ROC-AUC on Census ACS, HIF strongly outperforms the geometric baselines on \textit{Conditional Dependency Violations} (ROC-AUC = 0.824, PR-AUC = 0.776), whereas Isolation Forest is near-random on marginal-preserving dependency swaps (ROC-AUC = 0.514) and LOF achieves lower ranking quality (ROC-AUC = 0.717, PR-AUC = 0.655). A learned-density baseline is competitive with HIF on this family (GMM ROC-AUC = 0.819, PR-AUC = 0.802) but trails HIF at the matched operating point (F1 0.710 vs.\ 0.719; Table~\ref{tab:heldout_f1}). The F1 comparison is markedly more favorable to HIF once operating points are matched: flagging the top 40\% of records by HIF penalty yields the highest F1 in three of five error families---F1 = 0.719 on dependency violations (vs.\ 0.594 for LOF, 0.438 for IF, and 0.710 for GMM$^{\dagger}$), F1 = 0.542 on feature dropout (vs.\ 0.521 for LOF), and F1 = 0.790 on random noise injection (vs.\ 0.616 for LOF)---despite flagging only 40\% of records to LOF's $\approx 86\%$. HIF also maintains high sensitivity on random noise (ROC-AUC = 0.890) because breaking marginals simultaneously disrupts conditional dependencies. The PR-AUC results are consistent with ROC-AUC across the five families (Table~\ref{tab:heldout_roc}): HIF leads on dependency violations and feature dropout, and the learned-density baseline is competitive on random noise injection.
 
 Two of the five families are negative controls by construction, so the values in these rows are sanity checks rather than benchmarks. \textit{Row duplication} copies rows drawn from the synthetic cohort itself and perturbs them with $N(0, 0.01\sigma)$ noise on numeric columns, so every planted row is in-distribution and individually valid; detecting it would require a cross-row near-duplicate search, and indeed all four methods sit at chance (ROC-AUC 0.501--0.508 on Census ACS, 0.501--0.511 on Online Purchases). \textit{Covariate shift} replaces rows with verbatim real records sampled from the upper quartile of the first numeric column, which are genuine and \emph{more} plausible than the surrounding synthetic rows, so every plausibility-based scorer lands at or below chance; sub-chance AUC is the correct response to this protocol, not a failure of the method. The apparent wins in these two rows are operating-point artifacts: at the 40\% prevalence used throughout, randomly flagging a fraction $q$ of records attains $\mathrm{F1} = 2\pi q/(\pi + q)$ with $\pi = 0.4$, and LOF's row-duplication F1 of 0.535---obtained by flagging 80.3\% of records---equals the random expectation of 0.534, just as GMM's 0.544 on Online Purchases (84.3\% flag rate) matches its expectation of 0.543. The three informative families are therefore random noise injection, feature dropout, and conditional dependency violations.
 
@@ -388,11 +395,10 @@ Why do standard outlier detectors fail on Dependency Gaps? Isolation Forest and 
 
 \begin{table}[htbp]
 \centering
-\caption{Held-Out Error Detection: HIF vs.\ Baselines (Census ACS, 40\% corruption). A: threshold-independent ROC-AUC and PR-AUC across 10 seeds. B: F1 at fixed operating points. HIF$^{\dagger}$ and GMM$^{\dagger}$ flag the top 40\% of records by their respective scores, matching the oracle \texttt{contamination} calibration granted to IF, LOF, and the GMM quantile threshold; unmarked HIF uses the fixed default frontier, flagging records with $H < 0.5$. At a matched operating point HIF attains the highest F1 on conditional dependency violations (0.719 vs.\ 0.594 for LOF and 0.710 for GMM$^{\dagger}$), feature dropout (0.542 vs.\ 0.521), and random noise injection (0.790 vs.\ 0.616), while the learned-density baseline is competitive at the level of ranking quality (PR-AUC 0.802 on dependency violations vs.\ 0.776 for HIF). The row-duplication and covariate-shift rows are negative controls (see text); for these rows the random baselines are ROC-AUC 0.5, PR-AUC $\approx 0.40$ (the 40\% prevalence), and F1 $\approx 0.40$ at a matched 40\% flag rate.}
-\label{tab:heldout}
+\caption{Held-Out Error Detection: ROC-AUC and PR-AUC (Census ACS, 40\% corruption). Threshold-independent metrics across 10 seeds. HIF strongly outperforms geometric baselines (Isolation Forest, LOF) on conditional dependency violations (ROC-AUC 0.824 vs.\ 0.514 and 0.717). A learned-density baseline (GMM) is competitive on ranking quality (PR-AUC 0.802 vs.\ 0.776). The row-duplication and covariate-shift rows are negative controls; random baseline performance is ROC-AUC 0.5, PR-AUC $\approx 0.40$.}
+\label{tab:heldout_roc}
 \footnotesize
 \setlength{\tabcolsep}{2pt}
-A. ROC-AUC and PR-AUC ($\uparrow$)\\
 \begin{tabular}{@{}lccccccccc@{}}
 \toprule
 & \multicolumn{4}{c}{\textbf{ROC-AUC}} & \multicolumn{4}{c}{\textbf{PR-AUC}} \\
@@ -407,9 +413,14 @@ Covariate Shift & 0.293 & 0.469 & 0.213 & 0.265 & 0.355 & 0.406 & 0.267 & 0.280 
 \textit{Conditional Dependency Violations} & \textbf{0.824} & 0.514 & 0.717 & 0.819 & 0.776 & 0.409 & 0.655 & \textbf{0.802} \\
 \bottomrule
 \end{tabular}
+\end{table}
 
-\vspace{8pt}
-B. F1 score at operating points ($\uparrow$)\\
+\begin{table}[htbp]
+\centering
+\caption{Held-Out Error Detection: F1 at Fixed Operating Points (Census ACS, 40\% corruption). HIF$^{\dagger}$ and GMM$^{\dagger}$ flag the top 40\% of records by their respective scores, matching oracle \texttt{contamination} calibration granted to baselines; unmarked HIF uses the fixed default frontier ($H < 0.5$). At matched operating points, HIF attains the highest F1 on conditional dependency violations (0.719 vs.\ 0.594 for LOF, 0.710 for GMM$^{\dagger}$), feature dropout (0.542 vs.\ 0.521), and random noise injection (0.790 vs.\ 0.616). For negative-control rows (row duplication, covariate shift), random baseline F1 $\approx 0.40$ at 40\% flag rate.}
+\label{tab:heldout_f1}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
 \textbf{Error Type} & \textbf{HIF} & \textbf{HIF$^{\dagger}$} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} & \textbf{GMM$^{\dagger}$} \\
@@ -426,7 +437,7 @@ Covariate Shift & 0.014 & 0.165 & 0.387 & 0.287 & 0.321 & 0.221 \\
 
 \begin{table}[htbp]
 \centering
-\caption{Held-Out Error Detection Replication: HIF vs.\ Baselines (Online Purchases, 40\% corruption). Identical protocol and operating-point conventions as Table~\ref{tab:heldout}. Threshold-independent ROC-AUC and PR-AUC across 10 seeds. On this continuously constrained domain, the learned-density baseline is markedly stronger than HIF on ranking quality for \textit{Conditional Dependency Violations} (ROC-AUC 0.954 vs.\ 0.802; matched F1 0.890 vs.\ 0.668), while HIF retains an edge over the geometric detectors (IF, LOF) on all three dependency-relevant families. As in Table~\ref{tab:heldout}, the row-duplication and covariate-shift rows are negative controls (see text).}
+\caption{Held-Out Error Detection Replication: HIF vs.\ Baselines (Online Purchases, 40\% corruption). Identical protocol and operating-point conventions as Tables~\ref{tab:heldout_roc}--\ref{tab:heldout_f1}. Threshold-independent ROC-AUC and PR-AUC across 10 seeds. On this continuously constrained domain, the learned-density baseline is markedly stronger than HIF on ranking quality for \textit{Conditional Dependency Violations} (ROC-AUC 0.954 vs.\ 0.802; matched F1 0.890 vs.\ 0.668), while HIF retains an edge over the geometric detectors (IF, LOF) on all three dependency-relevant families. As in Tables~\ref{tab:heldout_roc}--\ref{tab:heldout_f1}, the row-duplication and covariate-shift rows are negative controls (see text).}
 \label{tab:heldout_purchases}
 \footnotesize
 \setlength{\tabcolsep}{2pt}
@@ -448,7 +459,7 @@ Covariate Shift & 0.190 & 0.294 & 0.284 & 0.176 & 0.341 & 0.310 & 0.317 & 0.258 
 
 \begin{table}[htbp]
 \centering
-\caption{Held-Out Error Detection Replication: F1 at Fixed Operating Points (Online Purchases, 40\% corruption). Identical protocol and operating-point conventions as Table~\ref{tab:heldout}; the matched operating points mirror the contamination-aware baselines. On this continuously constrained domain, the learned-density baseline remains stronger than HIF on dependency violations, while HIF still leads the geometric detectors on the dependency-relevant families.}
+\caption{Held-Out Error Detection Replication: F1 at Fixed Operating Points (Online Purchases, 40\% corruption). Identical protocol and operating-point conventions as Tables~\ref{tab:heldout_roc}--\ref{tab:heldout_f1}; the matched operating points mirror the contamination-aware baselines. On this continuously constrained domain, the learned-density baseline remains stronger than HIF on dependency violations, while HIF still leads the geometric detectors on the dependency-relevant families.}
 \label{tab:heldout_purchases_f1}
 \footnotesize
 \setlength{\tabcolsep}{2pt}
