@@ -58,7 +58,7 @@ estimate: a focused week, mostly writing rather than computing.
       sampled independently from their marginals and whose categorical--numeric
       dependence is deliberately not modelled (mechanism verified in
       `vine_copula.py`; disclosed in the released implementation). Reframed in
-      the abstract ("a Vine Copula control", still 248 words < 250 cap), §1
+      the abstract ("a Vine Copula control"), §1
       (removed "even rigorous statistical models ... confidently hallucinate"),
       §1 related work (dropped Vine as exemplar of statistical models), §5.1
       (arm's near-perfect KS attributed to resampling the empirical marginals),
