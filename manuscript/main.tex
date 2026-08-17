@@ -48,11 +48,11 @@
 \abstract{
 \textbf{Purpose:} Synthetic tabular data is widely used in privacy-sensitive settings, but aggregate fidelity metrics can mask record-level joint violations. We introduce the Hybrid Integrity Framework (HIF), a row-level diagnostic for auditing whether synthetic rows are structurally consistent with the real data-generating process.
 
-\textbf{Methods:} HIF combines conditional sentinel classifiers for categorical dependencies, continuity-based residual checks for numerical features, and mined implication rules for hard constraints. These components are aggregated with a multiplicative, non-compensatory score that penalizes joint inconsistencies while preserving rare but valid edge cases.
+\textbf{Methods:} HIF combines conditional sentinel classifiers for categorical dependencies, continuity-based residual checks for numerical features, and mined implication rules for hard constraints. These components are aggregated with a multiplicative, non-compensatory score that penalizes joint inconsistencies while retaining rare but valid cases.
 
-\textbf{Results:} Across four generators and five benchmark datasets, HIF identifies dependency violations invisible to marginal metrics, localizes the violating rows, and reveals a clear label-conditional utility effect: integrity filtering improves downstream predictive performance only when the prediction target is among the auditor's dependency hubs, while remaining utility-neutral otherwise.
+\textbf{Results:} Across four generators and five benchmark datasets, HIF identifies dependency violations that are not exposed by marginal metrics, localizes the violating rows, and reveals a label-conditional utility effect: integrity filtering improves downstream predictive performance only when the prediction target is among the auditor's dependency hubs, while remaining utility-neutral otherwise.
 
-\textbf{Conclusion:} HIF provides a practical record-level integrity signal for synthetic tabular data and a checkable precondition for when filtering is likely to help. By auditing joint structure rather than marginal fit alone, it enables more trustworthy deployment of synthetic data in downstream analysis.
+\textbf{Conclusion:} HIF offers a practical record-level integrity signal for synthetic tabular data and a checkable precondition for when filtering is likely to help. By auditing joint structure rather than marginal fit alone, it supports more reliable downstream use of synthetic data.
 }
 
 \keywords{Synthetic tabular data; Data integrity; Row-level diagnostics; Dependency auditing; Conditional dependencies; Generative models}
@@ -609,8 +609,6 @@ Future work includes extending HIF to temporal and relational tables, developing
 \textbf{Data availability.} The experimental benchmarks and dataset configurations, together with the complete open-source implementation, are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
 
 \textbf{Author contributions.} All authors contributed to the conceptualization, methodology, implementation, and writing of the manuscript.
-
-\textbf{Generative AI.} During the preparation of this work the authors used AI-assisted tools for drafting and editorial assistance. After using these tools, the authors reviewed and verified the content and take full responsibility for the content of the publication.
 
 \bibliography{references}
 
