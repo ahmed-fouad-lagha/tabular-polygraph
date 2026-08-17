@@ -1,7 +1,7 @@
 """
 tabular_polygraph.fidelity.hif.rules
 ---------------------------------
-FP-Growth-style implication rule mining and violation scoring for HIF.
+Apriori-style implication rule mining and violation scoring for HIF.
 
 Mines high-confidence antecedent -> consequent rules from real data and
 checks which synthetic rows violate them.
