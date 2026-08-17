@@ -69,7 +69,7 @@ We present the Hybrid Integrity Framework (HIF), a row-level diagnostic for synt
 
 This paper makes two contributions:
 \begin{itemize}
-    \item \textbf{Row-Level Structural Diagnostic.} HIF reframes synthetic data evaluation from aggregate column matching to record-level conditional plausibility, providing per-record attribution of which dependency dimensions are violated (Section~\ref{sec:math}).
+    \item \textbf{Row-Level Structural Diagnostic.} HIF reframes synthetic data evaluation from aggregate column matching to record-level conditional plausibility, scoring each synthetic record by how consistent it is with the conditional structure learned from the real data (Section~\ref{sec:math}).
     \item \textbf{Label-Conditional Curation.} We characterize \emph{when} integrity filtering improves downstream utility and identify the mechanism that governs it. Pruning low-HIF records yields statistically significant gains on cohorts with structural errors (up to $+20.8$ points F1, $p < 0.001$), while being utility-neutral on largely error-free cohorts ($p = 0.90$). Two controlled experiments establish that this gain materializes only when the auditor's selected hubs include the prediction target, and vanishes otherwise (Section~\ref{sec:label_conditional}).
 \end{itemize}
 
