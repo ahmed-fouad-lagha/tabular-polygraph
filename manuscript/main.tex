@@ -46,13 +46,13 @@
 \begin{document}
 
 \abstract{
-\textbf{Purpose:} Synthetic tabular data is widely used in privacy-sensitive settings, but aggregate fidelity metrics can mask record-level joint violations. We introduce the Hybrid Integrity Framework (HIF), a row-level diagnostic tool for auditing whether synthetic rows are structurally consistent with the real data-generating process.
+\textbf{Purpose:} Synthetic tabular data is widely used in privacy-sensitive settings, but aggregate fidelity metrics can mask record-level joint violations. We introduce the Hybrid Integrity Framework (HIF), a practical row-level diagnostic for auditing whether synthetic rows are structurally consistent with the real data-generating process.
 
 \textbf{Methods:} HIF combines conditional sentinel classifiers for categorical dependencies, continuity-based residual checks for numerical features, and mined implication rules for hard constraints. These components are aggregated using a multiplicative score that strongly limits compensation between components, penalizing joint inconsistencies while retaining rare but valid cases.
 
-\textbf{Results:} Across four generators and five benchmark datasets, HIF exposes dependency violations that are not revealed by marginal metrics, localizes the offending rows, and uncovers a label-conditional utility effect: integrity filtering improves downstream predictive performance only when the prediction target is among the auditor's dependency hubs (a necessary condition), while remaining utility-neutral otherwise.
+\textbf{Results:} Across four generators and five benchmark datasets, HIF exposes dependency violations that are not revealed by marginal metrics, localizes the offending rows, and reveals a label-conditional utility effect in the benchmarked settings: filtering may improve downstream predictive performance when the prediction target is among the auditor's dependency hubs, while the effect is weak or absent otherwise.
 
-\textbf{Conclusion:} HIF provides a practical row-level integrity signal for synthetic tabular data and a checkable precondition for when filtering is likely to help. By auditing the joint structure rather than the marginal fit alone, it supports a more reliable downstream use of synthetic data.
+\textbf{Conclusion:} HIF provides a practical row-level integrity signal for synthetic tabular data and a checkable precondition for when filtering is likely to help. Rather than replacing marginal fidelity or density-based diagnostics, HIF complements them by auditing the joint structure directly, which can support more reliable downstream use of synthetic data when its assumptions are respected.
 }
 
 \keywords{Synthetic tabular data; Data integrity; Row-level diagnostics; Dependency auditing; Conditional dependencies; Generative models}
@@ -67,11 +67,11 @@ Standard evaluation metrics, such as KS, TVD, and JCD, are designed to assess ag
 
 Recent work has highlighted this gap in synthetic data evaluation \cite{long2025evaluating}, but most existing metrics remain cohort-level summaries or generic, outlier scores. Isolation Forest and LOF \cite{liu2008isolation, breunig2000lof} detect geometric anomalies; however, they miss dependency violations in which each feature value is individually plausible. Learned-density baselines can help in some constrained settings, but their effectiveness depends strongly on the encoding and dimensionality of the problem (Section~\ref{sec:heldout}). Domain-specific rule audits require manually specified constraints, which limit their scalability to new datasets. Therefore, a practical solution needs to discover audit constraints from the data itself, score records individually, and remain tractable across diverse tabular domains.
 
-We present the Hybrid Integrity Framework (HIF), a row-level audit framework for synthetic tabular data. The HIF combines three complementary checks: conditional classifiers for categorical dependencies, continuity-based checks for numeric features, and mined implication rules for hard constraints. These are aggregated through a multiplicative score that strongly limits compensation between components, flagging records whose joint configuration is inconsistent with the conditional structure of the real data. Crucially, the framework learns the relevant dependency structure from the data rather than requiring a handcrafted specification for each domain.
+We present the Hybrid Integrity Framework (HIF), a row-level audit framework for synthetic tabular data. The framework combines three complementary checks: conditional classifiers for categorical dependencies, continuity-based checks for numeric features, and mined implication rules for hard constraints. These are aggregated through a multiplicative score that strongly limits compensation between components, flagging records whose joint configuration is inconsistent with the conditional structure of the real data. Crucially, the framework learns the relevant dependency structure from the data rather than requiring a handcrafted specification for each domain. Our contribution is not to replace all anomaly detection or density-based baselines, but to provide a complementary structural audit that is explicit about the dependency manifold it learns and the conditions under which it is likely to help.
 
 This study makes two main contributions.
 \begin{itemize}
-\item A row-level structural diagnostic (HIF) that evaluates record-level joint conditional integrity, not just aggregate marginals (Section~\ref{sec:math}).
+\item A row-level structural diagnostic (HIF) that evaluates record-level joint conditional integrity, not just aggregate marginals, and is therefore best interpreted as a structural consistency signal rather than a universal certificate of validity (Section~\ref{sec:math}).
 \item A characterization of when integrity filtering improves downstream utility: only when the prediction target is among the auditor's dependency hubs (up to $+21.4$ F1, $p < 0.001$), otherwise utility-neutral ($p = 0.90$), established via two controlled experiments (Section~\ref{sec:label_conditional}).
 \end{itemize}
 
@@ -199,7 +199,7 @@ In contrast to additive fidelity metrics that allow a model to ``compensate'' fo
 \begin{equation}
     H(\mathbf{x}) = \left( \prod_{l \in \{cat, cont, rule\}} (1 - \mathcal{P}_l(\mathbf{x})) \right)^{1/L}
 \end{equation}
-where $l$ iterates over active auditing layers. The geometric mean strongly limits compensation compared to additive aggregation: a significant failure in any single manifold dimension ($\mathcal{P}_l \to 1$) drives the entire record integrity toward zero, regardless of how well the other components align (see Table~\ref{tab:ablation}, Section~\ref{sec:ablation}). Unlike a strict Logical AND, the geometric mean can still partially rescue a low component score if other components are near-perfect, but this rescuing effect is far weaker than under arithmetic averaging. For a formal analysis of this aggregation logic under explicit assumptions---intersection soundness (Proposition 1), asymptotic convergence (Proposition 2), and the Type I false rejection bound under quantile calibration (Remark 1)---we direct the reader to \textbf{Appendix A}.
+where $l$ iterates over active auditing layers. The geometric mean strongly limits compensation compared to additive aggregation: a significant failure in any single manifold dimension ($\mathcal{P}_l \to 1$) drives the entire record integrity toward zero, regardless of how well the other components align (see Table~\ref{tab:ablation}, Section~\ref{sec:ablation}). Unlike a strict Logical AND, the geometric mean can still partially rescue a low component score if other components are near-perfect, but this rescuing effect is far weaker than under arithmetic averaging. For a formal analysis of this aggregation logic under explicit assumptions---intersection soundness (Proposition 1), asymptotic convergence (Proposition 2), and the Type I false rejection bound under quantile calibration (Remark 1)---we direct the reader to Appendix~\ref{app:formal_results}.
 
 While HIF prioritizes soft probabilistic validities via LSE and NIC, we incorporate symbolic implication rules as an optional \textit{Structural Logic Constraint} layer ($l=rule$) to enforce known deterministic or physical laws (e.g., Age $\ge$ 18 for voters), bridging differentiable manifolds and rigid symbolic constraints. Rules are mined from the real data with minimum confidence $0.95$, minimum support $0.005$, at most two antecedents, and up to 25 rules, and they are applied as hard binary penalties: a record violates the layer if any mined rule fails. Component validities are floored at $\epsilon = 10^{-4}$, so a rule-violating record attains $H(\mathbf{x}) \le \epsilon^{1/L} \approx 0.046$ in the three-layer configuration, safely below the $0.5$ frontier.
 
@@ -209,7 +209,7 @@ While HIF prioritizes soft probabilistic validities via LSE and NIC, we incorpor
 \end{equation}
 This score provides a bounded diagnostic $\in [0, 1]$, where 1.0 indicates a logically certified synthetic cohort. The complete end-to-end auditing procedure for scoring a synthetic dataset is detailed in Algorithm~\ref{alg:audit} (Appendix~\ref{app:calibration}).
 
-Because HIF penalizes records that violate \textit{learned conditional dependencies} rather than marginal rarity---the confidence floor $\delta_h$ is calibrated on the ground-truth manifold precisely to avoid penalizing rare-but-valid tail records---filtering operates on structural consistency rather than demographic support; a systematic audit of representation drift across sensitive attributes under integrity filtering is left to future work.
+Because HIF penalizes records that violate \textit{learned conditional dependencies} rather than marginal rarity---the confidence floor $\delta_h$ is calibrated on the ground-truth manifold precisely to avoid penalizing rare-but-valid tail records---filtering operates on structural consistency rather than demographic support. Importantly, HIF should be read as a practical structural-integrity signal rather than a universal validity certificate: it scores consistency with the learned manifold of the real data and should be interpreted relative to the empirical real-data reference, not as an absolute guarantee that every retained row is valid under all possible side constraints. A systematic audit of representation drift across sensitive attributes under integrity filtering is left to future work.
 
 \section{Results}\label{sec:results}
 
@@ -223,7 +223,7 @@ We compared HIF against four aggregate fidelity metrics: KS complement, TVD comp
 
 The main empirical question is not whether HIF outperforms marginal metrics in a trivial sense, but whether it exposes dependency violations that aggregate statistics. The answer is affirmative across all benchmark suites.
 
-\paragraph{Main findings.} First, aggregate fidelity does not imply a structural integrity. Second, HIF localizes genuine dependency violations that are externally verifiable against arithmetic constraints in real data. Third, the utility gains from filtering are label-conditional: they emerge when the prediction target is among the auditor's selected hubs, and they vanish otherwise. Fourth, HIF is competitive with and in several settings stronger than standard anomaly baselines on conditional dependency failures. Finally, multiplicative aggregation that strongly limits compensation is essential to the framework's behavior.
+\paragraph{The key empirical findings are as follows.} First, aggregate fidelity does not imply structural integrity. Second, HIF localizes dependency violations that are externally verifiable against arithmetic constraints in real data. Third, the observed utility gains from filtering are label-conditional: they appear when the prediction target is among the auditor's selected hubs and are absent otherwise. Fourth, HIF is competitive with, and in several settings stronger than, standard anomaly baselines on conditional dependency failures. Finally, multiplicative aggregation that strongly limits compensation appears to be an important design choice for the framework's behavior.
 
 \subsection{Cross-Architecture Maturity Audit and Cohort Certification}\label{sec:cross_arch}
 
@@ -239,7 +239,7 @@ These violations are confirmed against arithmetic identities that hold to $\appr
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=10$ seeds, Mean $\pm$ SD). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) can fail to imply joint conditional integrity. On datasets with cross-feature constraints, the models exhibited up to 100\% dependency violation rates. The ``Real data (held-out)'' row per dataset is a single deterministic reference: the auditor fitted on real rows and scored on a genuine held-out remainder (see Section~\ref{sec:results}), establishing the framework's own error floor---genuine real data is flagged at 0.0--14.0\% across domains.}
+\caption{Cross-Architecture Audit: Statistical Fidelity (KS), Support Overlap ($\alpha$-Precision, $\beta$-Recall), and Joint Dependency Integrity (HIF) across benchmark datasets ($N=10$ seeds, Mean $\pm$ SD). High marginal fidelity (KS $>$ 0.96) or high support coverage ($\alpha$-Prec $>$ 0.79) can fail to imply joint conditional integrity. On datasets with cross-feature constraints, the models exhibited up to 100\% dependency violation rates. Bold values mark the best generator result within each dataset for the primary comparison metrics (KS and HIF, with lower values preferred for the violation rate); support-overlap metrics are shown for context. The ``Real data (held-out)'' row per dataset is a single deterministic reference: the auditor fitted on real rows and scored on a genuine held-out remainder (see Section~\ref{sec:results}), establishing the framework's own error floor---genuine real data is flagged at 0.0--14.0\% across domains.}
 \label{tab:architecture}
 \footnotesize
 \setlength{\tabcolsep}{2.5pt}
@@ -271,7 +271,7 @@ Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparro
 \multicolumn{6}{l}{\textbf{Adult Income}} \\
 \quad Real data (held-out) & --- & --- & --- & 0.923 & 4.3\% \\
 \quad Gaussian Copula & 0.854 $\pm$ 0.006 & 0.936 $\pm$ 0.007 & 0.836 $\pm$ 0.014 & 0.795 $\pm$ 0.044 & 14.8 $\pm$ 5.2\% \\
-\quad Vine Copula     & \textbf{0.982 $\pm$ 0.005} & \textbf{0.968 $\pm$ 0.011} & 0.788 $\pm$ 0.016 & 0.716 $\pm$ 0.069 & 22.1 $\pm$ 7.8\% \\
+\quad Vine Copula     & \textbf{0.982 $\pm$ 0.005} & 0.968 $\pm$ 0.011 & 0.788 $\pm$ 0.016 & 0.716 $\pm$ 0.069 & 22.1 $\pm$ 7.8\% \\
 \quad CTGAN           & 0.692 $\pm$ 0.085 & 0.804 $\pm$ 0.034 & 0.808 $\pm$ 0.050 & 0.618 $\pm$ 0.053 & 34.4 $\pm$ 5.9\% \\
 \quad TVAE            & 0.751 $\pm$ 0.019 & 0.350 $\pm$ 0.065 & 0.425 $\pm$ 0.042 & \textbf{0.990 $\pm$ 0.007} & \textbf{0.2 $\pm$ 0.4\%} \\
 \bottomrule
@@ -289,13 +289,13 @@ Generator & KS ($\uparrow$) & $\alpha$-Prec ($\uparrow$) & $\beta$-Rec ($\uparro
 Dataset & Generator & Flagged & Base Viol. & Conf.\ @Flagged & Conf.\ @Unflagged & Spearman $\rho$ \\
 \midrule
 \multicolumn{7}{l}{\textbf{Supermarket Sales}} \\
-\quad & Gaussian Copula & 32.0\% & 99.7\% & 100.0\% & \textbf{99.6\%} & \textbf{0.536 $\pm$ 0.006} \\
+\quad & Gaussian Copula & 32.0\% & 99.7\% & 100.0\% & 99.6\% & 0.536 $\pm$ 0.006 \\
 \quad & Vine Copula & 99.7\% & 100.0\% & 100.0\% & 100.0\% & 0.096 $\pm$ 0.010 \\
 \quad & CTGAN & 99.7\% & 100.0\% & 100.0\% & 100.0\% & +0.059 $\pm$ 0.026 \\
 \quad & TVAE & 91.8\% & 100.0\% & 100.0\% & 100.0\% & 0.440 $\pm$ 0.032 \\
 \midrule
 \multicolumn{7}{l}{\textbf{Online Purchases}} \\
-\quad & Gaussian Copula & 55.6\% & 86.7\% & 98.9\% & \textbf{71.5\%} & \textbf{0.461 $\pm$ 0.012} \\
+\quad & Gaussian Copula & 55.6\% & 86.7\% & 98.9\% & 71.5\% & 0.461 $\pm$ 0.012 \\
 \quad & Vine Copula & 97.3\% & 100.0\% & 100.0\% & 100.0\% & 0.123 $\pm$ 0.015 \\
 \quad & CTGAN & 95.1\% & 99.9\% & 99.9\% & 99.5\% & 0.067 $\pm$ 0.038 \\
 \quad & TVAE & 99.9\% & 100.0\% & 100.0\% & 100.0\% & 0.217 $\pm$ 0.018 \\
@@ -307,9 +307,9 @@ Dataset & Generator & Flagged & Base Viol. & Conf.\ @Flagged & Conf.\ @Unflagged
 
 A critical requirement for any synthetic data metric is its ability to act as a proxy for downstream predictive utility, a validation paradigm that is now standard in privacy-sensitive domains \cite{jordon2019pateggan}. We measured downstream TSTR F1 under integrity filtering across representative generative architectures (Table~\ref{tab:filtering}), using a Random Forest classifier \cite{breiman2001random} (via \textit{Scikit-learn} \cite{pedregosa2011scikit}); the \textit{Rule-only Baseline} prunes records violating any mined implication rules, whereas the \textit{HIF Filtered} variant uses the semantic frontier ($H < 0.5$).
 
-The paired tests on Census ACS ($N=10$ seeds, binary median-split \texttt{household\_income} target) quantify the asymmetry. For the Gaussian Copula, filtering yielded $p = 0.90$ (95\% CI $[-0.003, +0.003]$): no detectable utility degradation, as expected for a cohort largely free of conditional dependency violations (violation rate $1.3\%$). For CTGAN, downstream utility gains were statistically significant (paired $t$-test $p = 0.008$; Wilcoxon $p = 0.002$; 95\% CI $[+0.020, +0.099]$; paired Cohen's $d \approx 1.08$), with F1 improving from $0.381 \pm 0.063$ to $0.441 \pm 0.096$ ($+0.060$), supporting the claim that HIF is particularly useful for architectures that produce joint dependency violations. The \textit{Rule-only Baseline} isolates the symbolic layer: pruning the records that violate mined implication rules ($\approx 7\%$ of the cohort; retention $92.9\%$) leaves utility essentially unchanged (Census ACS CTGAN: F1 $0.367$ vs.\ $0.381$ unfiltered; Gaussian Copula: $0.941$ vs.\ $0.942$), whereas full HIF filtering raises CTGAN F1 to $0.441$ at $63.0\%$ retention. Therefore, utility recovery is driven by the LSE/NIC conditional-dependency layers rather than by hard-rule pruning alone. On Online Purchases with the Gaussian Copula ($39\%$ violation rate), filtering retains $61.3\%$ of records and F1 moves within noise ($0.977 \to 0.980$), tempering the hypothesis that dependency violations always act as predictive noise: whether removing them improves utility depends on the strength of the violation-to-label association.
+The paired tests on Census ACS ($N=10$ seeds, binary median-split \texttt{household\_income} target) suggest an asymmetric pattern. For the Gaussian Copula, filtering yielded $p = 0.90$ (95\% CI $[-0.003, +0.003]$): no detectable utility degradation, which is consistent with a cohort largely free of conditional dependency violations (violation rate $1.3\%$). For CTGAN, the observed gain was statistically significant under the paired tests (paired $t$-test $p = 0.008$; Wilcoxon $p = 0.002$; 95\% CI $[+0.020, +0.099]$; paired Cohen's $d \approx 1.08$), with F1 improving from $0.381 \pm 0.063$ to $0.441 \pm 0.096$ ($+0.060$). This is consistent with HIF being most informative in settings where the generator produces joint dependency violations. The \textit{Rule-only Baseline} isolates the symbolic layer: pruning the records that violate mined implication rules ($\approx 7\%$ of the cohort; retention $92.9\%$) leaves utility essentially unchanged (Census ACS CTGAN: F1 $0.367$ vs.\ $0.381$ unfiltered; Gaussian Copula: $0.941$ vs.\ $0.942$), whereas full HIF filtering raises CTGAN F1 to $0.441$ at $63.0\%$ retention. These patterns are consistent with the conditional-dependency layers contributing more to the observed utility effect than hard-rule pruning alone. On Online Purchases with the Gaussian Copula ($39\%$ violation rate), filtering retains $61.3\%$ of records and F1 moves within noise ($0.977 \to 0.980$), suggesting that dependency violations do not always translate into downstream predictive noise and that the effect depends on the strength of the violation-to-label association.
 
-The utility-recovery conclusion is robust to the operating threshold, not merely to the continuous score (Table~\ref{tab:threshold_utility}). Sweeping the retention frontier $H \geq \{0.7, 0.5, 0.3\}$ on the Census ACS CTGAN cohort ($N=10$ seeds) yields F1 scores of $0.761$, $0.441$, and $0.382$ at $30.0\%$, $63.0\%$, and $88.5\%$ retention (unfiltered $0.381$). The recovery effect is significant at the strict and default frontiers (paired $t$-test $p < 0.001$ and $p = 0.008$; Wilcoxon $p = 0.002$; 95\% CIs $[+0.332, +0.428]$ and $[+0.020, +0.099]$) and increases monotonically with filtering strictness, but disappears at the loose $H \geq 0.3$ frontier ($p = 0.92$), where only the most egregious records are removed.
+The utility-recovery pattern is also consistent across operating thresholds, rather than being a consequence of a single score cut-off (Table~\ref{tab:threshold_utility}). Sweeping the retention frontier $H \geq \{0.7, 0.5, 0.3\}$ on the Census ACS CTGAN cohort ($N=10$ seeds) yields F1 scores of $0.761$, $0.441$, and $0.382$ at $30.0\%$, $63.0\%$, and $88.5\%$ retention (unfiltered $0.381$). The recovery effect is statistically significant at the strict and default frontiers (paired $t$-test $p < 0.001$ and $p = 0.008$; Wilcoxon $p = 0.002$; 95\% CIs $[+0.332, +0.428]$ and $[+0.020, +0.099]$) and increases with filtering strictness, but it disappears at the loose $H \geq 0.3$ frontier ($p = 0.92$), where only the most egregious records are removed.
 
 \textit{Protocol disclosure.} As is standard in TSTR \cite{jordon2019pateggan}, we fit each generator on the full real cohort and evaluate the downstream classifier on a $30\%$ real holdout carved from that same cohort; the synthetic training distribution therefore overlaps the real rows used as test data, and absolute TSTR levels are optimistically biased. This does not affect the paired filtering comparisons reported below, since both arms share the identical synthetic cohort and the $\Delta$F1 differences are protected from the leak; the cross-architecture conclusions of Section~\ref{sec:cross_arch} likewise do not rely on TSTR levels. We disclose the protocol rather than present absolute TSTR levels as an unbiased estimate.
 
@@ -328,20 +328,20 @@ Dataset & Generator & Retention (\%) & F1 (Full) & F1 (HIF Filtered) & $\Delta$ 
  & TVAE & 99.8 & 0.499 $\pm$ 0.067 & 0.499 $\pm$ 0.067 & +0.001 \\
  & Vine Copula & 77.8 & 0.466 $\pm$ 0.030 & 0.473 $\pm$ 0.032 & +0.007 \\
 \midrule
-\textbf{Census ACS} & CTGAN & 63.0 & 0.381 $\pm$ 0.063 & \textbf{0.441 $\pm$ 0.096} & \textbf{+0.060} \\
+\textbf{Census ACS} & CTGAN & 63.0 & 0.381 $\pm$ 0.063 & 0.441 $\pm$ 0.096 & +0.060 \\
  & Gaussian Copula & 98.7 & 0.942 $\pm$ 0.009 & 0.942 $\pm$ 0.008 & +0.000 \\
  & TVAE & 92.9 & 0.665 $\pm$ 0.149 & 0.675 $\pm$ 0.136 & +0.011 \\
- & Vine Copula & 76.0 & 0.483 $\pm$ 0.062 & \textbf{0.697 $\pm$ 0.035} & \textbf{+0.214} \\
+ & Vine Copula & 76.0 & 0.483 $\pm$ 0.062 & 0.697 $\pm$ 0.035 & +0.214 \\
  \midrule
  \textbf{Credit} & CTGAN & 29.6 & 0.447 $\pm$ 0.012 & 0.458 $\pm$ 0.020 & +0.011 \\
   & Gaussian Copula & 53.8 & 0.486 $\pm$ 0.030 & 0.466 $\pm$ 0.020 & -0.020 \\
   & TVAE & 92.0 & 0.438 $\pm$ 0.003 & 0.438 $\pm$ 0.003 & +0.000 \\
   & Vine Copula & 43.8 & 0.439 $\pm$ 0.006 & 0.443 $\pm$ 0.006 & +0.004 \\
  \midrule
- \textbf{Purchases} & CTGAN & 18.7 & 0.375 $\pm$ 0.078 & \textbf{0.519 $\pm$ 0.196} & \textbf{+0.144} \\
+ \textbf{Purchases} & CTGAN & 18.7 & 0.375 $\pm$ 0.078 & 0.519 $\pm$ 0.196 & +0.144 \\
   & Gaussian Copula & 61.3 & 0.977 $\pm$ 0.009 & 0.980 $\pm$ 0.022 & +0.003 \\
   & TVAE & 0.2 & 0.690 $\pm$ 0.175 & n.d. & - \\
-  & Vine Copula & 14.5 & 0.450 $\pm$ 0.077 & \textbf{0.844 $\pm$ 0.071} & \textbf{+0.394} \\
+    & Vine Copula & 14.5 & 0.450 $\pm$ 0.077 & 0.844 $\pm$ 0.071 & +0.394 \\
 \midrule
 \textbf{Supermarket} & CTGAN & 0.0 & 0.343 $\pm$ 0.023 & n.d. & - \\
  & Gaussian Copula & 96.6 & 0.999 $\pm$ 0.001 & 0.999 $\pm$ 0.001 & +0.000 \\
@@ -350,12 +350,12 @@ Dataset & Generator & Retention (\%) & F1 (Full) & F1 (HIF Filtered) & $\Delta$ 
 \bottomrule
 \end{tabular}
 \vspace{1ex}
-\raggedright \scriptsize \textsuperscript{*} Full-cohort F1 is always valid and is reported; the filtered F1 is undefined (n.d.) where the retained cohort is empty ($0\%$). Bold $\Delta$ F1 values are statistically significant (paired $t$-test, $p < 0.05$).
+\raggedright \scriptsize \textsuperscript{*} Full-cohort F1 is always valid and is reported; the filtered F1 is undefined (n.d.) where the retained cohort is empty ($0\%$). Statistical significance is reported in the accompanying $p$-value column.
 \end{table}
 
-To characterize when integrity filtering recovers utility across domains, we tested the paired F1 difference (HIF-filtered minus full synthetic) across all dataset--generator combinations of the cross-architecture benchmark with $N=10$ seeds. Significant utility recovery occurs in four configurations: Census ACS ($\Delta\text{F1} = +0.060$, 95\% CI $[+0.020, +0.099]$, $p = 0.008$ for CTGAN; $+0.214$, CI $[+0.189, +0.238]$, $p < 0.001$ for Vine Copula) and Online Purchases ($\Delta\text{F1} = +0.144$, CI $[+0.034, +0.253]$, $p = 0.016$ for CTGAN; $+0.394$, CI $[+0.342, +0.447]$, $p < 0.001$ for Vine Copula). Recovery is selective rather than a deterministic consequence of the violation rate: high-violation cohorts on Credit Default show no significant change despite 70.3\% and 56.2\% violation rates (CTGAN, $\Delta\text{F1} = +0.011$, $p = 0.15$; Vine Copula, $+0.004$, $p = 0.06$), and Online Purchases Gaussian Copula shows none at 38.7\% ($+0.003$, $p = 0.61$). Therefore, whether removing flagged records improves utility depends on the strength of the association between the violated conditional structure and the downstream target, not on the violation rate alone. Section~\ref{sec:label_conditional} makes that dependence precise and shows that it is governed by whether the target is one of the auditor's hubs. Conversely, most remaining configurations exhibit small, non-significant changes (e.g., Census ACS Gaussian Copula, $\Delta\text{F1} = +0.000$, $p = 0.90$; Adult TVAE, $+0.001$, $p = 0.77$; Adult Gaussian Copula, $+0.002$, $p = 0.77$), confirming that filtering does not penalize well-formed synthetic data. No configuration showed a significant degradation; the nearest was Credit Gaussian Copula ($\Delta\text{F1} = -0.020$, CI $[-0.042, +0.002]$, $p = 0.073$), indicating that pruning can discard flagged records that retain the predictive signal for the target, but this remains a marginal rather than a significant effect. Finally, four transaction configurations (Supermarket Sales CTGAN/TVAE/Vine; Online Purchases TVAE) retained at most $\approx 2\%$ of records, so their filtered F1 is not reliably estimable across seeds and their deltas are not reported; their valid full-cohort F1 is given in Table~\ref{tab:filtering}. The Online Purchases TVAE cohort retains essentially no records (0.2\%), consistent with a cohort whose full-F1 (0.690 $\pm$ 0.175) rests on high-utility but structurally implausible rows; blanket filtering would destroy it, reinforcing the recommendation to reserve exclusionary filtering for applications that tolerate cohort shrinkage (Section~\ref{sec:deployment}).
+To characterize when integrity filtering may recover utility across domains, we tested the paired F1 difference (HIF-filtered minus full synthetic) across all dataset--generator combinations in the cross-architecture benchmark with $N=10$ seeds. The pattern is selective rather than uniform: the clearest gains occur in four configurations, namely Census ACS (CTGAN: $\Delta\text{F1} = +0.060$, 95\% CI $[+0.020, +0.099]$, $p = 0.008$; Vine Copula: $+0.214$, CI $[+0.189, +0.238]$, $p < 0.001$) and Online Purchases (CTGAN: $+0.144$, CI $[+0.034, +0.253]$, $p = 0.016$; Vine Copula: $+0.394$, CI $[+0.342, +0.447]$, $p < 0.001$). High-violation cohorts on Credit Default do not show significant change despite 70.3\% and 56.2\% violation rates (CTGAN, $\Delta\text{F1} = +0.011$, $p = 0.15$; Vine Copula, $+0.004$, $p = 0.06$), and the Online Purchases Gaussian Copula also remains near zero at 38.7\% violation ($+0.003$, $p = 0.61$). These results suggest that whether filtering helps depends on the association between the violated conditional structure and the downstream target, rather than on the violation rate alone. Section~\ref{sec:label_conditional} examines this dependence more directly and indicates that the target must be among the auditor's hubs for the effect to emerge. Most remaining configurations show small, non-significant changes (e.g., Census ACS Gaussian Copula, $\Delta\text{F1} = +0.000$, $p = 0.90$; Adult TVAE, $+0.001$, $p = 0.77$; Adult Gaussian Copula, $+0.002$, $p = 0.77$), which is consistent with filtering being largely utility-neutral for well-formed synthetic data. No configuration showed a statistically significant degradation; the closest case was Credit Gaussian Copula ($\Delta\text{F1} = -0.020$, CI $[-0.042, +0.002]$, $p = 0.073$), suggesting that pruning can sometimes discard records that retain predictive signal, but this effect is not statistically established in the present sample. Finally, four transaction configurations (Supermarket Sales CTGAN/TVAE/Vine; Online Purchases TVAE) retained at most $\approx 2\%$ of records, so their filtered F1 is not reliably estimable across seeds and their deltas are not reported; their valid full-cohort F1 is given in Table~\ref{tab:filtering}. The Online Purchases TVAE cohort retains essentially no records (0.2\%), consistent with a cohort whose full-F1 (0.690 $\pm$ 0.175) rests on high-utility but structurally implausible rows; blanket filtering would destroy it, reinforcing the recommendation to reserve exclusionary filtering for applications that tolerate cohort shrinkage (Section~\ref{sec:deployment}).
 
-Under a Bonferroni correction ($\alpha = 0.05/16 \approx 0.003$), the two Vine Copula recoveries ($p < 0.001$) remained significant, while the Census ACS CTGAN ($p = 0.008$) and Online Purchases CTGAN ($p = 0.016$) fell below the corrected threshold and should be read as suggestive. The aggregate pattern is nevertheless unlikely by chance: four of 16 tests reach $p < 0.05$ versus roughly one expected under a global null, and the effects concentrate on cohorts with the strongest dependency violations.
+Under a Bonferroni correction ($\alpha = 0.05/16 \approx 0.003$), the two strongest Vine Copula gains remain significant, while the Census ACS CTGAN and Online Purchases CTGAN results fall below the corrected threshold and should be interpreted as suggestive rather than definitive. In aggregate, the observed pattern is consistent with the utility effect being concentrated in the most structurally compromised cohorts and target-dependent settings.
 
 \subsection{The Recovery Effect Is Label-Conditional}\label{sec:label_conditional}
 
@@ -367,11 +367,11 @@ Notably, \texttt{cost\_burden\_pct} is statistically entangled with two hubs; it
 
 \paragraph{Experiment 2: withholding the target from the auditor.} We then re-ran the four recovery settings under two interventions (Table~\ref{tab:label_conditional_withheld}): the baseline re-runs the original audits, Target Excluded removes the target from the hub candidate set so that the auditor still sees every column, but no sentinel predicts the target, and Target Hidden removes the target column from the auditor entirely. Retention rises in every arm, as expected, once the target can no longer contribute penalties. Under Target Excluded, the two Census ACS recoveries become non-significant ($p \ge 0.24$) and collapse to within $\pm 0.019$ F1 of zero, while the two Online Purchases configurations are attenuated but retain significance (CTGAN: $+0.021$, $p = 0.027$, an $85\%$ attenuation; Vine: $+0.104$, $p = 0.001$, a $73\%$ attenuation). Under Target Hidden, no configuration retains a significant gain ($p \ge 0.062$), and the two Census ACS effects collapse to within $\pm 0.007$ F1 of the zero. The residual target-excluded effects on Online Purchases indicate that in that dataset, a second pathway contributes---\texttt{item\_total} participates in arithmetic identities that the NIC and rule layers audit independently of hub selection---so the mechanism is dominant rather than exclusive there.
 
-\paragraph{Interpretation.} Taken together, the two experiments identify a necessary condition rather than a correlate: integrity filtering recovers downstream utility when the auditor models the conditional structure of the target and not otherwise. Therefore, we describe contribution (ii) as \emph{label-conditional curation}. This is a narrower claim than generic structural remediation, and it partially overlaps with conditional label-noise cleaning, a connection that we make explicit in Section~\ref{sec:limitations}. It is also more actionable: the precondition is the intersection of the auditor's hub set with the intended prediction target, which a practitioner can check from the calibration output alone before committing to a filtering policy and without consulting downstream labels. The diagnostic contribution (i) is unaffected---HIF's detection of dependency ruptures in Sections~\ref{sec:cross_arch} and~\ref{sec:heldout} involves no downstream target at all.
+\paragraph{Interpretation.} Taken together, the two experiments are consistent with a necessary condition rather than a broad causal law: integrity filtering may recover downstream utility when the auditor models the conditional structure of the target and is much less likely to do so otherwise. We therefore describe contribution (ii) as \emph{label-conditional curation}. This is a narrower claim than generic structural remediation and overlaps with conditional label-noise cleaning, a connection we make explicit in Section~\ref{sec:limitations}. It is also practically useful: the precondition is the intersection of the auditor's hub set with the intended prediction target, which a practitioner can check from the calibration output alone before committing to a filtering policy and without consulting downstream labels. The diagnostic contribution (i) remains distinct: HIF's detection of dependency ruptures in Sections~\ref{sec:cross_arch} and~\ref{sec:heldout} does not require a downstream target at all.
 
 \begin{table}[htbp]
 \centering
-\caption{Target sweep across Census ACS columns at fixed retained cohorts ($N=10$ seeds). The retention rates are identical in every row (63.3\% CTGAN, 76.4\% Vine Copula). The integrity filter remains unchanged; only the downstream prediction target varies. Bold $\Delta$F1 values are significant at $p < 0.05$ (paired $t$-test).}
+\caption{Target sweep across Census ACS columns at fixed retained cohorts ($N=10$ seeds). The retention rates are identical in every row (63.3\% CTGAN, 76.4\% Vine Copula). The integrity filter remains unchanged; only the downstream prediction target varies. Statistical significance is reported in the adjacent $p$-value columns (paired $t$-test).}
 \label{tab:label_conditional_sweep}
 \footnotesize
 \setlength{\tabcolsep}{6pt}
@@ -381,13 +381,13 @@ Target & Hub? & \multicolumn{2}{c}{CTGAN} & \multicolumn{2}{c}{Vine Copula} \\
 \cmidrule(lr){3-4}\cmidrule(lr){5-6}
  &  & $\Delta$F1 & $p$ & $\Delta$F1 & $p$ \\
 \midrule
-\texttt{household\_income} & yes & \textbf{+0.056} & 0.003 & \textbf{+0.208} & $<0.001$ \\
-\texttt{housing\_cost} & yes & \textbf{+0.104} & 0.002 & \textbf{+0.114} & $<0.001$ \\
-\texttt{poverty\_status} & yes & \textbf{+0.091} & 0.003 & \textbf{+0.125} & $<0.001$ \\
-\texttt{education} & yes & \textbf{+0.105} & $<0.001$ & \textbf{+0.082} & $<0.001$ \\
-\texttt{tenure} & yes & +0.030 & 0.109 & \textbf{+0.030} & 0.025 \\
+\texttt{household\_income} & yes & +0.056 & 0.003 & +0.208 & $<0.001$ \\
+\texttt{housing\_cost} & yes & +0.104 & 0.002 & +0.114 & $<0.001$ \\
+\texttt{poverty\_status} & yes & +0.091 & 0.003 & +0.125 & $<0.001$ \\
+\texttt{education} & yes & +0.105 & $<0.001$ & +0.082 & $<0.001$ \\
+\texttt{tenure} & yes & +0.030 & 0.109 & +0.030 & 0.025 \\
 \addlinespace
-\texttt{cost\_burden\_pct} & no & +0.020 & 0.16 & \textbf{+0.020} & 0.016 \\
+\texttt{cost\_burden\_pct} & no & +0.020 & 0.16 & +0.020 & 0.016 \\
 \texttt{employment\_status} & no & +0.020 & 0.18 & $-0.002$ & 0.85 \\
 \texttt{household\_size} & no & +0.020 & 0.19 & +0.014 & 0.15 \\
 \texttt{age\_group} & no & $-0.002$ & 0.77 & +0.007 & 0.45 \\
@@ -400,7 +400,7 @@ Non-hub group mean & & $+0.014$ & & $+0.010$ & \\
 
 \begin{table}[htbp]
 \centering
-\caption{The recovery effect vanishes when the target is withheld from the auditor ($N=10$ seeds). The experiment re-runs the four configurations under three conditions: baseline (auditor sees the target), Target Excluded (target removed from hub candidates but column visible to auditor), and Target Hidden (target column removed entirely). Retention rates increase as expected once the target can no longer incur penalties. Bold $\Delta$F1 values are significant at $p < 0.05$ (paired $t$-test).}
+\caption{The recovery effect vanishes when the target is withheld from the auditor ($N=10$ seeds). The experiment re-runs the four configurations under three conditions: baseline (auditor sees the target), Target Excluded (target removed from hub candidates but column visible to auditor), and Target Hidden (target column removed entirely). Retention rates increase as expected once the target can no longer incur penalties. Statistical significance is reported in the adjacent $p$-value column (paired $t$-test).}
 \label{tab:label_conditional_withheld}
 \footnotesize
 \setlength{\tabcolsep}{5pt}
@@ -408,19 +408,19 @@ Non-hub group mean & & $+0.014$ & & $+0.010$ & \\
 \toprule
 Configuration & Condition & Retained (\%) & $\Delta$F1 & $p$ \\
 \midrule
-\multirow{3}{*}{Census ACS CTGAN} & Baseline & 62.7 & \textbf{+0.077} & 0.002 \\
+\multirow{3}{*}{Census ACS CTGAN} & Baseline & 62.7 & +0.077 & 0.002 \\
  & Target Excluded & 78.2 & $-0.019$ & 0.24 \\
  & Target Hidden & 90.4 & $-0.003$ & 0.78 \\
 \addlinespace
-\multirow{3}{*}{Census ACS Vine} & Baseline & 76.4 & \textbf{+0.208} & $<0.001$ \\
+\multirow{3}{*}{Census ACS Vine} & Baseline & 76.4 & +0.208 & $<0.001$ \\
  & Target Excluded & 88.3 & $-0.000$ & 0.98 \\
  & Target Hidden & 93.7 & +0.007 & 0.46 \\
 \addlinespace
-\multirow{3}{*}{Online Purchases CTGAN} & Baseline & 19.1 & \textbf{+0.141} & 0.016 \\
+\multirow{3}{*}{Online Purchases CTGAN} & Baseline & 19.1 & +0.141 & 0.016 \\
  & Target Excluded & 30.3 & +0.021 & 0.027 \\
  & Target Hidden & 17.6 & +0.007 & 0.68 \\
 \addlinespace
-\multirow{3}{*}{Online Purchases Vine} & Baseline & 13.9 & \textbf{+0.385} & $<0.001$ \\
+\multirow{3}{*}{Online Purchases Vine} & Baseline & 13.9 & +0.385 & $<0.001$ \\
  & Target Excluded & 25.5 & +0.104 & 0.001 \\
  & Target Hidden & 15.9 & +0.073 & 0.062 \\
 \bottomrule
@@ -451,12 +451,12 @@ Why do standard outlier detectors fail on Dependency Gaps? The Isolation Forest 
 \cmidrule(lr){2-5} \cmidrule(lr){6-9}
 \textbf{Error Type} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} \\
 \midrule
-Random Noise Injection & \textbf{0.890} & 0.524 & 0.864 & 0.874 & \textbf{0.849} & 0.412 & 0.831 & 0.848 \\
+Random Noise Injection & 0.890 & 0.524 & 0.864 & 0.874 & 0.849 & 0.412 & 0.831 & 0.848 \\
 Row Duplication & 0.508 & 0.504 & 0.508 & 0.501 & 0.408 & 0.405 & 0.408 & 0.404 \\
-Feature Dropout & \textbf{0.645} & 0.315 & 0.486 & 0.506 & \textbf{0.571} & 0.295 & 0.396 & 0.445 \\
+Feature Dropout & 0.645 & 0.315 & 0.486 & 0.506 & 0.571 & 0.295 & 0.396 & 0.445 \\
 Covariate Shift & 0.293 & 0.469 & 0.213 & 0.265 & 0.355 & 0.406 & 0.267 & 0.280 \\
 \midrule
-\textit{Conditional Dependency Violations} & \textbf{0.824} & 0.514 & 0.717 & 0.819 & 0.776 & 0.409 & 0.655 & \textbf{0.802} \\
+\textit{Conditional Dependency Violations} & 0.824 & 0.514 & 0.717 & 0.819 & 0.776 & 0.409 & 0.655 & 0.802 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -471,12 +471,12 @@ Covariate Shift & 0.293 & 0.469 & 0.213 & 0.265 & 0.355 & 0.406 & 0.267 & 0.280 
 \toprule
 \textbf{Error Type} & \textbf{HIF} & \textbf{HIF$^{\dagger}$} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} & \textbf{GMM$^{\dagger}$} \\
 \midrule
-Random Noise Injection & 0.370 & \textbf{0.790} & 0.450 & 0.616 & 0.632 & 0.756 \\
+Random Noise Injection & 0.370 & 0.790 & 0.450 & 0.616 & 0.632 & 0.756 \\
 Row Duplication & 0.026 & 0.406 & 0.423 & 0.535 & 0.515 & 0.402 \\
-Feature Dropout & 0.072 & \textbf{0.542} & 0.196 & 0.521 & 0.492 & 0.415 \\
+Feature Dropout & 0.072 & 0.542 & 0.196 & 0.521 & 0.492 & 0.415 \\
 Covariate Shift & 0.014 & 0.165 & 0.387 & 0.287 & 0.321 & 0.221 \\
 \midrule
-\textit{Conditional Dependency Violations} & 0.206 & \textbf{0.719} & 0.438 & 0.594 & 0.616 & 0.710 \\
+\textit{Conditional Dependency Violations} & 0.206 & 0.719 & 0.438 & 0.594 & 0.616 & 0.710 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -493,12 +493,12 @@ Covariate Shift & 0.014 & 0.165 & 0.387 & 0.287 & 0.321 & 0.221 \\
 \cmidrule(lr){2-5} \cmidrule(lr){6-9}
 \textbf{Error Type} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} & \textbf{HIF} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} \\
 \midrule
-Random Noise Injection & 0.829 & 0.349 & 0.521 & \textbf{0.835} & 0.736 & 0.310 & 0.458 & \textbf{0.757} \\
+Random Noise Injection & 0.829 & 0.349 & 0.521 & 0.835 & 0.736 & 0.310 & 0.458 & 0.757 \\
 Row Duplication & 0.504 & 0.501 & 0.505 & 0.511 & 0.409 & 0.402 & 0.407 & 0.409 \\
-Feature Dropout & 0.714 & 0.287 & 0.613 & \textbf{0.813} & 0.570 & 0.289 & 0.516 & \textbf{0.758} \\
+Feature Dropout & 0.714 & 0.287 & 0.613 & 0.813 & 0.570 & 0.289 & 0.516 & 0.758 \\
 Covariate Shift & 0.190 & 0.294 & 0.284 & 0.176 & 0.341 & 0.310 & 0.317 & 0.258 \\
 \midrule
-\textit{Conditional Dependency Violations} & 0.802 & 0.491 & 0.584 & \textbf{0.954} & 0.639 & 0.385 & 0.479 & \textbf{0.908} \\
+\textit{Conditional Dependency Violations} & 0.802 & 0.491 & 0.584 & 0.954 & 0.639 & 0.385 & 0.479 & 0.908 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -513,12 +513,12 @@ Covariate Shift & 0.190 & 0.294 & 0.284 & 0.176 & 0.341 & 0.310 & 0.317 & 0.258 
 \toprule
 \textbf{Error Type} & \textbf{HIF} & \textbf{HIF$^{\dagger}$} & \textbf{IF} & \textbf{LOF} & \textbf{GMM} & \textbf{GMM$^{\dagger}$} \\
 \midrule
-Random Noise Injection & 0.706 & 0.690 & 0.397 & 0.496 & 0.608 & \textbf{0.720} \\
-Feature Dropout & 0.624 & 0.575 & 0.320 & 0.544 & 0.592 & \textbf{0.737} \\
+Random Noise Injection & 0.706 & 0.690 & 0.397 & 0.496 & 0.608 & 0.720 \\
+Feature Dropout & 0.624 & 0.575 & 0.320 & 0.544 & 0.592 & 0.737 \\
 Covariate Shift & 0.012 & 0.056 & 0.325 & 0.297 & 0.303 & 0.124 \\
 Row Duplication & 0.391 & 0.398 & 0.509 & 0.516 & 0.544 & 0.413 \\
 \midrule
-\textit{Conditional Dependency Violations} & 0.707 & 0.668 & 0.511 & 0.551 & 0.613 & \textbf{0.890} \\
+\textit{Conditional Dependency Violations} & 0.707 & 0.668 & 0.511 & 0.551 & 0.613 & 0.890 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -550,7 +550,7 @@ NIC-only & 92.1\% & 0.397 $\pm$ 0.026 & 7.9\% \\
 Rules-only & 92.8\% & 0.391 $\pm$ 0.022 & 7.2\% \\
 LSE + NIC & 44.5\% & 0.672 $\pm$ 0.058 & 55.5\% \\
 Full HIF (arith.) & 91.8\% & 0.419 $\pm$ 0.026 & 8.2\% \\
-\textbf{Full HIF (multiplicative)} & \textbf{64.0\%} & \textbf{0.490 $\pm$ 0.043} & \textbf{36.0\%} \\
+\textbf{Full HIF (multiplicative)} & 64.0\% & 0.490 $\pm$ 0.043 & 36.0\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -561,9 +561,9 @@ A central finding of our cross-architecture audit (Table~\ref{tab:architecture})
 
 \subsection{Practical Interpretation, Specificity, and Scalability}\label{sec:deployment}
 
-A common concern with multiplicative evaluation is that absolute scores appear lower than the near-unity values reported by aggregate 1D distributional metrics \cite{patki2016synthetic, jordon2022synthetic, long2025evaluating}. This is intentional. A record with a severe violation of any single dependency should not receive a high integrity score, regardless of how closely the remaining features match the marginal expectations. Under empirical quantile calibration, the false rejection probability for valid tail records is bounded by the Union Bound (Remark 1, Appendix~\ref{app:formal_results}).
+A common concern with multiplicative evaluation is that absolute scores appear lower than the near-unity values reported by aggregate 1D distributional metrics \cite{patki2016synthetic, jordon2022synthetic, long2025evaluating}. This is intentional. A record with a severe violation of any single dependency should not receive a high integrity score, regardless of how closely the remaining features match the marginal expectations. Under empirical quantile calibration, the false rejection probability for valid tail records is bounded by the Union Bound (Remark 1, Appendix~\ref{app:formal_results}), but HIF should still be interpreted as a measured structural signal rather than a universal guarantee of correctness.
 
-HIF therefore trades absolute scale for dependency specificity: its geometric mean $H(\mathbf{x}) = \left(\prod_l \mathcal{C}_l\right)^{1/L}$ requires simultaneous satisfaction across all audited layers, so it prioritizes structural consistency over marginal rarity. This is deliberate in high-stakes settings: a generic anomaly detector sensitive to marginal outliers would still flag valid but rare records, whereas the HIF is calibrated against the real-data confidence floor and emphasizes conditional correctness rather than tail noise.
+HIF therefore trades absolute scale for dependency specificity: its geometric mean $H(\mathbf{x}) = \left(\prod_l \mathcal{C}_l\right)^{1/L}$ requires simultaneous satisfaction across all audited layers, so it prioritizes structural consistency over marginal rarity. This is deliberate in high-stakes settings: a generic anomaly detector sensitive to marginal outliers would still flag valid but rare records, whereas HIF is calibrated against the real-data confidence floor and emphasizes conditional correctness rather than tail noise. This is a targeted audit of dependency structure, not a blanket measure of synthetic data quality.
 
 From a deployment perspective, integrity filtering should be treated as a curation step rather than a universal correction rule. In the strongest recovery settings, the retained cohort falls to roughly $15$--$19\%$ of the synthetic data, and utility gains are selective. Therefore, we recommend using HIF primarily as a diagnostic tool for generator refinement and reserving exclusionary filtering for applications that can tolerate cohort shrinkage. The target-aware decision rule is straightforward: at the default frontier $H < 0.5$, a utility gain is expected only when the prediction target lies in the selected hub set; otherwise, the filter is typically utility-neutral. Because this check depends only on the real-data calibration, it can be evaluated before any filtering is applied to the data. The caveat is that the condition is necessary but not sufficient, and when the target itself is being curated, a label-noise baseline is a more appropriate comparison.
 
@@ -585,11 +585,11 @@ A dual-use consideration: integrity filtering could reduce demographic represent
 
 \section{Conclusion}
 
-This study introduces the Hybrid Integrity Framework (HIF), a row-level diagnostic tool that detects conditional dependency violations in synthetic tabular data. HIF composes conditional classifiers, spectral-continuity auditing, and mined implication rules into a multiplicative score that strongly limits compensation between components, flagging individual records whose joint configuration violates the learned conditional structure of the real data---violations that aggregate metrics (KS, TVD, JCD) are not designed to expose directly.
+In this study, we present the Hybrid Integrity Framework (HIF), a row-level diagnostic tool for detecting conditional dependency violations in synthetic tabular data. HIF combines conditional classifiers, spectral-continuity auditing, and mined implication rules into a multiplicative score that strongly limits compensation between components, flagging individual records whose joint configuration violates the learned conditional structure of the real data---violations that aggregate metrics (KS, TVD, JCD) are not designed to expose directly.
 
-Our cross-architecture audit reveals a persistent integrity--fidelity decoupling: generators that match per-column distributions (KS $> 0.96$) can simultaneously fail $85$--$100\%$ of dependency integrity tests on constrained domains, and HIF localizes these failures to specific records. We further characterize a label-conditional curation effect: pruning low-HIF records may recover downstream utility when the prediction target is among the auditor's selected hubs, while this benefit largely vanishes otherwise. This yields a practical and checkable condition for when filtering is likely to pay off.
+Our cross-architecture audit reveals a persistent integrity--fidelity decoupling: generators that match per-column distributions (KS $> 0.96$) can nevertheless fail $85$--$100\%$ of dependency integrity tests on constrained domains, and HIF localizes these failures to specific records. We also observe a label-conditional utility effect: pruning low-HIF records may improve downstream utility when the prediction target is among the auditor's selected hubs, while the effect is much weaker or absent otherwise. This provides a practical and checkable condition for when filtering is likely to help, but it should be interpreted as a targeted curation rule rather than a universal guarantee of utility improvement.
 
-Future work includes extending the HIF to temporal and relational tables, developing conformal calibration for non-exchangeable data streams, and benchmarking against purpose-built label-noise methods on the hub-target configurations identified here.
+Future work includes extending the HIF to temporal and relational tables, developing conformal calibration for non-exchangeable data streams, and comparing it against purpose-built label-noise methods on the hub-target configurations identified here.
 
 
 \section*{Statements and Declarations}
