@@ -75,7 +75,7 @@ This study makes two main contributions.
 \item A characterization of when integrity filtering improves downstream utility: only when the prediction target is among the auditor's dependency hubs (up to $+21.4$ F1, $p < 0.001$), otherwise utility-neutral ($p = 0.90$), established via two controlled experiments (Section~\ref{sec:label_conditional}).
 \end{itemize}
 
-The remainder of this paper is structured as follows. Section~\ref{sec:related} places HIF in the context of prior work on synthetic tabular data generation and evaluation. Section~\ref{sec:math} formalizes the proposed methodology. Section~\ref{sec:results} presents the empirical findings for the benchmarks and generators. Section~\ref{sec:discussion} discusses the implications, limitations, and directions for future work. The complete open-source implementation, benchmark scripts, and dataset configurations are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
+The remainder of this paper is structured as follows. Section~\ref{sec:related} places HIF in the context of prior work on synthetic tabular data generation and evaluation. Section~\ref{sec:math} formalizes the proposed methodology. Section~\ref{sec:results} presents the empirical findings for the benchmarks and generators. Section~\ref{sec:discussion} discusses the implications, limitations, and directions for future work.
 
 
 
@@ -589,26 +589,21 @@ This study introduces the Hybrid Integrity Framework (HIF), a row-level diagnost
 
 Our cross-architecture audit reveals a persistent integrity--fidelity decoupling: generators that match per-column distributions (KS $> 0.96$) can simultaneously fail $85$--$100\%$ of dependency integrity tests on constrained domains, and HIF localizes these failures to specific records. We further characterize a label-conditional curation effect: pruning low-HIF records may recover downstream utility when the prediction target is among the auditor's selected hubs, while this benefit largely vanishes otherwise. This yields a practical and checkable condition for when filtering is likely to pay off.
 
-Future work includes extending the HIF to temporal and relational tables, developing conformal calibration for non-exchangeable data streams, and benchmarking against purpose-built label-noise methods on the hub-target configurations identified here. The complete implementation and all experimental configurations are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
+Future work includes extending the HIF to temporal and relational tables, developing conformal calibration for non-exchangeable data streams, and benchmarking against purpose-built label-noise methods on the hub-target configurations identified here.
 
 
 \section*{Statements and Declarations}
 
-\textbf{Funding.} This research was supported by the Department of Data Science and Engineering, Eötvös Loránd University, Budapest, Hungary.
-
-\textbf{Conflict of interest.} The authors declare no conflicts of interest.
-
-\textbf{Ethics approval and consent to participate.} Not applicable. This study analyzed only publicly available benchmark datasets and did not involve human participants, human data, or tissues.
-
-\textbf{Consent for publication.} Not applicable.
-
-\textbf{Materials availability.} Not applicable.
-
-\textbf{Code availability.} The complete open-source implementation, experimental benchmarks, and dataset configurations are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
-
-\textbf{Data availability.} The experimental benchmarks and dataset configurations, together with the complete open-source implementation, are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
-
-\textbf{Author contributions.} All authors contributed to the conceptualization, methodology, implementation, and writing of this manuscript.
+\begin{itemize}
+\item \textbf{Funding.} This research was supported by the Department of Data Science and Engineering, Eötvös Loránd University, Budapest, Hungary.
+\item \textbf{Conflict of interest.} The authors declare no conflicts of interest.
+\item \textbf{Ethics approval and consent to participate.} Not applicable. This study analyzed only publicly available benchmark datasets and did not involve human participants, human data, or tissues.
+\item \textbf{Consent for publication.} Not applicable.
+\item \textbf{Materials availability.} Not applicable.
+\item \textbf{Code availability.} The complete open-source implementation, experimental benchmarks, and dataset configurations are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
+\item \textbf{Data availability.} The experimental benchmarks and dataset configurations, together with the complete open-source implementation, are available at \url{https://github.com/ahmed-fouad-lagha/tabular-polygraph}.
+\item \textbf{Author contributions.} All authors contributed to the conceptualization, methodology, implementation, and writing of this manuscript.
+\end{itemize}
 
 \bibliography{references}
 
