@@ -158,6 +158,19 @@ def _save_checkpoint(output_dir: Path, rows: list[dict]) -> pd.DataFrame:
     return summ
 
 
+def _load_existing_rows(output_dir: Path) -> list[dict]:
+    """Load rows written by a previous process so resumed runs accumulate.
+
+    Checkpoints overwrite the raw CSV on every save; without this reload, any
+    combo skipped via `_completed_combos` would be dropped from the file on the
+    first save of the new process.
+    """
+    raw_path = output_dir / "nonhub_target_recovery_raw.csv"
+    if not raw_path.exists():
+        return []
+    return pd.read_csv(raw_path).to_dict("records")
+
+
 def _completed_combos(output_dir: Path) -> set[tuple]:
     """Return the set of (dataset, generator, seed) already in the raw CSV."""
     raw_path = output_dir / "nonhub_target_recovery_raw.csv"
@@ -168,7 +181,7 @@ def _completed_combos(output_dir: Path) -> set[tuple]:
 
 
 def run(n_seeds: int, output_dir: Path) -> None:
-    rows: list[dict] = []
+    rows: list[dict] = _load_existing_rows(output_dir)
     done = _completed_combos(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
