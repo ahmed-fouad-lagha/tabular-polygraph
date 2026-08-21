@@ -1,9 +1,5 @@
 # Beyond Fidelity: When Statistical Quality Metrics Miss Structural Violations in Synthetic Tabular Data
 
-<div align="center">
-<br>
-<img src="assets/logo.png" alt="Tabular Polygraph" width="20%"/>
-
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](requirements.lock)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c)](https://pytorch.org)
