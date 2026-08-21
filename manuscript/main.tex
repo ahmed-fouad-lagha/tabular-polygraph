@@ -515,7 +515,7 @@ Covariate Shift & 0.190 & 0.294 & 0.284 & 0.176 & 0.341 & 0.310 & 0.317 & 0.258 
 \midrule
 Random Noise Injection & 0.706 & 0.690 & 0.397 & 0.496 & 0.608 & 0.720 \\
 Row Duplication & 0.391 & 0.398 & 0.509 & 0.516 & 0.544 & 0.413 \\
-Feature Dropout & 0.624 & 0.573 & 0.320 & 0.544 & 0.592 & 0.737 \\
+Feature Dropout & 0.609 & 0.573 & 0.320 & 0.544 & 0.592 & 0.737 \\
 Covariate Shift & 0.012 & 0.056 & 0.325 & 0.297 & 0.303 & 0.124 \\
 \midrule
 \textit{Conditional Dependency Violations} & 0.707 & 0.668 & 0.511 & 0.551 & 0.613 & 0.890 \\
@@ -583,7 +583,7 @@ HIF provides a useful integrity signal for synthetic data in privacy-sensitive d
 
 A dual-use consideration: integrity filtering could reduce demographic representation if hubs correlate with sensitive attributes (e.g., income and education). Practitioners should audit representation drift on sensitive attributes before and after filtering, particularly in high-stakes domains.
 
-We substantiated this concern empirically by auditing representation drift under HIF filtering on Adult Income (\texttt{sex}, \texttt{race}) and Credit Default (\texttt{sex}, \texttt{marriage}, age quartiles fit on real data) across all four generator arms ($N=10$ seeds; Table~\ref{tab:drift}). Flagging is approximately sex-balanced (per-group flag rates differ by at most $0.08$; retained-cohort shares shift by at most $1.8$ pp), but it concentrates sharply elsewhere: on Adult Income, flag rates differ by up to $0.68$ across race categories (Gaussian Copula arm), and on Credit Default the retained cohort's age-quartile composition shifts by up to $20.2$ pp (TVD up to $0.21$) at high violation rates. Representation drift under integrity filtering is therefore material and strongly attribute-dependent, and the pre-/post-filtering audit recommended above should be treated as a mandatory step before exclusionary deployment.
+We substantiated this concern empirically by auditing representation drift under HIF filtering on Adult Income (\texttt{sex}, \texttt{race}) and Credit Default (\texttt{sex}, \texttt{marriage}, age quartiles fit on real data) across all four generator arms ($N=10$ seeds; Table~\ref{tab:drift}). Flagging is approximately sex-balanced (per-group flag rates differ by at most $0.08$ on Adult Income and $0.13$ on Credit Default; retained-cohort shares shift by at most $1.8$ pp), but it concentrates sharply elsewhere: on Adult Income, flag rates differ by up to $0.68$ across race categories (Gaussian Copula arm), and on Credit Default the retained cohort's age-quartile composition shifts by up to $20.2$ pp (TVD up to $0.21$) at high violation rates. Representation drift under integrity filtering is therefore material and strongly attribute-dependent, and the pre-/post-filtering audit recommended above should be treated as a mandatory step before exclusionary deployment.
 
 \begin{table}[htbp]
 \centering
