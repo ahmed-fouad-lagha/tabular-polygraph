@@ -1,0 +1,3 @@
+dataset,generator,ks_mean,ks_sd,alpha_mean,alpha_sd,beta_mean,beta_sd,hif_mean,hif_sd,viol_mean,viol_sd,flag_rate,base_viol,conf_flagged,conf_unflagged,spearman_mean,spearman_sem
+online_purchases,sdv_gaussian_copula,0.8179,0.0099,0.7823,0.0183,0.9351,0.015,0.5682,0.0101,0.4361,0.0208,0.7163,1.0,1.0,1.0,0.3211,0.0135
+supermarket_sales,sdv_gaussian_copula,0.9618,0.0039,0.9491,0.0059,0.9176,0.0161,0.0431,0.0007,1.0,0.0,0.5996,0.999,1.0,0.9975,0.5899,0.0061
