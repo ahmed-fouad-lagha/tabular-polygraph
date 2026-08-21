@@ -392,6 +392,13 @@ def run_experiment(
                             "pr_auc": pr_auc,
                             "n_flagged": int(preds.sum()),
                             "n_true_errors": int(true_labels.sum()),
+                            # BIC-selected component count of the shared
+                            # per-seed GMM fit; NaN for non-GMM methods.
+                            "gmm_n_components": (
+                                int(gmm.n_components)
+                                if method_name == "GMM"
+                                else np.nan
+                            ),
                         }
                     )
                 print(" Done.")
@@ -409,6 +416,7 @@ def run_experiment(
             recall_mean=("recall", "mean"),
             roc_auc_mean=("roc_auc", "mean"),
             pr_auc_mean=("pr_auc", "mean"),
+            gmm_n_components_mean=("gmm_n_components", "mean"),
         )
         .round(3)
         .reset_index()
