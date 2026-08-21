@@ -1,7 +1,7 @@
 # Beyond Fidelity: When Statistical Quality Metrics Miss Structural Violations in Synthetic Tabular Data
 
 <div align="center">
-
+<br>
 <img src="assets/logo.png" alt="Tabular Polygraph" width="20%"/>
 
 [![CI](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed-fouad-lagha/tabular-polygraph/actions/workflows/ci.yml)
@@ -15,7 +15,7 @@
 
 </div>
 
-The Hybrid Integrity Framework (HIF) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity. Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies — incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a Tabular Polygraph to detect "Semantic Hallucinations".
+The Hybrid Integrity Framework (HIF) provides a technically rigorous foundation for evaluating synthetic tabular data quality beyond simple distributional similarity. Standard evaluation pipelines measure Euclidean and marginal agreement, which can miss row-level semantic inconsistencies, such as incompatible categorical combinations, physically implausible numeric relations, or violated domain constraints. HIF addresses this gap through neurosymbolic learning and acts as a Tabular Polygraph to detect "Semantic Hallucinations".
 
 <p align="center">
 	<img src="assets/hif_architecture.svg" alt="Hybrid Integrity Framework Architecture" width="88%"/>
@@ -117,107 +117,6 @@ syn["hallucination_score"] = hif_results["row_penalties"]
 # Identify the top Hallucinations
 hallucinations = syn.sort_values("hallucination_score", ascending=False).head(5)
 print(hallucinations)
-```
-
-## Reproduce Benchmarks
-
-The empirical results and tables in the manuscript are produced by the scripts in `scripts/`, which write to `outputs/` by default. Each section below maps a manuscript result to its reproducing command.
-
-### 1. HIF Validation & Calibration (Section 4.4)
-Sensitivity of HIF to semantic corruption under `permutation` and `conditional_swap` corruption strategies, and the associated calibration curves.
-
-```bash
-python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 42,43,44 \
-  --levels 0,0.1,0.2,0.4,0.6 --strategy permutation --generator gaussian_copula
-
-python scripts/02_hif_calibration.py --dataset census_acs --rows 2000 --seeds 42,43,44 \
-  --levels 0,0.1,0.2,0.4,0.6 --strategy conditional_swap --generator gaussian_copula
-```
-
-### 2. Cross-Architecture Benchmark (Table 1)
-Scores Gaussian Copula, Vine Copula, CTGAN, and T-VAE cohorts across fidelity and utility metrics. The real-data reference row of Table 1 is produced separately by script 14 (below).
-
-```bash
-python scripts/03_cross_architecture_benchmark.py --rows 2000 --seeds 10 \
-  --generators gaussian_copula,vine,ctgan,tvae
-```
-
-### 3. Downstream Utility Filtering (Table 2)
-Paired tests comparing downstream F1 under HIF filtering vs no filtering (binary median-split `household_income` target) across all dataset--generator combinations.
-
-```bash
-python scripts/04_downstream_utility_significance.py --dataset census_acs \
-  --target household_income --rows 2000 --seeds 10 --generator gaussian_copula
-
-python scripts/04_downstream_utility_significance.py --dataset census_acs \
-  --target household_income --rows 2000 --seeds 10 --generator ctgan
-```
-
-### 4. Held-Out Error Benchmarks (Table 3 / Table 4)
-Validates HIF on held-out error families HIF was not engineered to detect, comparing against Isolation Forest, LOF, and a learned-density baseline (BIC-selected Gaussian Mixture Model scored by negative log-likelihood); `05_heldout_matched_threshold.py` additionally reports HIF and GMM F1 at operating points matched to the baselines' `contamination` setting. The same protocol is replicated on a second domain (Online Purchases) into `outputs/heldout_online_purchases/`.
-
-```bash
-python scripts/05_heldout_error_baselines.py --dataset census_acs --rows 2000 \
-  --seeds 10 --corruption-levels 0.4
-
-python scripts/05_heldout_matched_threshold.py --dataset census_acs --rows 2000 \
-  --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
-
-python scripts/05_heldout_error_baselines.py --dataset online_purchases --rows 664 \
-  --seeds 10 --corruption-levels 0.4
-
-python scripts/05_heldout_matched_threshold.py --dataset online_purchases --rows 664 \
-  --seeds 42,43,44,45,46,47,48,49,50,51 --corruption-levels 0.4
-```
-
-### 5. Component Ablation Study (Table 5)
-Isolates each HIF component (LSE, NIC, rule audit) and each aggregation scheme to measure its contribution to violation detection.
-
-```bash
-python scripts/06_component_ablation_study.py --dataset census_acs \
-  --target household_income --rows 2000 --seeds 5 --generator ctgan
-```
-
-### 6. Hyperparameter Sensitivity (Appendix)
-Demonstrates HIF's stability across hub counts, confidence percentiles, and violation thresholds.
-
-```bash
-python scripts/07_hyperparameter_sensitivity.py --dataset census_acs --records 2000 --seeds 5
-```
-
-### 7. External Arithmetic-Identity Verification (§4.1, Table)
-Confirms HIF-flagged records against real-data arithmetic identities (Supermarket Sales, Online Purchases) across 10 seeds and 4 generators.
-
-```bash
-python scripts/09_arithmetic_identity_verification.py --seeds 10
-```
-
-### 8. Downstream-Utility Threshold Sensitivity (§5.1, Appendix)
-Sweeps the HIF filtering threshold (H ∈ {0.3, 0.5, 0.7}) on Census ACS CTGAN downstream F1 to confirm the utility-recovery effect is robust to the operating point.
-
-```bash
-python scripts/10_threshold_utility_sensitivity.py --seeds 10
-```
-
-### 9. Sample-Complexity Floor at HIF's Configuration (§3, Appendix)
-Instantiates the identity-testing bounds cited in §3 at HIF's actual hub-conditioned sample sizes (2,000 rows, ≤10 features, 5 hubs per dataset).
-
-```bash
-python scripts/11_sample_complexity_bounds.py
-```
-
-### 10. Real-Data Reference Floor (Table 1 reference row)
-Fits the HIF auditor on real rows and scores a genuine held-out real remainder for each dataset, establishing the framework's own error floor (genuine data flagged at 0.0–14.0% across domains) and exposing the framework-level overfitting signature (training rows score higher than fresh held-out rows).
-
-```bash
-python scripts/14_real_data_reference.py
-```
-
-### 11. Multiple-Comparisons Battery (Section: Downstream Utility)
-Recomputes the paired F1 difference, paired t-test, Wilcoxon signed-rank, 95% CI, and Cohen's d for all dataset–generator configurations from the committed per-seed rows in `outputs/full_benchmark.csv`, and applies a Bonferroni correction over the 16 configurations with estimable deltas (α = 0.0031).
-
-```bash
-python scripts/15_multiple_comparisons.py
 ```
 
 ## License
