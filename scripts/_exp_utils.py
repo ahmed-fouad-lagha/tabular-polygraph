@@ -311,6 +311,156 @@ def utility_metrics(
     return {"f1": f1, "accuracy": acc, "trr": trr}
 
 
+def utility_metrics_on_holdout(
+    train_real: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    test_real: pd.DataFrame,
+    target: str,
+    seed: int = 42,
+) -> dict:
+    """Leakage-free TSTR evaluation on a real test set held out in advance.
+
+    The caller must ensure that ``test_real`` was split from the real cohort
+    before fitting the generator or HIF.  Feature categories and target
+    transformations are learned from ``train_real`` only.
+    """
+    frames = (train_real, synthetic, test_real)
+    if any(target not in frame.columns for frame in frames) or len(synthetic) < 10:
+        return {"f1": np.nan, "accuracy": np.nan}
+
+    train_util, syn_util, feature_cols = _utility_feature_frame(
+        train_real, synthetic, target
+    )
+    if not feature_cols:
+        return {"f1": np.nan, "accuracy": np.nan}
+
+    test_util = test_real.copy()
+    categorical_features = [
+        col
+        for col in train_real.columns
+        if not pd.api.types.is_numeric_dtype(train_real[col])
+        and col != target
+        and col in synthetic.columns
+        and train_real[col].nunique() <= 50
+    ]
+    for col in categorical_features:
+        train_dummies = pd.get_dummies(train_real[col], prefix=f"ohe__{col}").astype(
+            float
+        )
+        test_dummies = pd.get_dummies(test_real[col], prefix=f"ohe__{col}").astype(
+            float
+        )
+        for dummy_col in train_dummies.columns:
+            test_util[dummy_col] = test_dummies.get(dummy_col, 0.0)
+
+    def encode_target(frame: pd.DataFrame) -> pd.Series:
+        if (
+            pd.api.types.is_numeric_dtype(train_real[target])
+            and train_real[target].nunique() > 2
+        ):
+            return (frame[target] > train_real[target].median()).astype(int)
+        if not pd.api.types.is_numeric_dtype(train_real[target]):
+            categories = train_real[target].astype("category").cat.categories
+            category_map = {
+                category: index for index, category in enumerate(categories)
+            }
+            return frame[target].map(category_map).fillna(-1).astype(int)
+        return frame[target].astype(int)
+
+    y_syn = encode_target(syn_util)
+    y_test = encode_target(test_util)
+    valid_test = y_test >= 0
+    if y_syn.nunique() < 2 or not valid_test.any():
+        return {"f1": np.nan, "accuracy": np.nan}
+
+    numeric_features = [
+        col for col in feature_cols if pd.api.types.is_numeric_dtype(train_util[col])
+    ]
+    categorical_model_features = [
+        col for col in feature_cols if col not in numeric_features
+    ]
+    preprocessor = ColumnTransformer(
+        [
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                numeric_features,
+            ),
+            (
+                "cat",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="most_frequent")),
+                        (
+                            "ohe",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                        ),
+                    ]
+                ),
+                categorical_model_features,
+            ),
+        ]
+    )
+    model = Pipeline(
+        [
+            ("prep", preprocessor),
+            ("clf", RandomForestClassifier(n_estimators=100, random_state=seed)),
+        ]
+    )
+    model.fit(syn_util[feature_cols], y_syn)
+    predictions = model.predict(test_util.loc[valid_test, feature_cols])
+    return {
+        "f1": float(
+            f1_score(
+                y_test.loc[valid_test], predictions, average="macro", zero_division=0.0
+            )
+        ),
+        "accuracy": float(accuracy_score(y_test.loc[valid_test], predictions)),
+    }
+
+
+def split_real_for_utility(
+    real: pd.DataFrame,
+    target: str,
+    seed: int,
+    test_size: float = 0.30,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split real data before generator or auditor fitting.
+
+    Discrete targets are stratified when class counts permit it. Continuous
+    targets are not binned for splitting, so their downstream threshold remains
+    a training-only quantity.
+    """
+    if target not in real.columns:
+        raise ValueError(f"Target '{target}' is not present in the real data")
+    if not 0.0 < test_size < 1.0:
+        raise ValueError("test_size must be strictly between 0 and 1")
+
+    values = real[target]
+    stratify = None
+    if not (pd.api.types.is_numeric_dtype(values) and values.nunique() > 2):
+        counts = values.value_counts(dropna=False)
+        n_test = int(np.ceil(len(real) * test_size))
+        n_train = len(real) - n_test
+        if (
+            not counts.empty
+            and counts.min() >= 2
+            and len(counts) <= n_test
+            and len(counts) <= n_train
+        ):
+            stratify = values
+
+    train, test = train_test_split(
+        real, test_size=test_size, random_state=seed, stratify=stratify
+    )
+    return train.reset_index(drop=True), test.reset_index(drop=True)
+
+
 def aggregate_metrics(
     real: pd.DataFrame, synthetic: pd.DataFrame, seed: int = 42
 ) -> dict:
