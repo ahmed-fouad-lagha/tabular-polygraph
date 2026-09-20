@@ -461,7 +461,12 @@ if __name__ == "__main__":
     parser.add_argument("--rows", type=int, default=2000)
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--corruption-levels", default="0.4")
-    parser.add_argument("--output-dir", default="outputs")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="output directory (default: outputs/heldout_<dataset>)",
+    )
     args = parser.parse_args()
 
     levels = [float(x) for x in args.corruption_levels.split(",")]
@@ -470,5 +475,9 @@ if __name__ == "__main__":
         n_rows=args.rows,
         n_seeds=args.seeds,
         corruption_levels=levels,
-        output_dir=Path(args.output_dir),
+        output_dir=(
+            args.output_dir
+            if args.output_dir is not None
+            else PROJECT_ROOT / "outputs" / f"heldout_{args.dataset}"
+        ),
     )
