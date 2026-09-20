@@ -2,7 +2,7 @@
 Experiment: HIF Calibration & Differential Diagnostic (ported to current API).
 
 Two protocols:
-  1. ``permutation`` — the protocol claimed in the manuscript: shuffle values of
+  1. ``permutation`` — the benchmark protocol: shuffle values of
      a column across rows at corruption rate eta. Preserves column marginals but
      necessarily breaks pairwise correlations.
   2. ``conditional_swap`` — targeted row-level conditional violations: replace

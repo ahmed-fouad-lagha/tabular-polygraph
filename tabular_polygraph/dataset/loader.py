@@ -40,10 +40,10 @@ def get_dataset_info(dataset_id: str) -> dict:
 def _snapshot_path(dataset_id: str) -> Path | None:
     """Path to the repository-bundled dataset snapshot, if present.
 
-    The ``data/cache/*.parquet`` files are exact copies of the downloads that
-    produced every number in the manuscript. Bundling them means a fresh clone
-    reproduces the paper's results offline and independently of any upstream
-    source (e.g. the Census API) changing over time.
+    The ``data/cache/*.parquet`` files are pinned dataset snapshots. Bundling
+    them lets a fresh clone run the included experiments offline and
+    independently of any upstream source (e.g. the Census API) changing over
+    time.
     """
     root = Path(__file__).resolve().parents[2]
     p = root / "data" / "cache" / f"{dataset_id}.parquet"

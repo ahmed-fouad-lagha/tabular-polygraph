@@ -16,7 +16,7 @@ from scipy.stats import ks_2samp  # noqa: E402
 
 from tabular_polygraph.dataset import load_dataset  # noqa: E402
 
-# Set style for scientific paper
+# Set a consistent style for the generated figure
 plt.style.use("seaborn-v0_8-whitegrid")
 plt.rcParams.update(
     {

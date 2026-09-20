@@ -3,7 +3,7 @@ Experiment: HIF Auditing Scalability Benchmark.
 
 Measures wall-clock time of the HIF scoring (auditing) phase over synthetic
 cohorts of increasing size, on a single CPU core. Supports the scalability
-claims in the manuscript (e.g., auditing 10k rows in seconds).
+benchmark configurations (e.g., auditing 10k rows in seconds).
 
 The auditor is fitted once on a fixed real cohort, then ``score`` is timed
 for each cohort size (the cost that grows with the number of synthetic rows).

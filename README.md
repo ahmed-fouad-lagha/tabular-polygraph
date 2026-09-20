@@ -33,9 +33,9 @@ HIF provides:
 2. Score each synthetic row for conditional inconsistency.
 3. Aggregate row scores into a cohort-level diagnostic and inspect row-level traces.
 
-#### Evidence and scope
+#### Validation and scope
 
-The accompanying manuscript reports cross-generator audits on five public benchmarks, leakage-free utility analyses, and representation-drift checks. HIF can identify dependency violations that aggregate metrics do not localize, but its filtering utility is target- and dataset-dependent; density-based baselines can be stronger for near-deterministic continuous arithmetic constraints.
+The repository includes cross-generator audits on five public benchmarks, leakage-free utility analyses, and representation-drift checks. HIF can identify dependency violations that aggregate metrics do not localize, but its filtering utility is target- and dataset-dependent; density-based baselines can be stronger for near-deterministic continuous arithmetic constraints.
 
 ## Setup
 
@@ -52,10 +52,10 @@ tabular-polygraph list
 
 Evaluate synthetic data against real reference data. The evaluation reports fidelity metrics and the HIF integrity diagnostic; downstream utility is included when a target is supplied, and privacy auditing is opt-in.
 
-> **Reproducibility:** the exact datasets behind every number in the manuscript are
-> bundled in `data/cache/*.parquet`. `load_dataset` uses these snapshots by default, so
-> a fresh clone reproduces all paper results offline, independent of the live Census
-> API / UCI sources. Delete `data/cache/` to instead use freshly downloaded data.
+> **Reproducibility:** pinned dataset snapshots are bundled in `data/cache/*.parquet`.
+> `load_dataset` uses these snapshots by default, so bundled experiment runs can be
+> reproduced offline without relying on live Census API or UCI sources. Delete
+> `data/cache/` to instead use freshly downloaded data.
 
 ```bash
 # 1. Generate synthetic data from the bundled Census ACS snapshot

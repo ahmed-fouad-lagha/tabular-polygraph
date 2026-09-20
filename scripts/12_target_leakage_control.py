@@ -56,7 +56,7 @@ from tabular_polygraph.fidelity.hif.auditor import HIFAuditor
 from tabular_polygraph.fidelity.hif.sentinel import LogicalSentinelEnsemble
 
 # (dataset_id, target, generator, n_rows) -- the four configurations the
-# manuscript reports as significant utility recoveries.
+# selected for direct utility comparison.
 CONFIGS = [
     ("census_acs", "household_income", "ctgan", 2000),
     ("census_acs", "household_income", "vine", 2000),

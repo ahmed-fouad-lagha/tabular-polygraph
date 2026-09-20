@@ -36,7 +36,7 @@ GENERATORS = {
     "tvae": TVAEGenerator,
 }
 
-PAPER_EPOCHS = 50
+DEFAULT_GENERATOR_EPOCHS = 50
 
 
 def load_real(dataset_id: str, n: int = 2000, seed: int = 42) -> pd.DataFrame:
@@ -65,14 +65,14 @@ def generate(
 
     Seeds the global RNG *before fitting* so stochastic generators (CTGAN,
     TVAE) train deterministically for a given ``seed``. CTGAN/TVAE train for
-    ``PAPER_EPOCHS`` (50) epochs unless overridden, matching the configuration
-    the paper's reported results were generated with.
+    ``DEFAULT_GENERATOR_EPOCHS`` (50) epochs unless overridden, matching the
+    default reproducible experiment configuration.
     """
     from tabular_polygraph._utils import set_seed
 
     set_seed(seed)
     cls = GENERATORS[generator]
-    effective_epochs = epochs if epochs is not None else PAPER_EPOCHS
+    effective_epochs = epochs if epochs is not None else DEFAULT_GENERATOR_EPOCHS
     if generator == "ctgan":
         gen = CTGANGenerator(epochs=effective_epochs)
     elif generator == "tvae":

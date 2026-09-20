@@ -1,7 +1,7 @@
 """Golden-value tests: metrics compared against independently computed
 references. These pin the metric definitions so bugs like the JCD
 sign-blindness or the inverted authenticity cannot silently return to the
-manuscript numbers."""
+known expected values."""
 
 from __future__ import annotations
 
